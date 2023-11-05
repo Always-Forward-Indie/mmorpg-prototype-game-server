@@ -69,8 +69,8 @@ void GameServer::handleClientData(std::shared_ptr<boost::asio::ip::tcp::socket> 
         std::string type = jsonData["type"] != nullptr ? jsonData["type"] : "";
         std::string hash = jsonData["hash"] != nullptr ? jsonData["hash"] : "";
 
-        // Check if the type of request is authentification
-        if (type == "authentification")
+        // Check if the type of request is joinGame
+        if (type == "joinGame")
         {
             int character_id = jsonData["characterId"] != nullptr ? jsonData["characterId"].get<int>() : 0;
             int client_id = jsonData["clientId"] != nullptr ? jsonData["clientId"].get<int>() : 0;
@@ -122,7 +122,7 @@ void GameServer::joinGame(std::shared_ptr<boost::asio::ip::tcp::socket> clientSo
     // Set the character data in the clientData_ object
     characterManager_.setCharacterData(clientData_, clientId, characterData);
     // Get the character position from the database
-    const PositionStruct characterPosition = characterManager_.getCharacterPosition(database_, clientData_, clientId, characterId);
+    PositionStruct characterPosition = characterManager_.getCharacterPosition(database_, clientData_, clientId, characterId);
     // Set the character position in the clientData_ object
     characterManager_.setCharacterPosition(clientData_, clientId, characterPosition);
 

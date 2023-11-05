@@ -16,12 +16,12 @@ public:
     PositionStruct getCharacterPosition(Database& database, ClientData& clientData, int accountId, int characterId);
 
     //update character position in object
-    void setCharacterPosition(ClientData& clientData, int accountId, PositionStruct position);
+    void setCharacterPosition(ClientData& clientData, int accountId, PositionStruct &position);
     //update character data in object
-    void setCharacterData(ClientData& clientData, int accountId, CharacterDataStruct characterData);
+    void setCharacterData(ClientData& clientData, int accountId, CharacterDataStruct &characterData);
 
     // update character position in the database
-    void updateCharacterPosition(Database& database, ClientData& clientData, int accountId, int characterId, PositionStruct position);
+    void updateCharacterPosition(Database& database, ClientData& clientData, int accountId, int characterId, PositionStruct &position);
     // update character data in the database
-    void updateCharacterData(Database& database, ClientData& clientData, int accountId, int characterId, CharacterDataStruct characterData);
+    void updateCharacterData(Database& database, ClientData& clientData, int accountId, int characterId, CharacterDataStruct &characterData);
 };

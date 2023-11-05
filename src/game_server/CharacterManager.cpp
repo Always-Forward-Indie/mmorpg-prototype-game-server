@@ -120,9 +120,9 @@ PositionStruct CharacterManager::getCharacterPosition(Database &database, Client
         }
 
         // Get the character position
-        characterPosition.positionX = selectCharacterPosition[0][0].as<std::string>();
-        characterPosition.positionY = selectCharacterPosition[0][1].as<std::string>();
-        characterPosition.positionZ = selectCharacterPosition[0][2].as<std::string>();
+        characterPosition.positionX = selectCharacterPosition[0][0].as<float>();
+        characterPosition.positionY = selectCharacterPosition[0][1].as<float>();
+        characterPosition.positionZ = selectCharacterPosition[0][2].as<float>();
 
         transaction.commit(); // Commit the transaction
     }
@@ -138,17 +138,17 @@ PositionStruct CharacterManager::getCharacterPosition(Database &database, Client
 }
 
 //update character position in object
-void CharacterManager::setCharacterPosition(ClientData& clientData, int accountId, PositionStruct position){
+void CharacterManager::setCharacterPosition(ClientData& clientData, int accountId, PositionStruct &position){
     clientData.updateCharacterPositionData(accountId, position);
 }
 
 //update character data in object
-void CharacterManager::setCharacterData(ClientData& clientData, int accountId, CharacterDataStruct characterData){
+void CharacterManager::setCharacterData(ClientData& clientData, int accountId, CharacterDataStruct &characterData){
     clientData.updateCharacterData(accountId, characterData);
 }
 
 // update character position in the database
-void CharacterManager::updateCharacterPosition(Database& database, ClientData& clientData, int accountId, int characterId, PositionStruct position){
+void CharacterManager::updateCharacterPosition(Database& database, ClientData& clientData, int accountId, int characterId, PositionStruct &position){
     try {
         pqxx::work transaction(database.getConnection()); // Start a transaction
         pqxx::result updateCharacterPosition = database.executeQueryWithTransaction(
@@ -177,7 +177,7 @@ void CharacterManager::updateCharacterPosition(Database& database, ClientData& c
 }
 
 // update character data in the database
-void CharacterManager::updateCharacterData(Database& database, ClientData& clientData, int accountId, int characterId, CharacterDataStruct characterData){
+void CharacterManager::updateCharacterData(Database& database, ClientData& clientData, int accountId, int characterId, CharacterDataStruct &characterData){
     try {
         pqxx::work transaction(database.getConnection()); // Start a transaction
         pqxx::result updateCharacterData = database.executeQueryWithTransaction(
