@@ -12,6 +12,7 @@ set(SOURCE_FILES
     src/game_server/Authenticator.cpp
     src/game_server/ClientData.cpp
     src/game_server/ChunkServerWorker.cpp
+    src/game_server/CharacterManager.cpp
     src/helpers/Database.cpp
     src/helpers/Config.cpp
     # ... other source files
@@ -23,6 +24,7 @@ set(HEADER_FILES
     include/game_server/Authenticator.hpp
     include/game_server/ClientData.hpp
     include/game_server/ChunkServerWorker.hpp
+    include/game_server/CharacterManager.hpp
     include/helpers/Database.hpp
     include/helpers/Config.hpp
 

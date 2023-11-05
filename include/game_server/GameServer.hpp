@@ -5,6 +5,8 @@
 #include <string>
 #include "Authenticator.hpp"
 #include "ChunkServerWorker.hpp"
+#include "CharacterManager.hpp"
+#include "helpers/Database.hpp"
 
 
 class GameServer {
@@ -17,14 +19,16 @@ private:
     void startAccept();
     void handleClientData(std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket, const std::array<char, max_length>& dataBuffer, size_t bytes_transferred);
     void startReadingFromClient(std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket);
-    void authenticateClient(std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket, const std::string& login, const std::string& password);
+    void joinGame(std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket, const std::string &hash, const int &characterId, const int &clientId);
     void sendResponse(std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket, const std::string& responseString);
-    std::string generateResponseMessage(const std::string& status, const std::string& message, const int& id);
-
+    std::string generateResponseMessage(const std::string& status, const nlohmann::json& message, const int& id);
+    
     boost::asio::io_context& io_context_;
     boost::asio::ip::tcp::acceptor acceptor_;
 
     ClientData clientData_;
     Authenticator authenticator_;
+    CharacterManager characterManager_;
+    Database database_;
     ChunkServerWorker chunkServerWorker_;
 };

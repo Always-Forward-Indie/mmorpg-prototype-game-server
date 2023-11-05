@@ -10,6 +10,8 @@
         boost::asio::ip::tcp::resolver resolver(io_context_);
         auto endpoints = resolver.resolve(host, std::to_string(port));
 
+        std::cout << "Connecing to the Chunk Server..." << std::endl;
+
         boost::asio::async_connect(socket_, endpoints,
             [this](const boost::system::error_code& ec, boost::asio::ip::tcp::endpoint) {
                 if (!ec) {
