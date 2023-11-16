@@ -4,6 +4,7 @@
 #include <pqxx/pqxx>
 #include <memory>
 #include "Config.hpp"
+#include "helpers/TerminalColors.hpp"
 
 class Database {
 public:

@@ -20,28 +20,28 @@ void Database::connect()
         std::string user = std::get<0>(configs).user;
         std::string password = std::get<0>(configs).password;
 
-        std::cout << "Connecting to database..." << std::endl;
-        std::cout << "Database name: " << databaseName << std::endl;
-        std::cout << "User: " << user << std::endl;
-        std::cout << "Host: " << host << std::endl;
-        std::cout << "Port: " << port << std::endl;
+        std::cout << BLUE << "Connecting to database..." << RESET << std::endl;
+        std::cout << BLUE << "Database name: " << databaseName << RESET << std::endl;
+        //std::cout << "User: " << user << std::endl;
+        std::cout << BLUE << "Host: " << host << RESET << std::endl;
+        std::cout << BLUE << "Port: " << port << RESET << std::endl;
 
         connection_ = std::make_unique<pqxx::connection>(
             "dbname=" + databaseName + " user=" + user + " password=" + password + " hostaddr=" + host + " port=" + std::to_string(port));
 
         if (connection_->is_open())
         {
-            std::cout << "Database connection established" << std::endl;
+            std::cout << GREEN << "Database connection established" << RESET << std::endl;
         }
         else
         {
-            std::cerr << "Database connection failed" << std::endl;
+            std::cerr << RED << "Database connection failed" << RESET << std::endl;
             // Handle the connection failure (e.g., throw an exception or exit)
         }
     }
     catch (const std::exception &e)
     {
-        std::cerr << "Error while connecting to the database: " << e.what() << std::endl;
+        std::cerr << RED <<  "Error while connecting to the database: " << e.what() << RESET << std::endl;
         // Handle the exception (e.g., throw it or exit the application)
     }
 }
@@ -72,7 +72,7 @@ void Database::prepareDefaultQueries()
     }
     else
     {
-        std::cerr << "Cannot prepare queries: Database connection is not open." << std::endl;
+        std::cerr << RED << "Cannot prepare queries: Database connection is not open." << RESET << std::endl;
         // Handle this situation (e.g., throw an exception or exit)
     }
 }

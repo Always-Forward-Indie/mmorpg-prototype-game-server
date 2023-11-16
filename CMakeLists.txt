@@ -25,6 +25,7 @@ set(HEADER_FILES
     include/game_server/ClientData.hpp
     include/game_server/ChunkServerWorker.hpp
     include/game_server/CharacterManager.hpp
+    include/helpers/TerminalColors.hpp
     include/helpers/Database.hpp
     include/helpers/Config.hpp
 

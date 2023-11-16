@@ -37,7 +37,7 @@ int Authenticator::authenticate(Database& database, ClientData& clientData, cons
             return user_id;
         } else {
             // User not found message
-            std::cerr << "User with ID: " << user_id << " not found" << std::endl;
+            std::cerr << RED << "User with ID: " << user_id << " not found" << RESET << std::endl;
             // Authentication failed, return false
             transaction.abort(); // Rollback the transaction (optional)
             return 0;

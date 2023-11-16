@@ -1,6 +1,7 @@
 #include "game_server/GameServer.hpp"
 #include <iostream>
 #include <nlohmann/json.hpp>
+#include "helpers/TerminalColors.hpp"
 
 GameServer::GameServer(boost::asio::io_context &io_context, const std::string &customIP, short customPort, short maxClients)
     : io_context_(io_context),
@@ -26,14 +27,14 @@ GameServer::GameServer(boost::asio::io_context &io_context, const std::string &c
 
     if (ec)
     {
-        std::cerr << "Error during server initialization: " << ec.message() << std::endl;
+        std::cerr << RED << "Error during server initialization: " << ec.message() << RESET << std::endl;
         return;
     }
 
     startAccept();
 
     // Print IP address and port when the server starts
-    std::cout << "Game Server started on IP: " << customIP << ", Port: " << customPort << std::endl;
+    std::cout << GREEN << "Game Server started on IP: " << customIP << ", Port: " << customPort << RESET << std::endl;
 }
 
 void GameServer::startAccept()
@@ -47,7 +48,7 @@ void GameServer::startAccept()
             std::string clientIP = remoteEndpoint.address().to_string();
 
             // Print the client's IP address
-            std::cout << "New client with IP: " << clientIP << " connected!" << std::endl;
+            std::cout << GREEN << "New client with IP: " << clientIP << " connected!" << RESET << std::endl;
 
             // Start reading data from the client
             startReadingFromClient(clientSocket);
@@ -80,7 +81,7 @@ void GameServer::handleClientData(std::shared_ptr<boost::asio::ip::tcp::socket> 
     }
     catch (const nlohmann::json::parse_error &e)
     {
-        std::cerr << "JSON parsing error: " << e.what() << std::endl;
+        std::cerr << RED << "JSON parsing error: " << e.what() << RESET << std::endl;
         // Handle the error (e.g., close the socket)
     }
 }
@@ -97,11 +98,11 @@ void GameServer::joinGame(std::shared_ptr<boost::asio::ip::tcp::socket> clientSo
     {
         if (!error)
         {
-            std::cout << "Data sent successfully to the chunk server." << std::endl;
+            std::cout << GREEN << "Data sent successfully to the chunk server." << RESET << std::endl;
         }
         else
         {
-            std::cerr << "Error sending data to the chunk server: " << error.message() << std::endl;
+            std::cerr << RED << "Error sending data to the chunk server: " << error.message() << RESET << std::endl;
         }
     };
 
@@ -168,7 +169,7 @@ void GameServer::sendResponse(std::shared_ptr<boost::asio::ip::tcp::socket> clie
                                  }
                                  else
                                  {
-                                     std::cerr << "Error during async_write: " << error.message() << std::endl;
+                                     std::cerr << RED << "Error during async_write: " << error.message() << RESET << std::endl;
                                      // Handle the error (e.g., close the socket)
                                  }
                              });
@@ -191,7 +192,7 @@ void GameServer::startReadingFromClient(std::shared_ptr<boost::asio::ip::tcp::so
                                       else if (error == boost::asio::error::eof)
                                       {
                                           // The client has closed the connection
-                                          std::cerr << "Client disconnected gracefully." << std::endl;
+                                          std::cerr << RED << "Client disconnected gracefully." << RESET << std::endl;
 
                                           // You can perform any cleanup or logging here if needed
 
@@ -201,7 +202,7 @@ void GameServer::startReadingFromClient(std::shared_ptr<boost::asio::ip::tcp::so
                                       else if (error == boost::asio::error::operation_aborted)
                                       {
                                           // The read operation was canceled, likely due to the client disconnecting
-                                          std::cerr << "Read operation canceled (client disconnected)." << std::endl;
+                                          std::cerr << RED << "Read operation canceled (client disconnected)." << RESET << std::endl;
 
                                           // You can perform any cleanup or logging here if needed
 
@@ -211,7 +212,7 @@ void GameServer::startReadingFromClient(std::shared_ptr<boost::asio::ip::tcp::so
                                       else
                                       {
                                           // Handle other errors
-                                          std::cerr << "Error during async_read_some: " << error.message() << std::endl;
+                                          std::cerr << RED << "Error during async_read_some: " << error.message() << RESET << std::endl;
 
                                           // You can also close the socket in case of other errors if needed
                                           clientSocket->close();
@@ -228,7 +229,7 @@ std::string GameServer::generateResponseMessage(const std::string &status, const
 
     std::string responseString = response.dump();
 
-    std::cout << "Client data: " << responseString << std::endl;
+    std::cout << YELLOW << "Client data: " << responseString << RESET << std::endl;
 
     return responseString;
 }
