@@ -29,7 +29,7 @@ void ChunkServerWorker::startIOEventLoop()
 // In your destructor, join the io_thread to ensure it's properly cleaned up
 ChunkServerWorker::~ChunkServerWorker()
 {
-    logger_.log("ChunkServerWorker destructor called", BLUE);
+    logger_.logError("ChunkServerWorker destructor called");
     // Clean up
     work_.reset(); // Allow io_context to exit
     if (io_thread_.joinable())
