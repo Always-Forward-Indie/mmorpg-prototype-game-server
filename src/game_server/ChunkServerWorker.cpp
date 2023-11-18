@@ -95,7 +95,7 @@ void ChunkServerWorker::sendDataToChunkServer(const std::string &data)
     }
     catch (const std::exception &e)
     {
-        logger_.log("Exception: " + std::string(e.what()));
+        logger_.logError("Exception: " + std::string(e.what()));
     }
 }
 

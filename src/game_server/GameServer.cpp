@@ -161,7 +161,7 @@ void GameServer::sendResponse(std::shared_ptr<boost::asio::ip::tcp::socket> clie
     boost::asio::async_write(*clientSocket, boost::asio::buffer(responseString),
                              [this, clientSocket](const boost::system::error_code &error, size_t bytes_transferred)
                              {
-                                 logger_.log("Data sent successfully. Bytes transferred: " + std::to_string(bytes_transferred));
+                                 logger_.log("Data sent successfully to Client. Bytes transferred: " + std::to_string(bytes_transferred), GREEN);
 
                                  if (!error)
                                  {
