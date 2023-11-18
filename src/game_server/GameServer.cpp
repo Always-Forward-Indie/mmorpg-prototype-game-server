@@ -3,14 +3,16 @@
 #include <nlohmann/json.hpp>
 #include "helpers/TerminalColors.hpp"
 
-GameServer::GameServer(boost::asio::io_context &io_context, const std::string &customIP, short customPort, short maxClients)
+GameServer::GameServer(boost::asio::io_context &io_context, const std::string &customIP, short customPort, short maxClients, ChunkServerWorker &chunkServerWorker, Logger &logger)
     : io_context_(io_context),
       acceptor_(io_context),
       clientData_(),
       authenticator_(),
       characterManager_(),
       database_(),
-      chunkServerWorker_()
+      chunkServerWorker_(chunkServerWorker),
+      logger_(logger)
+      //,chunkServerWorker_()
 {
     boost::system::error_code ec;
 
@@ -93,19 +95,6 @@ void GameServer::joinGame(std::shared_ptr<boost::asio::ip::tcp::socket> clientSo
     // Create a JSON object for the response
     nlohmann::json response;
 
-    // Define a callback function to handle the completion of the send operation
-    auto sendToChunkCallback = [](const boost::system::error_code &error, std::size_t bytes_transferred)
-    {
-        if (!error)
-        {
-            std::cout << GREEN << "Data sent successfully to the chunk server." << RESET << std::endl;
-        }
-        else
-        {
-            std::cerr << RED << "Error sending data to the chunk server: " << error.message() << RESET << std::endl;
-        }
-    };
-
     // Check if the authentication was successful
     if (characterID == 0)
     {
@@ -141,7 +130,7 @@ void GameServer::joinGame(std::shared_ptr<boost::asio::ip::tcp::socket> clientSo
     characterData = currentClientData->characterData;
 
     // Send data to the chunk server
-    chunkServerWorker_.sendDataToChunkServer("Hello, Chunk Server!\n", sendToChunkCallback);
+    chunkServerWorker_.sendDataToChunkServer("Hello, Chunk Server!", logger_);
 
     // Add the message to the response
     response["message"] = "Authentication success for user!";
@@ -162,6 +151,10 @@ void GameServer::sendResponse(std::shared_ptr<boost::asio::ip::tcp::socket> clie
     boost::asio::async_write(*clientSocket, boost::asio::buffer(responseString),
                              [this, clientSocket](const boost::system::error_code &error, size_t bytes_transferred)
                              {
+                                logger_.log("Data sent successfully. Bytes transferred: " + std::to_string(bytes_transferred));
+                                 //
+                                
+                               // std::cout << GREEN << "Data sent successfully. Bytes transferred: " << bytes_transferred << RESET << std::endl;
                                  if (!error)
                                  {
                                      // Response sent successfully, now start listening for the client's next message

@@ -7,11 +7,12 @@
 #include "ChunkServerWorker.hpp"
 #include "CharacterManager.hpp"
 #include "helpers/Database.hpp"
+#include "helpers/Logger.hpp"
 
 
 class GameServer {
 public:
-    GameServer(boost::asio::io_context& io_context, const std::string& customIP, short customPort, short maxClients);
+    GameServer(boost::asio::io_context& io_context, const std::string& customIP, short customPort, short maxClients, ChunkServerWorker& chunkServerWorker, Logger& logger);
 
 private:
     static constexpr size_t max_length = 1024; // Define the appropriate value
@@ -30,5 +31,7 @@ private:
     Authenticator authenticator_;
     CharacterManager characterManager_;
     Database database_;
-    ChunkServerWorker chunkServerWorker_;
+    ChunkServerWorker& chunkServerWorker_; // Reference to the ChunkServerWorker instance
+    Logger& logger_; // Reference to the Logger instance
+    //ChunkServerWorker chunkServerWorker_;
 };

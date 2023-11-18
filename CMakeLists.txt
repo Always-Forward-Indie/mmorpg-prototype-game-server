@@ -13,6 +13,7 @@ set(SOURCE_FILES
     src/game_server/ClientData.cpp
     src/game_server/ChunkServerWorker.cpp
     src/game_server/CharacterManager.cpp
+    src/helpers/Logger.cpp
     src/helpers/Database.cpp
     src/helpers/Config.cpp
     # ... other source files
@@ -25,6 +26,7 @@ set(HEADER_FILES
     include/game_server/ClientData.hpp
     include/game_server/ChunkServerWorker.hpp
     include/game_server/CharacterManager.hpp
+    include/helpers/Logger.hpp
     include/helpers/TerminalColors.hpp
     include/helpers/Database.hpp
     include/helpers/Config.hpp
