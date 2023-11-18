@@ -89,7 +89,7 @@ void ChunkServerWorker::sendDataToChunkServer(const std::string &data)
                                              logger_.logError("Error in sending data to Chunk Server: " + error.message());
                                          }
 
-                                         logger_.log("Data sent successfully to Chunk Server. Bytes transferred: " + std::to_string(bytes_transferred));
+                                         logger_.log("Data sent successfully to Chunk Server. Bytes transferred: " + std::to_string(bytes_transferred), GREEN);
                                      }
                                  });
     }
