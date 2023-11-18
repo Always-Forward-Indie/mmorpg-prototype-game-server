@@ -12,7 +12,8 @@
 
 class GameServer {
 public:
-    GameServer(boost::asio::io_context& io_context, const std::string& customIP, short customPort, short maxClients, ChunkServerWorker& chunkServerWorker, Logger& logger);
+    GameServer(ChunkServerWorker& chunkServerWorker, std::tuple<DatabaseConfig, GameServerConfig, ChunkServerConfig>& configs, Logger& logger);
+    void startIOEventLoop();
 
 private:
     static constexpr size_t max_length = 1024; // Define the appropriate value
@@ -24,7 +25,7 @@ private:
     void sendResponse(std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket, const std::string& responseString);
     std::string generateResponseMessage(const std::string& status, const nlohmann::json& message, const int& id);
     
-    boost::asio::io_context& io_context_;
+    boost::asio::io_context io_context_;
     boost::asio::ip::tcp::acceptor acceptor_;
 
     ClientData clientData_;
@@ -33,5 +34,5 @@ private:
     Database database_;
     ChunkServerWorker& chunkServerWorker_; // Reference to the ChunkServerWorker instance
     Logger& logger_; // Reference to the Logger instance
-    //ChunkServerWorker chunkServerWorker_;
+    std::tuple<DatabaseConfig, GameServerConfig, ChunkServerConfig>& configs_;
 };

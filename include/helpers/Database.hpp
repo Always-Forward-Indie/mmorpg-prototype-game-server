@@ -3,16 +3,16 @@
 
 #include <pqxx/pqxx>
 #include <memory>
-#include "Config.hpp"
-#include "helpers/TerminalColors.hpp"
+#include "helpers/Config.hpp"
+#include "helpers/Logger.hpp"
 
 class Database {
 public:
     // Constructor
-    Database();
+    Database(std::tuple<DatabaseConfig, GameServerConfig, ChunkServerConfig>& configs, Logger& logger);
 
     // Establish a database connection
-    void connect();
+    void connect(std::tuple<DatabaseConfig, GameServerConfig, ChunkServerConfig>& configs);
 
     // Prepare default queries
     void prepareDefaultQueries();
@@ -31,6 +31,8 @@ public:
 private:
     // Database connection
     std::unique_ptr<pqxx::connection> connection_;
+    // Logger
+    Logger& logger_;
 };
 
 #endif // DATABASE_HPP

@@ -2,47 +2,45 @@
 #include "helpers/Config.hpp"
 #include <iostream>
 
-Database::Database()
+Database::Database(std::tuple<DatabaseConfig, GameServerConfig, ChunkServerConfig>& configs, Logger& logger) 
+: 
+logger_(logger)
 {
-    connect();
+    connect(configs);
     prepareDefaultQueries();
 }
 
-void Database::connect()
+void Database::connect(std::tuple<DatabaseConfig, GameServerConfig, ChunkServerConfig>& configs)
 {
     try
     {
-        Config config;
-        auto configs = config.parseConfig("config.json");
         short port = std::get<0>(configs).port;
         std::string host = std::get<0>(configs).host;
         std::string databaseName = std::get<0>(configs).dbname;
         std::string user = std::get<0>(configs).user;
         std::string password = std::get<0>(configs).password;
 
-        std::cout << BLUE << "Connecting to database..." << RESET << std::endl;
-        std::cout << BLUE << "Database name: " << databaseName << RESET << std::endl;
-        //std::cout << "User: " << user << std::endl;
-        std::cout << BLUE << "Host: " << host << RESET << std::endl;
-        std::cout << BLUE << "Port: " << port << RESET << std::endl;
+        logger_.log("Connecting to database...", BLUE);
+        logger_.log("Database name: " + databaseName, BLUE);
+        //logger_.log("User: " + user, BLUE);
+        logger_.log("Host: " + host, BLUE);
+        logger_.log("Port: " + std::to_string(port), BLUE);
 
         connection_ = std::make_unique<pqxx::connection>(
             "dbname=" + databaseName + " user=" + user + " password=" + password + " hostaddr=" + host + " port=" + std::to_string(port));
 
         if (connection_->is_open())
         {
-            std::cout << GREEN << "Database connection established" << RESET << std::endl;
+            logger_.log("Database connection established!", GREEN);
         }
         else
         {
-            std::cerr << RED << "Database connection failed" << RESET << std::endl;
-            // Handle the connection failure (e.g., throw an exception or exit)
+            logger_.logError("Database connection failed!", RED);
         }
     }
     catch (const std::exception &e)
     {
-        std::cerr << RED <<  "Error while connecting to the database: " << e.what() << RESET << std::endl;
-        // Handle the exception (e.g., throw it or exit the application)
+        handleDatabaseError(e);
     }
 }
 
@@ -93,8 +91,7 @@ pqxx::connection &Database::getConnection()
 void Database::handleDatabaseError(const std::exception &e)
 {
     // Handle database connection or query errors
-    std::cerr << "Database error: " << e.what() << std::endl;
-    // You might want to send an error response back to the client or log the error
+    logger_.logError("Database error: " + std::string(e.what()), RED);
 }
 
 // Function to execute a query with a transaction

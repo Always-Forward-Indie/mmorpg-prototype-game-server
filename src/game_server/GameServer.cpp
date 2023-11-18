@@ -1,24 +1,28 @@
 #include "game_server/GameServer.hpp"
 #include <iostream>
 #include <nlohmann/json.hpp>
-#include "helpers/TerminalColors.hpp"
 
-GameServer::GameServer(boost::asio::io_context &io_context, const std::string &customIP, short customPort, short maxClients, ChunkServerWorker &chunkServerWorker, Logger &logger)
-    : io_context_(io_context),
-      acceptor_(io_context),
+GameServer::GameServer(ChunkServerWorker &chunkServerWorker, std::tuple<DatabaseConfig, GameServerConfig, ChunkServerConfig> &configs, Logger &logger)
+    : acceptor_(io_context_),
       clientData_(),
       authenticator_(),
       characterManager_(),
-      database_(),
+      database_(configs, logger),
       chunkServerWorker_(chunkServerWorker),
-      logger_(logger)
-      //,chunkServerWorker_()
+      logger_(logger),
+      configs_(configs)
 {
     boost::system::error_code ec;
+
+    // Get the custom port and IP address from the configs
+    short customPort = std::get<1>(configs).port;
+    std::string customIP = std::get<1>(configs).host;
+    short maxClients = std::get<1>(configs).max_clients;
 
     // Create an endpoint with the custom IP and port
     boost::asio::ip::tcp::endpoint endpoint(boost::asio::ip::address::from_string(customIP), customPort);
 
+    // Open the acceptor and bind it to the endpoint
     acceptor_.open(endpoint.protocol(), ec);
     if (!ec)
     {
@@ -29,14 +33,20 @@ GameServer::GameServer(boost::asio::io_context &io_context, const std::string &c
 
     if (ec)
     {
-        std::cerr << RED << "Error during server initialization: " << ec.message() << RESET << std::endl;
+        logger.logError("Error during server initialization: " + ec.message(), RED);
         return;
     }
 
+    // Start accepting new connections
     startAccept();
 
     // Print IP address and port when the server starts
-    std::cout << GREEN << "Game Server started on IP: " << customIP << ", Port: " << customPort << RESET << std::endl;
+    logger_.log("Game Server started on IP: " + customIP + ", Port: " + std::to_string(customPort), GREEN);
+}
+
+void GameServer::startIOEventLoop()
+{
+    io_context_.run(); // Start the event loop
 }
 
 void GameServer::startAccept()
@@ -50,8 +60,8 @@ void GameServer::startAccept()
             std::string clientIP = remoteEndpoint.address().to_string();
 
             // Print the client's IP address
-            std::cout << GREEN << "New client with IP: " << clientIP << " connected!" << RESET << std::endl;
-
+            logger_.log("New client with IP: " + clientIP + " connected!", GREEN);
+            
             // Start reading data from the client
             startReadingFromClient(clientSocket);
         }
@@ -83,8 +93,7 @@ void GameServer::handleClientData(std::shared_ptr<boost::asio::ip::tcp::socket> 
     }
     catch (const nlohmann::json::parse_error &e)
     {
-        std::cerr << RED << "JSON parsing error: " << e.what() << RESET << std::endl;
-        // Handle the error (e.g., close the socket)
+        logger_.logError("JSON parsing error: " + std::string(e.what()), RED);
     }
 }
 
@@ -118,7 +127,8 @@ void GameServer::joinGame(std::shared_ptr<boost::asio::ip::tcp::socket> clientSo
 
     // Get the current client data
     const ClientDataStruct *currentClientData = clientData_.getClientData(clientId);
-    if(currentClientData == nullptr) {
+    if (currentClientData == nullptr)
+    {
         // Add the message to the response
         response["message"] = "Client data not found!";
         // Prepare a response message
@@ -130,7 +140,7 @@ void GameServer::joinGame(std::shared_ptr<boost::asio::ip::tcp::socket> clientSo
     characterData = currentClientData->characterData;
 
     // Send data to the chunk server
-    chunkServerWorker_.sendDataToChunkServer("Hello, Chunk Server!", logger_);
+    chunkServerWorker_.sendDataToChunkServer("Hello, Chunk Server!");
 
     // Add the message to the response
     response["message"] = "Authentication success for user!";
@@ -151,10 +161,8 @@ void GameServer::sendResponse(std::shared_ptr<boost::asio::ip::tcp::socket> clie
     boost::asio::async_write(*clientSocket, boost::asio::buffer(responseString),
                              [this, clientSocket](const boost::system::error_code &error, size_t bytes_transferred)
                              {
-                                logger_.log("Data sent successfully. Bytes transferred: " + std::to_string(bytes_transferred));
-                                 //
-                                
-                               // std::cout << GREEN << "Data sent successfully. Bytes transferred: " << bytes_transferred << RESET << std::endl;
+                                 logger_.log("Data sent successfully. Bytes transferred: " + std::to_string(bytes_transferred));
+
                                  if (!error)
                                  {
                                      // Response sent successfully, now start listening for the client's next message
@@ -162,8 +170,7 @@ void GameServer::sendResponse(std::shared_ptr<boost::asio::ip::tcp::socket> clie
                                  }
                                  else
                                  {
-                                     std::cerr << RED << "Error during async_write: " << error.message() << RESET << std::endl;
-                                     // Handle the error (e.g., close the socket)
+                                     logger_.logError("Error during async_write: " + error.message(), RED);
                                  }
                              });
 }
@@ -184,8 +191,9 @@ void GameServer::startReadingFromClient(std::shared_ptr<boost::asio::ip::tcp::so
                                       }
                                       else if (error == boost::asio::error::eof)
                                       {
+                                        
                                           // The client has closed the connection
-                                          std::cerr << RED << "Client disconnected gracefully." << RESET << std::endl;
+                                          logger_.logError("Client disconnected gracefully.", RED);
 
                                           // You can perform any cleanup or logging here if needed
 
@@ -195,8 +203,8 @@ void GameServer::startReadingFromClient(std::shared_ptr<boost::asio::ip::tcp::so
                                       else if (error == boost::asio::error::operation_aborted)
                                       {
                                           // The read operation was canceled, likely due to the client disconnecting
-                                          std::cerr << RED << "Read operation canceled (client disconnected)." << RESET << std::endl;
-
+                                          logger_.logError("Read operation canceled (client disconnected).", RED);
+                                          
                                           // You can perform any cleanup or logging here if needed
 
                                           // Close the client socket
@@ -205,8 +213,8 @@ void GameServer::startReadingFromClient(std::shared_ptr<boost::asio::ip::tcp::so
                                       else
                                       {
                                           // Handle other errors
-                                          std::cerr << RED << "Error during async_read_some: " << error.message() << RESET << std::endl;
-
+                                          logger_.logError("Error during async_read_some: " + error.message(), RED);
+                                          
                                           // You can also close the socket in case of other errors if needed
                                           clientSocket->close();
                                       }
@@ -222,7 +230,7 @@ std::string GameServer::generateResponseMessage(const std::string &status, const
 
     std::string responseString = response.dump();
 
-    std::cout << YELLOW << "Client data: " << responseString << RESET << std::endl;
+    logger_.log("Response generated: " + responseString, YELLOW);
 
     return responseString;
 }

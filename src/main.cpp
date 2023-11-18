@@ -6,29 +6,25 @@
 
 int main() {
     try {
-        boost::asio::io_context io_context;
+        // Initialize Config
         Config config;
-        auto configs = config.parseConfig("config.json");
-        short port = std::get<1>(configs).port;
-        std::string ip = std::get<1>(configs).host;
-        short maxClients = std::get<1>(configs).max_clients;
-
-        Logger logger;
-        ChunkServerWorker chunkServerWorker;
-
-        // Create a new thread and run the ChunkServerWorker's io_context in that thread
-        std::thread chunkServerThread([&chunkServerWorker]() {
-            chunkServerWorker.startIOThread(); // Replace run() with your ChunkServerWorker's method to start its io_context
-        });
+        // Get configs for connections to servers from config.json
+        auto configs = config.parseConfig("/home/shardanov/mmorpg-prototype-game-server/build/config.json");
         
+        // Initialize Logger
+        Logger logger;
 
-        GameServer gameServer(io_context, ip, port, maxClients, chunkServerWorker, logger);
+        // Initialize ChunkServerWorker
+        ChunkServerWorker chunkServerWorker(configs, logger);
 
-        //Start Game Server IO Context
-        io_context.run();  // Start the event loop
+        // Start ChunkServerWorker IO Context in a separate thread
+        chunkServerWorker.startIOEventLoop(); 
 
-        // Join the ChunkServerWorker thread to ensure it's properly cleaned up
-        chunkServerThread.join();
+        // Initialize GameServer
+        GameServer gameServer(chunkServerWorker, configs, logger);
+
+        //Start Game Server IO Context as the main thread
+        gameServer.startIOEventLoop();
 
         return 0;
     } catch (const std::exception& e) {
