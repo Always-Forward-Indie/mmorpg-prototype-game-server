@@ -49,6 +49,7 @@ void GameServer::startIOEventLoop()
     io_context_.run(); // Start the event loop
 }
 
+
 void GameServer::startAccept()
 {
     std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = std::make_shared<boost::asio::ip::tcp::socket>(io_context_);
@@ -97,6 +98,7 @@ void GameServer::handleClientData(std::shared_ptr<boost::asio::ip::tcp::socket> 
     }
 }
 
+// TODO - Refactor this method, move it to EventHandlers
 void GameServer::joinGame(std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket, const std::string &hash, const int &characterId, const int &clientId)
 {
     // Authenticate the client
@@ -107,10 +109,14 @@ void GameServer::joinGame(std::shared_ptr<boost::asio::ip::tcp::socket> clientSo
     // Check if the authentication was successful
     if (characterID == 0)
     {
-        // Add the message to the response
-        response["message"] = "Authentication failed for user!";
+        // Add response data
+        response["header"]["message"] = "Authentication failed for user!";
+        response["header"]["hash"] = hash;
+        response["header"]["clientId"] = clientId;
+        response["header"]["eventType"] = "joinGame";
+        response["body"] = "";
         // Prepare a response message
-        std::string responseData = generateResponseMessage("error", response, 0);
+        std::string responseData = generateResponseMessage("error", response);
         // Send the response to the client
         sendResponse(clientSocket, responseData);
         return;
@@ -129,29 +135,36 @@ void GameServer::joinGame(std::shared_ptr<boost::asio::ip::tcp::socket> clientSo
     const ClientDataStruct *currentClientData = clientData_.getClientData(clientId);
     if (currentClientData == nullptr)
     {
-        // Add the message to the response
-        response["message"] = "Client data not found!";
+        // Add response data
+        response["header"]["message"] = "Client data not found!";
+        response["header"]["hash"] = hash;
+        response["header"]["clientId"] = clientId;
+        response["header"]["eventType"] = "joinGame";
+        response["body"] = "";
         // Prepare a response message
-        std::string responseData = generateResponseMessage("error", response, 0);
+        std::string responseData = generateResponseMessage("error", response);
         // Send the response to the client
         sendResponse(clientSocket, responseData);
         return;
     }
     characterData = currentClientData->characterData;
 
-    // Send data to the chunk server
-    chunkServerWorker_.sendDataToChunkServer("Hello, Chunk Server!");
-
     // Add the message to the response
-    response["message"] = "Authentication success for user!";
-    response["hash"] = currentClientData->hash;
-    response["clientId"] = clientId;
-    response["characterId"] = characterData.characterId;
-    response["characterPosX"] = characterData.characterPosition.positionX;
-    response["characterPosY"] = characterData.characterPosition.positionY;
-    response["characterPosZ"] = characterData.characterPosition.positionZ;
+    response["header"]["message"] = "Authentication success for user!";
+    response["header"]["hash"] = currentClientData->hash;
+    response["header"]["eventType"] = "joinGame";
+    response["header"]["clientId"] = clientId;
+    response["body"]["characterId"] = characterData.characterId;
+    response["body"]["characterPosX"] = characterData.characterPosition.positionX;
+    response["body"]["characterPosY"] = characterData.characterPosition.positionY;
+    response["body"]["characterPosZ"] = characterData.characterPosition.positionZ;
     // Prepare a response message
-    std::string responseData = generateResponseMessage("success", response, clientId);
+    std::string responseData = generateResponseMessage("success", response);
+
+    // Send data to the chunk server
+    chunkServerWorker_.sendDataToChunkServer(responseData);
+
+    // TODO - Send Data To Client Only when Chunk Server sends data back to Game Server
     // Send the response to the client
     sendResponse(clientSocket, responseData);
 }
@@ -221,12 +234,16 @@ void GameServer::startReadingFromClient(std::shared_ptr<boost::asio::ip::tcp::so
                                   });
 }
 
-std::string GameServer::generateResponseMessage(const std::string &status, const nlohmann::json &message, const int &id)
+std::string GameServer::generateResponseMessage(const std::string &status, const nlohmann::json &message)
 {
     nlohmann::json response;
 
-    response["status"] = status;
-    response["body"] = message;
+
+    response["header"] = message["header"];
+    response["header"]["status"] = status;
+    response["header"]["timestamp"] = logger_.getCurrentTimestamp();
+    response["header"]["version"] = "1.0";
+    response["body"] = message["body"];
 
     std::string responseString = response.dump();
 

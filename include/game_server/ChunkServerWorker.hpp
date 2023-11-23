@@ -19,8 +19,8 @@ public:
     ChunkServerWorker(std::tuple<DatabaseConfig, GameServerConfig, ChunkServerConfig>& configs, Logger& logger);
     ~ChunkServerWorker();
     void startIOEventLoop();
-    void sendDataToChunkServer(const std::string& data);
-    void receiveDataFromChunkServer(std::function<void(const boost::system::error_code&, std::size_t)> callback);
+    void sendDataToChunkServer(const std::string &data);
+    void receiveDataFromChunkServer();
     void connect(boost::asio::ip::tcp::resolver::results_type endpoints);
 
     // Close the connection when done

@@ -23,7 +23,7 @@ private:
     void startReadingFromClient(std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket);
     void joinGame(std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket, const std::string &hash, const int &characterId, const int &clientId);
     void sendResponse(std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket, const std::string& responseString);
-    std::string generateResponseMessage(const std::string& status, const nlohmann::json& message, const int& id);
+    std::string generateResponseMessage(const std::string &status, const nlohmann::json &message);
     
     boost::asio::io_context io_context_;
     boost::asio::ip::tcp::acceptor acceptor_;
