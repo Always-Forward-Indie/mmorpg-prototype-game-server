@@ -3,9 +3,9 @@
 
 #include <string>
 #include <boost/asio.hpp>
-#include "game_server/ClientData.hpp" // Include the header file for ClientData
-#include "helpers/Database.hpp" // Include the header file for Database
-#include "helpers/TerminalColors.hpp"
+#include "data/ClientData.hpp" // Include the header file for ClientData
+#include "utils/Database.hpp" // Include the header file for Database
+#include "utils/TerminalColors.hpp"
 
 class Authenticator {
 public:

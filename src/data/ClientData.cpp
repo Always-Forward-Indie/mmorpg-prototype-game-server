@@ -1,4 +1,4 @@
-#include "game_server/ClientData.hpp"
+#include "data/ClientData.hpp"
 #include <iostream>
 #include <mutex>
 

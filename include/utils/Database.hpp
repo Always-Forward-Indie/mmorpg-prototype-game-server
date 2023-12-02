@@ -3,8 +3,8 @@
 
 #include <pqxx/pqxx>
 #include <memory>
-#include "helpers/Config.hpp"
-#include "helpers/Logger.hpp"
+#include "utils/Config.hpp"
+#include "utils/Logger.hpp"
 
 class Database {
 public:

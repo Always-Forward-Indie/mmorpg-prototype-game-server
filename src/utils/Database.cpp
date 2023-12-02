@@ -1,5 +1,5 @@
-#include "helpers/Database.hpp"
-#include "helpers/Config.hpp"
+#include "utils/Database.hpp"
+#include "utils/Config.hpp"
 #include <iostream>
 
 Database::Database(std::tuple<DatabaseConfig, GameServerConfig, ChunkServerConfig>& configs, Logger& logger) 

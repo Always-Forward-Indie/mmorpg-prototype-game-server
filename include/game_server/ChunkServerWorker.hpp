@@ -3,25 +3,35 @@
 #include <string>
 #include <boost/asio.hpp>
 #include <nlohmann/json.hpp>
-#include "helpers/Config.hpp"
-#include "helpers/Logger.hpp"
+#include "utils/Config.hpp"
+#include "utils/Logger.hpp"
+#include "events/EventQueue.hpp"
+#include "network/NetworkManager.hpp"
+#include "utils/JSONParser.hpp"
 
 class ChunkServerWorker {
 private:
     boost::asio::io_context io_context_chunk_;
     boost::asio::executor_work_guard<boost::asio::io_context::executor_type> work_;
-    boost::asio::ip::tcp::socket chunk_socket_;
+    std::shared_ptr<boost::asio::ip::tcp::socket> chunk_socket_;
+   // boost::asio::ip::tcp::socket chunk_socket_;
     boost::asio::steady_timer retry_timer_;
     std::thread io_thread_;
+    EventQueue& eventQueue_;
     Logger& logger_;
+    int retryCount = 0;
+    static constexpr int MAX_RETRY_COUNT = 5;
+    static constexpr int RETRY_TIMEOUT = 5;
+    NetworkManager& networkManager_;
+    JSONParser jsonParser_;
 
 public:
-    ChunkServerWorker(std::tuple<DatabaseConfig, GameServerConfig, ChunkServerConfig>& configs, Logger& logger);
+    ChunkServerWorker(EventQueue& eventQueue, NetworkManager& networkManager, std::tuple<DatabaseConfig, GameServerConfig, ChunkServerConfig>& configs, Logger& logger);
     ~ChunkServerWorker();
     void startIOEventLoop();
     void sendDataToChunkServer(const std::string &data);
     void receiveDataFromChunkServer();
-    void connect(boost::asio::ip::tcp::resolver::results_type endpoints);
+    void connect(boost::asio::ip::tcp::resolver::results_type endpoints, int retryCount);
 
     // Close the connection when done
     void closeConnection();

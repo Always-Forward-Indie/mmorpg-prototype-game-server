@@ -15,26 +15,39 @@ set(SOURCE_FILES
     src/main.cpp
     src/game_server/GameServer.cpp
     src/game_server/Authenticator.cpp
-    src/game_server/ClientData.cpp
     src/game_server/ChunkServerWorker.cpp
     src/game_server/CharacterManager.cpp
-    src/helpers/Logger.cpp
-    src/helpers/Database.cpp
-    src/helpers/Config.cpp
+    src/network/NetworkManager.cpp
+    src/events/Event.cpp
+    src/events/EventQueue.cpp
+    src/events/EventHandler.cpp
+    src/data/ClientData.cpp
+    src/utils/JSONParser.cpp
+    src/utils/Logger.cpp
+    src/utils/Database.cpp
+    src/utils/Config.cpp
     # ... other source files
 )
 
 # Define your project's header files
 set(HEADER_FILES
+
     include/game_server/GameServer.hpp
     include/game_server/Authenticator.hpp
-    include/game_server/ClientData.hpp
     include/game_server/ChunkServerWorker.hpp
     include/game_server/CharacterManager.hpp
-    include/helpers/Logger.hpp
-    include/helpers/TerminalColors.hpp
-    include/helpers/Database.hpp
-    include/helpers/Config.hpp
+    include/network/NetworkManager.hpp
+    include/events/Event.hpp
+    include/events/EventQueue.hpp
+    include/events/EventHandler.hpp
+    include/data/DataStructs.hpp
+    include/data/ClientData.hpp
+    include/utils/JSONParser.hpp
+    include/utils/ResponseBuilder.hpp
+    include/utils/Logger.hpp
+    include/utils/TerminalColors.hpp
+    include/utils/Database.hpp
+    include/utils/Config.hpp
 
     # ... other header files
 )
