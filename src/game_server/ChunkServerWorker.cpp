@@ -3,7 +3,6 @@
 ChunkServerWorker::ChunkServerWorker(EventQueue& eventQueue, NetworkManager& networkManager, std::tuple<DatabaseConfig, GameServerConfig, ChunkServerConfig> &configs, Logger &logger)
     : io_context_chunk_(),
     chunk_socket_(std::make_shared<boost::asio::ip::tcp::socket>(io_context_chunk_)),
-    //chunk_socket_(io_context_chunk_),
     retry_timer_(io_context_chunk_),
     work_(boost::asio::make_work_guard(io_context_chunk_)),
     logger_(logger),

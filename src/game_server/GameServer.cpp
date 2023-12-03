@@ -25,6 +25,10 @@ void GameServer::mainEventLoop() {
 
         // Optionally include a small delay or yield to prevent the loop from consuming too much CPU
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+        //TODO - save different client data to the database in different time intervals (depend by the client data type)
+        // maybe it should be like scheduled task
+        // also maybe use a separate thread for this as background service
     }
 }
 

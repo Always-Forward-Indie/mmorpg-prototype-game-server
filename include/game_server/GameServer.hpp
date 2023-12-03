@@ -14,9 +14,9 @@
 class GameServer {
 public:
     GameServer(EventQueue& eventQueue, 
-NetworkManager& networkManager, 
-ChunkServerWorker& chunkServerWorker, 
-Logger& logger, Database& database);
+    NetworkManager& networkManager, 
+    ChunkServerWorker& chunkServerWorker, 
+    Logger& logger, Database& database);
     void startMainEventLoop();
     
 private:

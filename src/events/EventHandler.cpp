@@ -95,28 +95,10 @@ void EventHandler::handleJoinToChunkEvent(const Event &event, ClientData &client
 
 void EventHandler::handleJoinedClientEvent(const Event &event, ClientData &clientData)
 {
-    // Here we will update the init data of the character when it's joined in the object and send it back to the game server
+    // Here we will update the init data of the character when it's joined in the object and send it back to the clients in the chunk
     // Retrieve the data from the event
     const auto data = event.getData();
     int clientID = event.getClientID();
-
-
-    // boost::system::error_code ec;
-    // boost::asio::ip::tcp::endpoint remoteEndpoint = clientSocket->remote_endpoint(ec);
-
-    // if (!ec)
-    // {
-    //     // Successfully retrieved the remote endpoint
-    //     std::string ipAddress = remoteEndpoint.address().to_string();
-    //     std::string portNumber = std::to_string(remoteEndpoint.port());
-
-    //     logger_.log("Data from Event send to Client IP address: " + ipAddress + ", Port: " + portNumber, GREEN);
-    // }
-    // else
-    // {
-    //     logger_.logError("Error in Event sent to Client here: " + std::string(ec.message()));
-    //     // Handle error
-    // }
 
     // Extract init data
     try
@@ -167,6 +149,8 @@ void EventHandler::handleJoinedClientEvent(const Event &event, ClientData &clien
 
             // Send the response to the Client
             networkManager_.sendResponse(clientSocket, responseData);
+
+            // TODO - send response to all other clients in the chunk
         }
         else
         {
