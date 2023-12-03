@@ -17,14 +17,14 @@ ChunkServerWorker::ChunkServerWorker(EventQueue& eventQueue, NetworkManager& net
     boost::asio::ip::tcp::resolver resolver(io_context_chunk_);
     auto endpoints = resolver.resolve(host, std::to_string(port));
 
-    logger_.log("Connecting to the Chunk Server...", BLUE);
+    logger_.log("Connecting to the Chunk Server...", YELLOW);
 
     connect(endpoints, retryCount); // Start the connection attempt
 }
 
 void ChunkServerWorker::startIOEventLoop()
 {
-    logger_.log("Starting Chunk Server IO Context", YELLOW);
+    logger_.log("Starting Chunk Server IO Context...", YELLOW);
     // Start io_service in a separate thread
     io_thread_ = std::thread([this]()
                              { io_context_chunk_.run(); });
@@ -59,7 +59,7 @@ void ChunkServerWorker::connect(boost::asio::ip::tcp::resolver::results_type end
             }
             else
             {
-                logger_.logError("Error connecting to the Chunk Server: " + ec.message(), RED);
+                logger_.logError("Error connecting to the Chunk Server: " + ec.message());
 
                 if (retryCount < MAX_RETRY_COUNT) // Define MAX_RETRY_COUNT as needed
                 {
@@ -70,14 +70,14 @@ void ChunkServerWorker::connect(boost::asio::ip::tcp::resolver::results_type end
                         if (!ec)
                         {
                             // Retry the connection attempt to the Chunk Server with an incremented retryCount
-                            logger_.log("Retrying connection to Chunk Server...", BLUE);
+                            logger_.log("Retrying connection to Chunk Server...", YELLOW);
                             connect(endpoints, retryCount + 1); // Retry the connection
                         }
                     });
                 }
                 else
                 {
-                    logger_.logError("Max retry count reached. Exiting...", RED);
+                    logger_.logError("Max retry count reached. Exiting...");
                     exit(1);
                 }
             }
@@ -93,7 +93,8 @@ void ChunkServerWorker::sendDataToChunkServer(const std::string &data)
                                  {
                                      if (!error)
                                      {
-                                         logger_.log("Data sent successfully to Chunk Server. Bytes transferred: " + std::to_string(bytes_transferred), GREEN);
+                                        logger_.log("Bytes send: " + std::to_string(bytes_transferred), BLUE);
+                                        logger_.log("Data send successfully to the Chunk Server", BLUE);
 
                                          // Start reading data from Chunk server
                                         // receiveDataFromChunkServer();
@@ -126,16 +127,15 @@ void ChunkServerWorker::receiveDataFromChunkServer()
                                                 std::string ipAddress = remoteEndpoint.address().to_string();
                                                 std::string portNumber = std::to_string(remoteEndpoint.port());
 
-
-                                                logger_.log("Data received from Chunk IP address: " + ipAddress + ", Port: " + portNumber, GREEN);
-                                                logger_.log("Bytes transferred: " + std::to_string(bytes_transferred), BLUE);
-                                                // Now you can use ipAddress and portNumber as needed
+                                                logger_.log("Bytes recieved: " + std::to_string(bytes_transferred), YELLOW);
+                                                logger_.log("Data received from Chunk Server - IP address: " + ipAddress + ", Port: " + portNumber, YELLOW);
+                                               
                                             } else {
                                                 // Handle error
                                             }
 
                                             std::string receivedData(dataBufferChunk->data(), bytes_transferred);
-                                            logger_.log("Received data from Chunk Server: " + receivedData, BLUE);
+                                            logger_.log("Received data from Chunk Server: " + receivedData, YELLOW);
 
                                             // Parse the data received from the client using JSONParser
                                             std::string eventType = jsonParser_.parseEventType(*dataBufferChunk, bytes_transferred);
@@ -147,10 +147,6 @@ void ChunkServerWorker::receiveDataFromChunkServer()
                                             // Set the client data
                                             characterData.characterPosition = positionData;
                                             clientData.characterData = characterData;
-
-                                            //ClientDataStruct currentClientData = *clientData.getClientData(initData.clientId);
-
-                                            //TODO - need to pass correct one socket according client id (not chunk_socket_)
                                             
                                             // Create a new event where send recieved from Chunk data back to the Client and push it to the queue
                                             Event joinedClientEvent(Event::JOINED_CLIENT, clientData.clientId, clientData, chunk_socket_);

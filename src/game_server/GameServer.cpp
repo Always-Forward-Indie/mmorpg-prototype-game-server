@@ -15,7 +15,7 @@ Logger& logger, Database& database)
 }
 
 void GameServer::mainEventLoop() {
-    logger_.log("Starting the main event loop...", YELLOW);
+    logger_.log("Starting Main Event Loop...", YELLOW);
 
     while (true) {
         Event event;

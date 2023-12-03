@@ -21,6 +21,7 @@
         acceptor_.open(endpoint.protocol(), ec);
         if (!ec)
         {
+            logger_.log("Starting Game Server...", YELLOW);
             acceptor_.set_option(boost::asio::ip::tcp::acceptor::reuse_address(true), ec);
             acceptor_.bind(endpoint, ec);
             acceptor_.listen(maxClients, ec);
@@ -28,7 +29,7 @@
 
         if (ec)
         {
-            logger.logError("Error during server initialization: " + ec.message(), RED);
+            logger.logError("Error during server initialization: " + ec.message());
             return;
         }
 
@@ -61,15 +62,16 @@
 
     void NetworkManager::startIOEventLoop()
     {
-        logger_.log("Starting Game Server IO Context", YELLOW);
+        logger_.log("Starting Game Server IO Context...", YELLOW);
         io_context_.run(); // Start the event loop
     }
 
     void NetworkManager::handleClientData(std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket,
                                       const std::array<char, max_length> &dataBuffer,
                                       size_t bytes_transferred) {
+
             std::string receivedData(dataBuffer.data(), bytes_transferred);
-            logger_.log("Received data from Client: " + receivedData, BLUE);
+            logger_.log("Received data from Client: " + receivedData, YELLOW);
 
         try
         {
@@ -111,8 +113,9 @@
                                                 std::string ipAddress = remoteEndpoint.address().to_string();
                                                 std::string portNumber = std::to_string(remoteEndpoint.port());
 
-                                                logger_.log("Data sent successfully to the Client: " + ipAddress + ", Port: " + portNumber, GREEN);
-                                                logger_.log("Bytes transferred: " + std::to_string(bytes_transferred), GREEN);
+                                                logger_.log("Bytes send: " + std::to_string(bytes_transferred), GREEN);
+                                                logger_.log("Data send successfully to the Client: " + ipAddress + ", Port: " + portNumber, GREEN);
+                                               
                                                 // Now you can use ipAddress and portNumber as needed
                                             } else {
                                                 // Handle error
@@ -146,10 +149,8 @@
                                                 std::string ipAddress = remoteEndpoint.address().to_string();
                                                 std::string portNumber = std::to_string(remoteEndpoint.port());
 
-
-                                                logger_.log("Data received from Client IP address: " + ipAddress + ", Port: " + portNumber, GREEN);
-                                                logger_.log("Bytes transferred: " + std::to_string(bytes_transferred), BLUE);
-                                                // Now you can use ipAddress and portNumber as needed
+                                                logger_.log("Bytes received: " + std::to_string(bytes_transferred), YELLOW);
+                                                logger_.log("Data received from Client IP address: " + ipAddress + ", Port: " + portNumber, YELLOW);
                                             } else {
                                                 // Handle error
                                             }
@@ -168,7 +169,7 @@
                                         {
 
                                             // The client has closed the connection
-                                            logger_.logError("Client disconnected gracefully.", RED);
+                                            logger_.logError("Client disconnected gracefully.");
 
                                             // You can perform any cleanup or logging here if needed
 
@@ -178,7 +179,7 @@
                                         else if (error == boost::asio::error::operation_aborted)
                                         {
                                             // The read operation was canceled, likely due to the client disconnecting
-                                            logger_.logError("Read operation canceled (client disconnected).", RED);
+                                            logger_.logError("Read operation canceled (client disconnected).");
 
                                             // You can perform any cleanup or logging here if needed
 
@@ -188,7 +189,7 @@
                                         else
                                         {
                                             // Handle other errors
-                                            logger_.logError("Error during async_read_some: " + error.message(), RED);
+                                            logger_.logError("Error during async_read_some: " + error.message());
 
                                             // You can also close the socket in case of other errors if needed
                                             clientSocket->close();

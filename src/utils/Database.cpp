@@ -20,7 +20,7 @@ void Database::connect(std::tuple<DatabaseConfig, GameServerConfig, ChunkServerC
         std::string user = std::get<0>(configs).user;
         std::string password = std::get<0>(configs).password;
 
-        logger_.log("Connecting to database...", BLUE);
+        logger_.log("Connecting to database...", YELLOW);
         logger_.log("Database name: " + databaseName, BLUE);
         //logger_.log("User: " + user, BLUE);
         logger_.log("Host: " + host, BLUE);
@@ -35,7 +35,7 @@ void Database::connect(std::tuple<DatabaseConfig, GameServerConfig, ChunkServerC
         }
         else
         {
-            logger_.logError("Database connection failed!", RED);
+            logger_.logError("Database connection failed!");
         }
     }
     catch (const std::exception &e)
@@ -91,7 +91,7 @@ pqxx::connection &Database::getConnection()
 void Database::handleDatabaseError(const std::exception &e)
 {
     // Handle database connection or query errors
-    logger_.logError("Database error: " + std::string(e.what()), RED);
+    logger_.logError("Database error: " + std::string(e.what()));
 }
 
 // Function to execute a query with a transaction
