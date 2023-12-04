@@ -9,14 +9,18 @@
 #include "events/EventQueue.hpp"
 #include "events/EventHandler.hpp"
 #include "utils/Logger.hpp"
-
+#include "utils/Scheduler.hpp"
+#include "services/CharacterManager.hpp"
 
 class GameServer {
 public:
     GameServer(EventQueue& eventQueue, 
+    Scheduler& scheduler,
     NetworkManager& networkManager, 
     ChunkServerWorker& chunkServerWorker, 
-    Logger& logger, Database& database);
+    Database& database,
+    CharacterManager& characterManager,
+    Logger& logger);
     void startMainEventLoop();
     
 private:
@@ -29,4 +33,7 @@ private:
     EventQueue& eventQueue_;
     EventHandler eventHandler_;
     NetworkManager& networkManager_;
+    CharacterManager& characterManager_;
+    Scheduler& scheduler_;
+    Database& database_;
 };

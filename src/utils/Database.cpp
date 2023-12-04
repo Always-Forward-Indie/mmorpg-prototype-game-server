@@ -57,13 +57,13 @@ void Database::prepareDefaultQueries()
                                               "JOIN race on characters.race_id = race.id "
                                               "WHERE characters.owner_id = $1 AND characters.id = $2 LIMIT 1;");
         connection_->prepare("set_character_level", "UPDATE characters "
-                                                    "SET level = $1 WHERE id = $2;");
+                                                    "SET level = $2 WHERE id = $1;");
         connection_->prepare("set_character_health", "UPDATE characters "
-                                                     "SET current_health = $1 WHERE id = $2;");
+                                                     "SET current_health = $2 WHERE id = $1;");
         connection_->prepare("set_character_mana", "UPDATE characters "
-                                                   "SET current_mana = $1 WHERE id = $2;");
+                                                   "SET current_mana = $2 WHERE id = $1;");
         connection_->prepare("set_character_exp", "UPDATE characters "
-                                                  "SET experience_points = $1 WHERE id = $2;");
+                                                  "SET experience_points = $2 WHERE id = $1;");
 
         connection_->prepare("get_character_position", "SELECT x, y, z FROM character_position WHERE character_id = $1 LIMIT 1;");
         connection_->prepare("set_character_position", "UPDATE character_position SET x = $1, y = $2, z = $3 WHERE character_id = $4;");

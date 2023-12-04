@@ -1,3 +1,5 @@
+#pragma once
+
 #include <iostream>
 #include <vector>
 #include <utils/Database.hpp>
@@ -15,13 +17,10 @@ public:
     // Method to get a character position
     PositionStruct getCharacterPosition(Database& database, ClientData& clientData, int accountId, int characterId);
 
-    //update character position in object
-    void setCharacterPosition(ClientData& clientData, int accountId, PositionStruct &position);
-    //update character data in object
-    void setCharacterData(ClientData& clientData, int accountId, CharacterDataStruct &characterData);
-
     // update character position in the database
     void updateCharacterPosition(Database& database, ClientData& clientData, int accountId, int characterId, PositionStruct &position);
     // update character data in the database
     void updateCharacterData(Database& database, ClientData& clientData, int accountId, int characterId, CharacterDataStruct &characterData);
+    // update characters data in the database
+    void updateCharactersData(Database& database, ClientData& clientData);
 };

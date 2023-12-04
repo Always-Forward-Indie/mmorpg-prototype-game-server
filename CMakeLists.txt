@@ -14,14 +14,15 @@ set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=thread")
 set(SOURCE_FILES
     src/main.cpp
     src/game_server/GameServer.cpp
-    src/game_server/Authenticator.cpp
-    src/game_server/ChunkServerWorker.cpp
-    src/game_server/CharacterManager.cpp
+    src/services/Authenticator.cpp
+    src/services/CharacterManager.cpp
+    src/network/ChunkServerWorker.cpp
     src/network/NetworkManager.cpp
     src/events/Event.cpp
     src/events/EventQueue.cpp
     src/events/EventHandler.cpp
     src/data/ClientData.cpp
+    src/utils/Scheduler.cpp
     src/utils/JSONParser.cpp
     src/utils/Logger.cpp
     src/utils/Database.cpp
@@ -33,22 +34,23 @@ set(SOURCE_FILES
 set(HEADER_FILES
 
     include/game_server/GameServer.hpp
-    include/game_server/Authenticator.hpp
-    include/game_server/ChunkServerWorker.hpp
-    include/game_server/CharacterManager.hpp
+    include/services/Authenticator.hpp
+    include/services/CharacterManager.hpp
+    include/network/ChunkServerWorker.hpp
     include/network/NetworkManager.hpp
     include/events/Event.hpp
     include/events/EventQueue.hpp
     include/events/EventHandler.hpp
     include/data/DataStructs.hpp
     include/data/ClientData.hpp
+    include/data/SpecialStructs.hpp
+    include/utils/Scheduler.hpp
     include/utils/JSONParser.hpp
     include/utils/ResponseBuilder.hpp
     include/utils/Logger.hpp
     include/utils/TerminalColors.hpp
     include/utils/Database.hpp
     include/utils/Config.hpp
-
     # ... other header files
 )
 

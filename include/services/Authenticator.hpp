@@ -1,4 +1,3 @@
-// Authenticator.hpp
 #pragma once
 
 #include <string>

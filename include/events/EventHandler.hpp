@@ -6,12 +6,16 @@
 #include "utils/ResponseBuilder.hpp"
 #include "utils/Logger.hpp"
 #include "utils/Database.hpp"
-#include "game_server/ChunkServerWorker.hpp"
-#include "game_server/CharacterManager.hpp"
+#include "network/ChunkServerWorker.hpp"
+#include "services/CharacterManager.hpp"
 
 class EventHandler {
 public:
-  EventHandler(NetworkManager& networkManager, ChunkServerWorker& chunkServerWorker, Database& database, Logger& logger);
+  EventHandler(NetworkManager& networkManager, 
+  ChunkServerWorker& chunkServerWorker, 
+  Database& database, 
+  CharacterManager& characterManager,
+  Logger& logger);
   void dispatchEvent(const Event& event, ClientData& clientData);
 
 private:
@@ -24,6 +28,6 @@ private:
     ChunkServerWorker& chunkServerWorker_;
     Database& database_;
     Logger& logger_;
-    CharacterManager characterManager_;
+    CharacterManager& characterManager_;
     // Other private handler methods
 };

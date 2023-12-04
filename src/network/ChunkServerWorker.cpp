@@ -1,4 +1,4 @@
-#include "game_server/ChunkServerWorker.hpp"
+#include "network/ChunkServerWorker.hpp"
 
 ChunkServerWorker::ChunkServerWorker(EventQueue& eventQueue, NetworkManager& networkManager, std::tuple<DatabaseConfig, GameServerConfig, ChunkServerConfig> &configs, Logger &logger)
     : io_context_chunk_(),

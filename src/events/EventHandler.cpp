@@ -1,12 +1,16 @@
 #include "events/EventHandler.hpp"
 #include "events/Event.hpp"
 
-EventHandler::EventHandler(NetworkManager &networkManager, ChunkServerWorker &chunkServerWorker, Database &database, Logger &logger)
+EventHandler::EventHandler(NetworkManager &networkManager, 
+ChunkServerWorker &chunkServerWorker, 
+Database &database, 
+CharacterManager &characterManager,
+Logger &logger)
     : networkManager_(networkManager),
       chunkServerWorker_(chunkServerWorker),
       database_(database),
       logger_(logger),
-      characterManager_()
+      characterManager_(characterManager)
 {
 }
 
@@ -32,12 +36,10 @@ void EventHandler::handleJoinToChunkEvent(const Event &event, ClientData &client
             // TODO - Maybe move this code to a separate method and run it in some time interval to save the data in the database
             // Get the character data from the database
             CharacterDataStruct characterData = characterManager_.getCharacterData(database_, clientData, clientID, initData.characterData.characterId);
-            // Set the character data in the clientData_ object
-            characterManager_.setCharacterData(clientData, clientID, characterData);
+            clientData.updateCharacterData(clientID, characterData);
             // Get the character position from the database
             PositionStruct characterPosition = characterManager_.getCharacterPosition(database_, clientData, clientID, initData.characterData.characterId);
-            // Set the character position in the clientData_ object
-            characterManager_.setCharacterPosition(clientData, clientID, characterPosition);
+            clientData.updateCharacterPositionData(clientID, characterPosition);
 
             // Prepare the response message
             nlohmann::json response;

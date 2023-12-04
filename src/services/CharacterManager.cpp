@@ -1,8 +1,9 @@
-#include "game_server/CharacterManager.hpp"
+#include "services/CharacterManager.hpp"
 #include "utils/Database.hpp"
 #include <pqxx/pqxx>
 #include <iostream>
 #include <vector>
+#include <random>
 
 // Constructor
 CharacterManager::CharacterManager()
@@ -22,9 +23,9 @@ std::vector<CharacterDataStruct> CharacterManager::getCharactersList(Database &d
     {
         pqxx::work transaction(database.getConnection()); // Start a transaction
         pqxx::result selectCharacterData = database.executeQueryWithTransaction(
-                    transaction,
-                    "get_characters_list",
-                    {accountId});
+            transaction,
+            "get_characters_list",
+            {accountId});
 
         if (selectCharacterData.empty())
         {
@@ -33,13 +34,14 @@ std::vector<CharacterDataStruct> CharacterManager::getCharactersList(Database &d
         }
 
         // Iterate through the result set and populate CharacterDataStruct objects
-        for (const auto& row : selectCharacterData) {
+        for (const auto &row : selectCharacterData)
+        {
             CharacterDataStruct characterDataStruct;
             characterDataStruct.characterId = row["character_id"].as<int>();
             characterDataStruct.characterLevel = row["character_lvl"].as<int>();
             characterDataStruct.characterName = row["character_name"].as<std::string>();
             characterDataStruct.characterClass = row["character_class"].as<std::string>();
-            
+
             // Add the populated CharacterDataStruct to the vector
             charactersList.push_back(characterDataStruct);
         }
@@ -68,9 +70,9 @@ CharacterDataStruct CharacterManager::getCharacterData(Database &database, Clien
         pqxx::work transaction(database.getConnection()); // Start a transaction
         // Execute the prepared query and assign the result to a pqxx::result object
         pqxx::result selectCharacterData = database.executeQueryWithTransaction(
-                    transaction,
-                    "get_character",
-                    {accountId, characterId});
+            transaction,
+            "get_character",
+            {accountId, characterId});
 
         if (selectCharacterData.empty())
         {
@@ -97,7 +99,6 @@ CharacterDataStruct CharacterManager::getCharacterData(Database &database, Clien
     return characterDataStruct;
 }
 
-
 // Method to get a character position
 PositionStruct CharacterManager::getCharacterPosition(Database &database, ClientData &clientData, int accountId, int characterId)
 {
@@ -109,9 +110,9 @@ PositionStruct CharacterManager::getCharacterPosition(Database &database, Client
         pqxx::work transaction(database.getConnection()); // Start a transaction
         // Execute the prepared query and assign the result to a pqxx::result object
         pqxx::result selectCharacterPosition = database.executeQueryWithTransaction(
-                    transaction,
-                    "get_character_position",
-                    {characterId});
+            transaction,
+            "get_character_position",
+            {characterId});
 
         if (selectCharacterPosition.empty())
         {
@@ -137,35 +138,25 @@ PositionStruct CharacterManager::getCharacterPosition(Database &database, Client
     return characterPosition;
 }
 
-//update character position in object
-void CharacterManager::setCharacterPosition(ClientData& clientData, int accountId, PositionStruct &position){
-    clientData.updateCharacterPositionData(accountId, position);
-}
-
-//update character data in object
-void CharacterManager::setCharacterData(ClientData& clientData, int accountId, CharacterDataStruct &characterData){
-    clientData.updateCharacterData(accountId, characterData);
-}
-
 // update character position in the database
-void CharacterManager::updateCharacterPosition(Database& database, ClientData& clientData, int accountId, int characterId, PositionStruct &position){
-    try {
+void CharacterManager::updateCharacterPosition(Database &database, ClientData &clientData, int accountId, int characterId, PositionStruct &position)
+{
+    try
+    {
         pqxx::work transaction(database.getConnection()); // Start a transaction
         pqxx::result updateCharacterPosition = database.executeQueryWithTransaction(
-                    transaction,
-                    "set_character_position",
-                    {characterId, position.positionX, position.positionY, position.positionZ});
-        
-        if (updateCharacterPosition.empty())
+            transaction,
+            "set_character_position",
+            {characterId, position.positionX, position.positionY, position.positionZ});
+
+        if (updateCharacterPosition.affected_rows() == 0)
         {
             transaction.abort(); // Rollback the transaction
             return;
         }
 
         transaction.commit(); // Commit the transaction
-
-        //update character position in object
-        setCharacterPosition(clientData, accountId, position);
+        std::cout << "Character position updated successfully" << std::endl;
     }
     catch (const std::exception &e)
     {
@@ -177,24 +168,38 @@ void CharacterManager::updateCharacterPosition(Database& database, ClientData& c
 }
 
 // update character data in the database
-void CharacterManager::updateCharacterData(Database& database, ClientData& clientData, int accountId, int characterId, CharacterDataStruct &characterData){
-    try {
+void CharacterManager::updateCharacterData(Database &database, ClientData &clientData, int accountId, int characterId, CharacterDataStruct &characterData)
+{
+    // Create a random device and use it to seed a random number generator (Mersenne Twister engine in this case)
+    std::random_device rd;
+    std::mt19937 rng(rd());
+
+    // Define the range of numbers to generate [0, 100]
+    std::uniform_int_distribution<int> uni(0, 100);
+
+    // Generate a random integer
+    int random_integer = uni(rng);
+
+    std::cout << "Character data update..." << std::endl;
+
+    // TODO - update character real data in the database (Creata a new query for this)
+    try
+    {
         pqxx::work transaction(database.getConnection()); // Start a transaction
         pqxx::result updateCharacterData = database.executeQueryWithTransaction(
-                    transaction,
-                    "set_character_health",
-                    {characterId, std::to_string(5)});
-        
-        if (updateCharacterData.empty())
+            transaction,
+            "set_character_health",
+            {characterId, random_integer});
+
+        if (updateCharacterData.affected_rows() == 0)
         {
+            std::cout << "Character not found in DB..." << std::endl;
             transaction.abort(); // Rollback the transaction
             return;
         }
 
         transaction.commit(); // Commit the transaction
-
-        //update character data in object
-        setCharacterData(clientData, accountId, characterData);
+        std::cout << "Character data updated successfully" << std::endl;
     }
     catch (const std::exception &e)
     {
@@ -202,5 +207,32 @@ void CharacterManager::updateCharacterData(Database& database, ClientData& clien
         database.handleDatabaseError(e);
         // You might want to send an error response back to the client or log the error
         return;
+    }
+}
+
+void CharacterManager::updateCharactersData(Database &database, ClientData &clientData)
+{
+    std::cout << "Try update characters data in DB..." << std::endl;
+    try
+    {
+        // Get all existing clients data as array
+        std::unordered_map<int, ClientDataStruct> clientDataMap = clientData.getClientsDataMap();
+
+        // Iterate through the result set and populate CharacterDataStruct objects
+        for (const auto &clientDataItem : clientDataMap)
+        {
+            // Get the character data
+            CharacterDataStruct characterData = clientDataItem.second.characterData;
+            PositionStruct characterPosition = clientDataItem.second.characterData.characterPosition;
+
+            // Update character data in the database
+            updateCharacterData(database, clientData, clientDataItem.first, characterData.characterId, characterData);
+            // Update character position in the database
+            // updateCharacterPosition(database, clientData, clientDataItem.first, characterData.characterId, characterPosition);
+        }
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << e.what() << '\n';
     }
 }

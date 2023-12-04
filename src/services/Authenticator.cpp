@@ -1,4 +1,4 @@
-#include "game_server/Authenticator.hpp"
+#include "services/Authenticator.hpp"
 #include "utils/Database.hpp"
 #include <boost/uuid/random_generator.hpp>
 #include <boost/uuid/uuid.hpp>

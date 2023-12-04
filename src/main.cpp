@@ -2,10 +2,11 @@
 #include "utils/Config.hpp"
 #include "utils/Logger.hpp"
 #include "game_server/GameServer.hpp"
-#include "game_server/ChunkServerWorker.hpp"
+#include "network/ChunkServerWorker.hpp"
 #include "network/NetworkManager.hpp"
 #include "utils/Database.hpp"
-
+#include "utils/Scheduler.hpp"
+#include "services/CharacterManager.hpp"
 
 int main() {
     try {
@@ -19,6 +20,12 @@ int main() {
         // Initialize EventQueue
         EventQueue eventQueue;
 
+        // Initialize Scheduler
+        Scheduler scheduler;
+
+        // Initialize CharacterManager
+        CharacterManager characterManager;
+
         // Initialize Database
         Database database(configs, logger);
 
@@ -29,15 +36,18 @@ int main() {
         ChunkServerWorker chunkServerWorker(eventQueue, networkManager, configs, logger);
 
         // Initialize GameServer
-        GameServer gameServer(eventQueue, networkManager, chunkServerWorker, logger, database);
+        GameServer gameServer(eventQueue, scheduler, networkManager, chunkServerWorker, database, characterManager, logger);
 
         // Start ChunkServerWorker IO Context in a separate thread
         chunkServerWorker.startIOEventLoop(); 
 
-        //Start Game Server main event loop
+        //Start Game Server main event loop  in a separate thread
         gameServer.startMainEventLoop();
 
-        //Start the IO Networking event loop
+        //Start Scheduler loop in a separate thread
+        scheduler.start();
+
+        //Start the IO Networking event loop in the main thread
         networkManager.startIOEventLoop();
 
         return 0;

@@ -113,8 +113,8 @@
                                                 std::string ipAddress = remoteEndpoint.address().to_string();
                                                 std::string portNumber = std::to_string(remoteEndpoint.port());
 
-                                                logger_.log("Bytes send: " + std::to_string(bytes_transferred), GREEN);
-                                                logger_.log("Data send successfully to the Client: " + ipAddress + ", Port: " + portNumber, GREEN);
+                                                logger_.log("Bytes send: " + std::to_string(bytes_transferred), BLUE);
+                                                logger_.log("Data send successfully to the Client: " + ipAddress + ", Port: " + portNumber, BLUE);
                                                
                                                 // Now you can use ipAddress and portNumber as needed
                                             } else {
