@@ -51,11 +51,16 @@ void Database::prepareDefaultQueries()
         connection_->prepare("search_user", "SELECT * FROM users WHERE session_key = $1 LIMIT 1;");
 
         connection_->prepare("get_character", "SELECT characters.id as character_id, characters.level as character_lvl, "
-                                              "characters.name as character_name, character_class.name as character_class, race.name as race_name "
+                                              "characters.name as character_name, character_class.name as character_class, race.name as race_name, "
+                                              "characters.experience_points as character_exp, characters.current_health as character_current_health, "
+                                              "characters.current_mana as character_current_mana "
                                               "FROM characters "
                                               "JOIN character_class ON characters.class_id = character_class.id "
                                               "JOIN race on characters.race_id = race.id "
                                               "WHERE characters.owner_id = $1 AND characters.id = $2 LIMIT 1;");
+        connection_->prepare("set_character_data", "UPDATE characters "
+                                                    "SET level = $2, experience_points = $3, current_health = $4, current_mana = $5 "
+                                                    "WHERE id = $1;");
         connection_->prepare("set_character_level", "UPDATE characters "
                                                     "SET level = $2 WHERE id = $1;");
         connection_->prepare("set_character_health", "UPDATE characters "
@@ -70,8 +75,7 @@ void Database::prepareDefaultQueries()
     }
     else
     {
-        std::cerr << RED << "Cannot prepare queries: Database connection is not open." << RESET << std::endl;
-        // Handle this situation (e.g., throw an exception or exit)
+        logger_.logError("Cannot prepare queries: Database connection is not open.");
     }
 }
 

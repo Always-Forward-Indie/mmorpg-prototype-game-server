@@ -5,7 +5,7 @@
 #include <vector>
 #include <random>
 
-// Constructor
+// TODO add logger to the constructor and use it to log errors and other messages
 CharacterManager::CharacterManager()
 {
     // Initialize properties or perform any setup here
@@ -85,6 +85,10 @@ CharacterDataStruct CharacterManager::getCharacterData(Database &database, Clien
         characterDataStruct.characterLevel = selectCharacterData[0][1].as<int>();
         characterDataStruct.characterName = selectCharacterData[0][2].as<std::string>();
         characterDataStruct.characterClass = selectCharacterData[0][3].as<std::string>();
+        characterDataStruct.characterRace = selectCharacterData[0][4].as<std::string>();
+        characterDataStruct.characterExperiencePoints = selectCharacterData[0][5].as<int>();
+        characterDataStruct.characterCurrentHealth = selectCharacterData[0][6].as<int>();
+        characterDataStruct.characterCurrentMana = selectCharacterData[0][7].as<int>();
 
         transaction.commit(); // Commit the transaction
     }
@@ -180,9 +184,14 @@ void CharacterManager::updateCharacterData(Database &database, ClientData &clien
     // Generate a random integer
     int random_integer = uni(rng);
 
+    if(characterData.needDBUpdate == false) {
+        std::cout << "Character data for character ID: "+std::to_string(characterId)+" - doesn't need update..." << std::endl;
+        return;
+    }
+
     std::cout << "Character data update..." << std::endl;
 
-    // TODO - update character real data in the database (Creata a new query for this)
+    // TODO - update character real data in the database (Creata a new query for this, think what data should be updated)
     try
     {
         pqxx::work transaction(database.getConnection()); // Start a transaction
@@ -199,6 +208,8 @@ void CharacterManager::updateCharacterData(Database &database, ClientData &clien
         }
 
         transaction.commit(); // Commit the transaction
+        // Change flag to false, because data was updated in DB
+        clientData.markClientUpdate(accountId, false);
         std::cout << "Character data updated successfully" << std::endl;
     }
     catch (const std::exception &e)

@@ -25,6 +25,27 @@ CharacterDataStruct JSONParser::parseCharacterData(const std::array<char, max_le
         characterData.characterLevel = jsonData["body"]["characterLevel"].get<int>();
     }
 
+    if (jsonData.contains("body") &&
+    jsonData["body"].is_object() &&
+    jsonData["body"].contains("characterExp") &&
+    jsonData["body"]["characterExp"].is_number_integer()) {
+        characterData.characterExperiencePoints = jsonData["body"]["characterExp"].get<int>();
+    }
+
+    if (jsonData.contains("body") &&
+    jsonData["body"].is_object() &&
+    jsonData["body"].contains("characterCurrentHealth") &&
+    jsonData["body"]["characterCurrentHealth"].is_number_integer()) {
+        characterData.characterCurrentHealth = jsonData["body"]["characterCurrentHealth"].get<int>();
+    }
+
+    if (jsonData.contains("body") &&
+    jsonData["body"].is_object() &&
+    jsonData["body"].contains("characterCurrentMana") &&
+    jsonData["body"]["characterCurrentMana"].is_number_integer()) {
+        characterData.characterCurrentMana = jsonData["body"]["characterCurrentMana"].get<int>();
+    }
+
     if (jsonData.contains("body") && 
     jsonData["body"].is_object() && 
     jsonData["body"].contains("characterName") && 
@@ -84,8 +105,6 @@ ClientDataStruct JSONParser::parseClientData(const std::array<char, max_length> 
 {
     nlohmann::json jsonData = nlohmann::json::parse(dataBuffer.data(), dataBuffer.data() + bytes_transferred);
     ClientDataStruct clientData;
-
-    //std::cout << "JSON: " << jsonData << std::endl;
 
     // ... parse jsonData to ClientData ...
     if (jsonData.contains("header") && 

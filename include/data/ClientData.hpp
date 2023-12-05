@@ -10,6 +10,9 @@ public:
     ClientData();
 
     void storeClientData(const ClientDataStruct &clientData);
+    void markClientUpdate(const int &id, const bool &dbNeedsUpdate);
+    void markCharacterUpdate(const int &id, const bool &dbNeedsUpdate);
+    void markPositionUpdate(const int &id, const bool &dbNeedsUpdate);
     void updateClientData(const int &id, const std::string &field, const std::string &value);
     void updateCharacterData(const int &id, const CharacterDataStruct &characterData);
     void updateCharacterPositionData(const int &id, const PositionStruct &positionData);

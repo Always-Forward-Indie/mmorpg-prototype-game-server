@@ -24,6 +24,42 @@ std::unordered_map<int, ClientDataStruct> ClientData::getClientsDataMap() const
     return clientDataMap_;
 }
 
+// Set the needDBUpdate flag to true or false
+void ClientData::markClientUpdate(const int &id, const bool &dbNeedsUpdate)
+{
+    std::lock_guard<std::mutex> lock(clientDataMutex_); // lock_guard is a mutex wrapper that provides a convenient RAII-style mechanism for owning a mutex for the duration of a scoped block.
+    // Assuming that clientDataMap_ is an unordered_map with the key as the hash and the value as ClientDataStruct.
+    auto it = clientDataMap_.find(id);
+    if (it != clientDataMap_.end())
+    {
+        it->second.needDBUpdate = dbNeedsUpdate;
+    }
+}
+
+// Set the needDBUpdate flag to true or false
+void ClientData::markCharacterUpdate(const int &id, const bool &dbNeedsUpdate)
+{
+    std::lock_guard<std::mutex> lock(clientDataMutex_); // lock_guard is a mutex wrapper that provides a convenient RAII-style mechanism for owning a mutex for the duration of a scoped block.
+    // Assuming that clientDataMap_ is an unordered_map with the key as the hash and the value as ClientDataStruct.
+    auto it = clientDataMap_.find(id);
+    if (it != clientDataMap_.end())
+    {
+        it->second.characterData.needDBUpdate = dbNeedsUpdate;
+    }
+}
+
+// Set the needDBUpdate flag to true or false
+void ClientData::markPositionUpdate(const int &id, const bool &dbNeedsUpdate)
+{
+    std::lock_guard<std::mutex> lock(clientDataMutex_); // lock_guard is a mutex wrapper that provides a convenient RAII-style mechanism for owning a mutex for the duration of a scoped block.
+    // Assuming that clientDataMap_ is an unordered_map with the key as the hash and the value as ClientDataStruct.
+    auto it = clientDataMap_.find(id);
+    if (it != clientDataMap_.end())
+    {
+        it->second.characterData.characterPosition.needDBUpdate = dbNeedsUpdate;
+    }
+}
+
 // Update client data
 void ClientData::updateClientData(const int &id, const std::string &field, const std::string &value)
 {

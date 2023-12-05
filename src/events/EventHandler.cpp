@@ -1,11 +1,11 @@
 #include "events/EventHandler.hpp"
 #include "events/Event.hpp"
 
-EventHandler::EventHandler(NetworkManager &networkManager, 
-ChunkServerWorker &chunkServerWorker, 
-Database &database, 
-CharacterManager &characterManager,
-Logger &logger)
+EventHandler::EventHandler(NetworkManager &networkManager,
+                           ChunkServerWorker &chunkServerWorker,
+                           Database &database,
+                           CharacterManager &characterManager,
+                           Logger &logger)
     : networkManager_(networkManager),
       chunkServerWorker_(chunkServerWorker),
       database_(database),
@@ -32,14 +32,17 @@ void EventHandler::handleJoinToChunkEvent(const Event &event, ClientData &client
             // Save the clientData object with the new init data
             clientData.storeClientData(initData);
 
-            // TODO - Review this code to save the data in the database
-            // TODO - Maybe move this code to a separate method and run it in some time interval to save the data in the database
             // Get the character data from the database
             CharacterDataStruct characterData = characterManager_.getCharacterData(database_, clientData, clientID, initData.characterData.characterId);
+            // Update the clientData object with the new character data
             clientData.updateCharacterData(clientID, characterData);
             // Get the character position from the database
             PositionStruct characterPosition = characterManager_.getCharacterPosition(database_, clientData, clientID, initData.characterData.characterId);
+            // Update the clientData object with the new position
             clientData.updateCharacterPositionData(clientID, characterPosition);
+
+            // Get the clientData object with the new init data
+            const ClientDataStruct *currentClientData = clientData.getClientData(initData.clientId);
 
             // Prepare the response message
             nlohmann::json response;
@@ -66,13 +69,20 @@ void EventHandler::handleJoinToChunkEvent(const Event &event, ClientData &client
             // Add the message to the response
             response = builder
                            .setHeader("message", "Authentication success for user!")
-                           .setHeader("hash", initData.hash)
-                           .setHeader("clientId", initData.clientId)
+                           .setHeader("hash", currentClientData->hash)
+                           .setHeader("clientId", currentClientData->clientId)
                            .setHeader("eventType", "joinGame")
-                           .setBody("characterId", initData.characterData.characterId)
-                           .setBody("characterPosX", initData.characterData.characterPosition.positionX)
-                           .setBody("characterPosY", initData.characterData.characterPosition.positionY)
-                           .setBody("characterPosZ", initData.characterData.characterPosition.positionZ)
+                           .setBody("characterId", currentClientData->characterData.characterId)
+                           .setBody("characterClass", currentClientData->characterData.characterClass)
+                           .setBody("characterLevel", currentClientData->characterData.characterLevel)
+                           .setBody("characterName", currentClientData->characterData.characterName)
+                           .setBody("characterRace", currentClientData->characterData.characterRace)
+                           .setBody("characterExp", currentClientData->characterData.characterExperiencePoints)
+                           .setBody("characterCurrentHealth", currentClientData->characterData.characterCurrentHealth)
+                           .setBody("characterCurrentMana", currentClientData->characterData.characterCurrentMana)
+                           .setBody("characterPosX", currentClientData->characterData.characterPosition.positionX)
+                           .setBody("characterPosY", currentClientData->characterData.characterPosition.positionY)
+                           .setBody("characterPosZ", currentClientData->characterData.characterPosition.positionZ)
                            .build();
             // Prepare a response message
             std::string responseData = networkManager_.generateResponseMessage("success", response);
@@ -142,6 +152,13 @@ void EventHandler::handleJoinedClientEvent(const Event &event, ClientData &clien
                            .setHeader("clientId", initData.clientId)
                            .setHeader("eventType", "joinGame")
                            .setBody("characterId", initData.characterData.characterId)
+                           .setBody("characterClass", initData.characterData.characterClass)
+                           .setBody("characterLevel", initData.characterData.characterLevel)
+                           .setBody("characterName", initData.characterData.characterName)
+                           .setBody("characterRace", initData.characterData.characterRace)
+                           .setBody("characterExp", initData.characterData.characterExperiencePoints)
+                           .setBody("characterCurrentHealth", initData.characterData.characterCurrentHealth)
+                           .setBody("characterCurrentMana", initData.characterData.characterCurrentMana)
                            .setBody("characterPosX", initData.characterData.characterPosition.positionX)
                            .setBody("characterPosY", initData.characterData.characterPosition.positionY)
                            .setBody("characterPosZ", initData.characterData.characterPosition.positionZ)
@@ -153,6 +170,7 @@ void EventHandler::handleJoinedClientEvent(const Event &event, ClientData &clien
             networkManager_.sendResponse(clientSocket, responseData);
 
             // TODO - send response to all other clients in the chunk
+            // Use for loop to iterate through the clientDataMap_ for this and send the response to all other clients in the chunk
         }
         else
         {
