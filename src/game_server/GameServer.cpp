@@ -21,13 +21,11 @@ Logger& logger)
 }
 
 void GameServer::mainEventLoop() {
-    //TODO - save different client data to the database in different time intervals (depend by the client data type)
-    // maybe it should be like scheduled task
-    // also maybe use a separate thread for this as background service
     logger_.log("Add Tasks To Scheduler...", YELLOW);
+
+    //TODO - save different client data to the database in different time intervals (depend by the client data type)
     // Schedule tasks
-    scheduler_.scheduleTask({[&] { characterManager_.updateCharactersData(database_, clientData_); }, 5, std::chrono::system_clock::now()}); // every 5 seconds
-    //scheduler_.scheduleTask({savePlayerPosition, 15, std::chrono::system_clock::now()}); // every 15 seconds
+    scheduler_.scheduleTask({[&] { characterManager_.updateBasicCharactersData(database_, clientData_); }, 5, std::chrono::system_clock::now()}); // every 5 seconds
 
     logger_.log("Starting Main Event Loop...", YELLOW);
     while (true) {

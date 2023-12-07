@@ -58,7 +58,7 @@ void Database::prepareDefaultQueries()
                                               "JOIN character_class ON characters.class_id = character_class.id "
                                               "JOIN race on characters.race_id = race.id "
                                               "WHERE characters.owner_id = $1 AND characters.id = $2 LIMIT 1;");
-        connection_->prepare("set_character_data", "UPDATE characters "
+        connection_->prepare("set_basic_character_data", "UPDATE characters "
                                                     "SET level = $2, experience_points = $3, current_health = $4, current_mana = $5 "
                                                     "WHERE id = $1;");
         connection_->prepare("set_character_level", "UPDATE characters "

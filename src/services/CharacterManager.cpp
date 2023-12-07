@@ -5,13 +5,13 @@
 #include <vector>
 #include <random>
 
-// TODO add logger to the constructor and use it to log errors and other messages
-CharacterManager::CharacterManager()
+
+CharacterManager::CharacterManager(Logger& logger) 
+: logger_(logger)
 {
     // Initialize properties or perform any setup here
 }
 
-// Method to get characters list
 std::vector<CharacterDataStruct> CharacterManager::getCharactersList(Database &database, ClientData &clientData, int accountId)
 {
     // initialize a vector of strings for characters
@@ -59,8 +59,7 @@ std::vector<CharacterDataStruct> CharacterManager::getCharactersList(Database &d
     return charactersList;
 }
 
-// Method to select a character
-CharacterDataStruct CharacterManager::getCharacterData(Database &database, ClientData &clientData, int accountId, int characterId)
+CharacterDataStruct CharacterManager::getBasicCharacterData(Database &database, ClientData &clientData, int accountId, int characterId)
 {
     // Create a CharacterDataStruct to save the character data from DB
     CharacterDataStruct characterDataStruct;
@@ -103,7 +102,6 @@ CharacterDataStruct CharacterManager::getCharacterData(Database &database, Clien
     return characterDataStruct;
 }
 
-// Method to get a character position
 PositionStruct CharacterManager::getCharacterPosition(Database &database, ClientData &clientData, int accountId, int characterId)
 {
     // Create a characterPosition to save the character position data from DB
@@ -142,7 +140,6 @@ PositionStruct CharacterManager::getCharacterPosition(Database &database, Client
     return characterPosition;
 }
 
-// update character position in the database
 void CharacterManager::updateCharacterPosition(Database &database, ClientData &clientData, int accountId, int characterId, PositionStruct &position)
 {
     try
@@ -160,7 +157,8 @@ void CharacterManager::updateCharacterPosition(Database &database, ClientData &c
         }
 
         transaction.commit(); // Commit the transaction
-        std::cout << "Character position updated successfully" << std::endl;
+
+        logger_.log("Character position updated successfully", GREEN);
     }
     catch (const std::exception &e)
     {
@@ -171,38 +169,26 @@ void CharacterManager::updateCharacterPosition(Database &database, ClientData &c
     }
 }
 
-// update character data in the database
-void CharacterManager::updateCharacterData(Database &database, ClientData &clientData, int accountId, int characterId, CharacterDataStruct &characterData)
+void CharacterManager::updateBasicCharacterData(Database &database, ClientData &clientData, int accountId, int characterId, CharacterDataStruct &characterData)
 {
-    // Create a random device and use it to seed a random number generator (Mersenne Twister engine in this case)
-    std::random_device rd;
-    std::mt19937 rng(rd());
-
-    // Define the range of numbers to generate [0, 100]
-    std::uniform_int_distribution<int> uni(0, 100);
-
-    // Generate a random integer
-    int random_integer = uni(rng);
-
     if(characterData.needDBUpdate == false) {
-        std::cout << "Character data for character ID: "+std::to_string(characterId)+" - doesn't need update..." << std::endl;
+        logger_.log("Character with ID: "+std::to_string(characterId)+" - doesn't need update data in DB...");
         return;
     }
 
     std::cout << "Character data update..." << std::endl;
 
-    // TODO - update character real data in the database (Creata a new query for this, think what data should be updated)
     try
     {
         pqxx::work transaction(database.getConnection()); // Start a transaction
         pqxx::result updateCharacterData = database.executeQueryWithTransaction(
             transaction,
-            "set_character_health",
-            {characterId, random_integer});
+            "set_basic_character_data",
+            {characterId, characterData.characterLevel, characterData.characterExperiencePoints, characterData.characterCurrentHealth, characterData.characterCurrentMana});
 
         if (updateCharacterData.affected_rows() == 0)
         {
-            std::cout << "Character not found in DB..." << std::endl;
+            logger_.logError("Character data not found in DB...");
             transaction.abort(); // Rollback the transaction
             return;
         }
@@ -210,7 +196,8 @@ void CharacterManager::updateCharacterData(Database &database, ClientData &clien
         transaction.commit(); // Commit the transaction
         // Change flag to false, because data was updated in DB
         clientData.markClientUpdate(accountId, false);
-        std::cout << "Character data updated successfully" << std::endl;
+
+        logger_.log("Character data updated successfully", GREEN);
     }
     catch (const std::exception &e)
     {
@@ -221,9 +208,9 @@ void CharacterManager::updateCharacterData(Database &database, ClientData &clien
     }
 }
 
-void CharacterManager::updateCharactersData(Database &database, ClientData &clientData)
+void CharacterManager::updateBasicCharactersData(Database &database, ClientData &clientData)
 {
-    std::cout << "Try update characters data in DB..." << std::endl;
+    logger_.log("Try update characters data in DB...", BLUE);
     try
     {
         // Get all existing clients data as array
@@ -237,13 +224,13 @@ void CharacterManager::updateCharactersData(Database &database, ClientData &clie
             PositionStruct characterPosition = clientDataItem.second.characterData.characterPosition;
 
             // Update character data in the database
-            updateCharacterData(database, clientData, clientDataItem.first, characterData.characterId, characterData);
+            updateBasicCharacterData(database, clientData, clientDataItem.first, characterData.characterId, characterData);
             // Update character position in the database
             // updateCharacterPosition(database, clientData, clientDataItem.first, characterData.characterId, characterPosition);
         }
     }
     catch (const std::exception &e)
     {
-        std::cerr << e.what() << '\n';
+        logger_.logError("Error while updating characters data in DB...");
     }
 }

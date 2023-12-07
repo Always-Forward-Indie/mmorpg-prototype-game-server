@@ -24,7 +24,7 @@ int main() {
         Scheduler scheduler;
 
         // Initialize CharacterManager
-        CharacterManager characterManager;
+        CharacterManager characterManager(logger);
 
         // Initialize Database
         Database database(configs, logger);

@@ -14,13 +14,12 @@ EventHandler::EventHandler(NetworkManager &networkManager,
 {
 }
 
-void EventHandler::handleJoinToChunkEvent(const Event &event, ClientData &clientData)
+void EventHandler::handleJoinChunkEvent(const Event &event, ClientData &clientData)
 {
-    // Here we will update the init data of the character when it's joined in the object and send it back to the game server
+    // Here we will update the init data of the character when client joined in the object and send it to the chunk server
     // Retrieve the data from the event
     const auto data = event.getData();
     int clientID = event.getClientID();
-    // std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
 
     // Extract init data
     try
@@ -33,7 +32,7 @@ void EventHandler::handleJoinToChunkEvent(const Event &event, ClientData &client
             clientData.storeClientData(initData);
 
             // Get the character data from the database
-            CharacterDataStruct characterData = characterManager_.getCharacterData(database_, clientData, clientID, initData.characterData.characterId);
+            CharacterDataStruct characterData = characterManager_.getBasicCharacterData(database_, clientData, clientID, initData.characterData.characterId);
             // Update the clientData object with the new character data
             clientData.updateCharacterData(clientID, characterData);
             // Get the character position from the database
@@ -93,21 +92,17 @@ void EventHandler::handleJoinToChunkEvent(const Event &event, ClientData &client
         else
         {
             logger_.log("Error with extracting data!");
-            // Handle the case where the data is not of type ClientDataStruct
-            // This might be logging the error, throwing another exception, etc.
         }
     }
     catch (const std::bad_variant_access &ex)
     {
         logger_.log("Error here: " + std::string(ex.what()));
-        // Handle the case where the data is not of type ClientDataStruct
-        // This might be logging the error, throwing another exception, etc.
     }
 }
 
-void EventHandler::handleJoinedClientEvent(const Event &event, ClientData &clientData)
+void EventHandler::handleJoinClientEvent(const Event &event, ClientData &clientData)
 {
-    // Here we will update the init data of the character when it's joined in the object and send it back to the clients in the chunk
+    // Here we will send recieved data from chunk server back to all clients in this chunk
     // Retrieve the data from the event
     const auto data = event.getData();
     int clientID = event.getClientID();
@@ -166,28 +161,30 @@ void EventHandler::handleJoinedClientEvent(const Event &event, ClientData &clien
             // Prepare a response message
             std::string responseData = networkManager_.generateResponseMessage("success", response);
 
-            // Send the response to the Client
-            networkManager_.sendResponse(clientSocket, responseData);
+            //TODO - Implement Chunk ID ?? (maybe in the future) and send data only to the clients in the same chunk
+            // Get all existing clients data as array
+            std::unordered_map<int, ClientDataStruct> clientDataMap = clientData.getClientsDataMap();
 
-            // TODO - send response to all other clients in the chunk
-            // Use for loop to iterate through the clientDataMap_ for this and send the response to all other clients in the chunk
+            // Iterate through all exist clients to send data to them
+            for (const auto &clientDataItem : clientDataMap)
+            {
+                // Send the response to the current item Client
+                networkManager_.sendResponse(clientDataItem.second.socket, responseData);
+            }
         }
         else
         {
             logger_.log("Error with extracting data!");
-            // Handle the case where the data is not of type ClientDataStruct
-            // This might be logging the error, throwing another exception, etc.
         }
     }
     catch (const std::bad_variant_access &ex)
     {
         logger_.log("Error here: " + std::string(ex.what()));
-        // Handle the case where the data is not of type ClientDataStruct
-        // This might be logging the error, throwing another exception, etc.
     }
 }
 
-void EventHandler::handleMoveEvent(const Event &event, ClientData &clientData)
+//TODO - Implement this method and same method for handleMoveCharacterClientEvent
+void EventHandler::handleMoveCharacterChunkEvent(const Event &event, ClientData &clientData)
 {
     // Here we will update the position of the character in the object and send it back to the game server
 
@@ -201,6 +198,10 @@ void EventHandler::handleMoveEvent(const Event &event, ClientData &clientData)
     {
         // Try to extract the data as a PositionStruct
         characterPosition = std::get<PositionStruct>(data);
+
+
+
+
     }
     catch (const std::bad_variant_access &ex)
     {
@@ -212,12 +213,17 @@ void EventHandler::handleMoveEvent(const Event &event, ClientData &clientData)
     // Update the clientData object with the new position
     clientData.updateCharacterPositionData(clientID, characterPosition);
 
-    // TODO - Send the updated object back to the game server
+
 }
 
-void EventHandler::handleInteractEvent(const Event &event, ClientData &clientData)
+
+void EventHandler::handleMoveCharacterClientEvent(const Event &event, ClientData &clientData)
 {
-    // Here we will update the interaction of the character in the object and send it back to the game server
+    //  TODO - Implement this method
+}
+
+void EventHandler::handleInteractChunkEvent(const Event &event, ClientData &clientData)
+{
     //  TODO - Implement this method
 }
 
@@ -225,17 +231,20 @@ void EventHandler::dispatchEvent(const Event &event, ClientData &clientData)
 {
     switch (event.getType())
     {
-    case Event::JOINED_CLIENT:
-        handleJoinedClientEvent(event, clientData);
+    case Event::JOIN_CHARACTER_CLIENT:
+        handleJoinClientEvent(event, clientData);
         break;
-    case Event::JOIN_TO_CHUNK:
-        handleJoinToChunkEvent(event, clientData);
+    case Event::JOIN_CHARACTER_CHUNK:
+        handleJoinChunkEvent(event, clientData);
         break;
-    case Event::MOVE:
-        handleMoveEvent(event, clientData);
+    case Event::MOVE_CHARACTER_CHUNK:
+        handleMoveCharacterChunkEvent(event, clientData);
+        break;
+    case Event::MOVE_CHARACTER_CLIENT:
+        handleMoveCharacterClientEvent(event, clientData);
         break;
     case Event::INTERACT:
-        handleInteractEvent(event, clientData);
+        handleInteractChunkEvent(event, clientData);
         break;
         // Other cases...
     }

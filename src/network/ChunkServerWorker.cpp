@@ -148,7 +148,7 @@ void ChunkServerWorker::receiveDataFromChunkServer()
                                             clientData.characterData = characterData;
                                             
                                             // Create a new event where send recieved from Chunk data back to the Client and push it to the queue
-                                            Event joinedClientEvent(Event::JOINED_CLIENT, clientData.clientId, clientData, chunk_socket_);
+                                            Event joinedClientEvent(Event::JOIN_CHARACTER_CLIENT, clientData.clientId, clientData, chunk_socket_);
                                             eventQueue_.push(joinedClientEvent);
 
                                             // Continue reading from the server

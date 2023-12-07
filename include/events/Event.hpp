@@ -11,7 +11,7 @@ using EventData = std::variant<int, float, std::string, PositionStruct, Characte
 
 class Event {
 public:
-    enum EventType { JOINED_CLIENT, JOIN_TO_CHUNK, MOVE, INTERACT }; // Define more event types as needed
+    enum EventType { JOIN_CHARACTER_CLIENT, JOIN_CHARACTER_CHUNK, MOVE_CHARACTER_CHUNK, MOVE_CHARACTER_CLIENT, INTERACT }; // Define more event types as needed
     Event() = default; // Default constructor
     Event(EventType type, int clientID, const EventData data, std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket);
    // Event(EventType type, int clientID, const EventData data);

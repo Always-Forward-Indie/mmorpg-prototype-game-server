@@ -19,10 +19,11 @@ public:
   void dispatchEvent(const Event& event, ClientData& clientData);
 
 private:
-    void handleJoinedClientEvent(const Event& event, ClientData& clientData);
-    void handleJoinToChunkEvent(const Event& event, ClientData& clientData);
-    void handleMoveEvent(const Event& event, ClientData& clientData);
-    void handleInteractEvent(const Event& event, ClientData& clientData);
+    void handleJoinClientEvent(const Event& event, ClientData& clientData);
+    void handleJoinChunkEvent(const Event& event, ClientData& clientData);
+    void handleMoveCharacterChunkEvent(const Event& event, ClientData& clientData);
+    void handleMoveCharacterClientEvent(const Event& event, ClientData& clientData);
+    void handleInteractChunkEvent(const Event& event, ClientData& clientData);
 
     NetworkManager& networkManager_;
     ChunkServerWorker& chunkServerWorker_;

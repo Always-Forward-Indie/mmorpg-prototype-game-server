@@ -91,7 +91,7 @@
                 clientData.socket = clientSocket;
 
                 // Create a new event where join to Chunk Server and push it to the queue
-                Event joinToChunkEvent(Event::JOIN_TO_CHUNK, clientData.clientId, clientData, clientSocket);
+                Event joinToChunkEvent(Event::JOIN_CHARACTER_CHUNK, clientData.clientId, clientData, clientSocket);
                 eventQueue_.push(joinToChunkEvent);
             }
         }
