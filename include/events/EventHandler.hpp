@@ -24,6 +24,7 @@ private:
     void handleMoveCharacterChunkEvent(const Event& event, ClientData& clientData);
     void handleMoveCharacterClientEvent(const Event& event, ClientData& clientData);
     void handleInteractChunkEvent(const Event& event, ClientData& clientData);
+    void handleInteractClientEvent(const Event& event, ClientData& clientData);
 
     NetworkManager& networkManager_;
     ChunkServerWorker& chunkServerWorker_;

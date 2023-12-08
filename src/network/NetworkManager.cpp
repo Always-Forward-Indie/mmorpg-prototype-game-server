@@ -94,6 +94,12 @@
                 Event joinToChunkEvent(Event::JOIN_CHARACTER_CHUNK, clientData.clientId, clientData, clientSocket);
                 eventQueue_.push(joinToChunkEvent);
             }
+
+            // Check if the type of request is moveCharacters
+            if(eventType == "moveCharacter" && clientData.hash != "" && clientData.clientId != 0 && clientData.characterData.characterId != 0) {
+                Event moveCharEvent(Event::MOVE_CHARACTER_CHUNK, clientData.clientId, clientData, clientSocket);
+                eventQueue_.push(moveCharEvent);
+            }
         }
         catch (const nlohmann::json::parse_error &e)
         {

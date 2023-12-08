@@ -24,37 +24,37 @@ void EventHandler::handleJoinChunkEvent(const Event &event, ClientData &clientDa
     // Extract init data
     try
     {
-        // Try to extract the data as a ClientDataStruct
+        // Try to extract the data
         if (std::holds_alternative<ClientDataStruct>(data))
         {
-            ClientDataStruct initData = std::get<ClientDataStruct>(data);
+            ClientDataStruct passedClientData = std::get<ClientDataStruct>(data);
             // Save the clientData object with the new init data
-            clientData.storeClientData(initData);
+            clientData.storeClientData(passedClientData);
 
             // Get the character data from the database
-            CharacterDataStruct characterData = characterManager_.getBasicCharacterData(database_, clientData, clientID, initData.characterData.characterId);
+            CharacterDataStruct characterData = characterManager_.getBasicCharacterData(database_, clientData, clientID, passedClientData.characterData.characterId);
             // Update the clientData object with the new character data
             clientData.updateCharacterData(clientID, characterData);
             // Get the character position from the database
-            PositionStruct characterPosition = characterManager_.getCharacterPosition(database_, clientData, clientID, initData.characterData.characterId);
+            PositionStruct characterPosition = characterManager_.getCharacterPosition(database_, clientData, clientID, passedClientData.characterData.characterId);
             // Update the clientData object with the new position
             clientData.updateCharacterPositionData(clientID, characterPosition);
 
             // Get the clientData object with the new init data
-            const ClientDataStruct *currentClientData = clientData.getClientData(initData.clientId);
+            const ClientDataStruct *currentClientData = clientData.getClientData(passedClientData.clientId);
 
             // Prepare the response message
             nlohmann::json response;
             ResponseBuilder builder;
 
             // Check if the authentication is not successful
-            if (initData.clientId == 0 || initData.hash == "")
+            if (passedClientData.clientId == 0 || passedClientData.hash == "")
             {
                 // Add response data
                 response = builder
                                .setHeader("message", "Authentication failed for user!")
-                               .setHeader("hash", initData.hash)
-                               .setHeader("clientId", initData.clientId)
+                               .setHeader("hash", passedClientData.hash)
+                               .setHeader("clientId", passedClientData.clientId)
                                .setHeader("eventType", "joinGame")
                                .setBody("", "")
                                .build();
@@ -110,12 +110,12 @@ void EventHandler::handleJoinClientEvent(const Event &event, ClientData &clientD
     // Extract init data
     try
     {
-        // Try to extract the data as a ClientDataStruct
+        // Try to extract the data
         if (std::holds_alternative<ClientDataStruct>(data))
         {
-            ClientDataStruct initData = std::get<ClientDataStruct>(data);
+            ClientDataStruct passedClientData = std::get<ClientDataStruct>(data);
             // Get the clientData object with the new init data
-            ClientDataStruct currentClientData = *clientData.getClientData(initData.clientId);
+            ClientDataStruct currentClientData = *clientData.getClientData(passedClientData.clientId);
             std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = currentClientData.socket;
 
             // Prepare the response message
@@ -123,13 +123,13 @@ void EventHandler::handleJoinClientEvent(const Event &event, ClientData &clientD
             ResponseBuilder builder;
 
             // Check if the authentication is not successful
-            if (initData.clientId == 0 || initData.hash == "")
+            if (passedClientData.clientId == 0 || passedClientData.hash == "")
             {
                 // Add response data
                 response = builder
                                .setHeader("message", "Authentication failed for user!")
-                               .setHeader("hash", initData.hash)
-                               .setHeader("clientId", initData.clientId)
+                               .setHeader("hash", passedClientData.hash)
+                               .setHeader("clientId", passedClientData.clientId)
                                .setHeader("eventType", "joinGame")
                                .setBody("", "")
                                .build();
@@ -143,20 +143,20 @@ void EventHandler::handleJoinClientEvent(const Event &event, ClientData &clientD
             // Add the message to the response
             response = builder
                            .setHeader("message", "Authentication success for user!")
-                           .setHeader("hash", initData.hash)
-                           .setHeader("clientId", initData.clientId)
+                           .setHeader("hash", passedClientData.hash)
+                           .setHeader("clientId", passedClientData.clientId)
                            .setHeader("eventType", "joinGame")
-                           .setBody("characterId", initData.characterData.characterId)
-                           .setBody("characterClass", initData.characterData.characterClass)
-                           .setBody("characterLevel", initData.characterData.characterLevel)
-                           .setBody("characterName", initData.characterData.characterName)
-                           .setBody("characterRace", initData.characterData.characterRace)
-                           .setBody("characterExp", initData.characterData.characterExperiencePoints)
-                           .setBody("characterCurrentHealth", initData.characterData.characterCurrentHealth)
-                           .setBody("characterCurrentMana", initData.characterData.characterCurrentMana)
-                           .setBody("characterPosX", initData.characterData.characterPosition.positionX)
-                           .setBody("characterPosY", initData.characterData.characterPosition.positionY)
-                           .setBody("characterPosZ", initData.characterData.characterPosition.positionZ)
+                           .setBody("characterId", passedClientData.characterData.characterId)
+                           .setBody("characterClass", passedClientData.characterData.characterClass)
+                           .setBody("characterLevel", passedClientData.characterData.characterLevel)
+                           .setBody("characterName", passedClientData.characterData.characterName)
+                           .setBody("characterRace", passedClientData.characterData.characterRace)
+                           .setBody("characterExp", passedClientData.characterData.characterExperiencePoints)
+                           .setBody("characterCurrentHealth", passedClientData.characterData.characterCurrentHealth)
+                           .setBody("characterCurrentMana", passedClientData.characterData.characterCurrentMana)
+                           .setBody("characterPosX", passedClientData.characterData.characterPosition.positionX)
+                           .setBody("characterPosY", passedClientData.characterData.characterPosition.positionY)
+                           .setBody("characterPosZ", passedClientData.characterData.characterPosition.positionZ)
                            .build();
             // Prepare a response message
             std::string responseData = networkManager_.generateResponseMessage("success", response);
@@ -191,41 +191,152 @@ void EventHandler::handleMoveCharacterChunkEvent(const Event &event, ClientData 
     // Retrieve the data from the event
     const auto &data = event.getData();
     int clientID = event.getClientID();
-    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
-    PositionStruct characterPosition;
-    // Extract movement data
+
     try
     {
-        // Try to extract the data as a PositionStruct
-        characterPosition = std::get<PositionStruct>(data);
+        // Try to extract the dat
+        if (std::holds_alternative<ClientDataStruct>(data))
+        {
+            ClientDataStruct passedClientData = std::get<ClientDataStruct>(data);
+            // Save new Position data object
+            clientData.updateCharacterPositionData(clientID, passedClientData.characterData.characterPosition);
 
+            // Prepare the response message
+            nlohmann::json response;
+            ResponseBuilder builder;
 
+            // Check if the authentication is not successful
+            if (clientID == 0 || passedClientData.hash == "")
+            {
+                // Add response data
+                response = builder
+                               .setHeader("message", "Movement failed for character!")
+                               .setHeader("hash", passedClientData.hash)
+                               .setHeader("clientId", clientID)
+                               .setHeader("eventType", "moveCharacter")
+                               .setBody("", "")
+                               .build();
+                // Prepare a response message
+                std::string responseData = networkManager_.generateResponseMessage("error", response);
+                // Send the response to the client
+                chunkServerWorker_.sendDataToChunkServer(responseData);
+                return;
+            }
 
+            // Add the message to the response
+            response = builder
+                           .setHeader("message", "Movement success for character!")
+                           .setHeader("hash", passedClientData.hash)
+                           .setHeader("clientId", passedClientData.clientId)
+                           .setHeader("eventType", "moveCharacter")
+                           .setBody("characterId", passedClientData.characterData.characterId)
+                           .setBody("characterPosX", passedClientData.characterData.characterPosition.positionX)
+                           .setBody("characterPosY", passedClientData.characterData.characterPosition.positionY)
+                           .setBody("characterPosZ", passedClientData.characterData.characterPosition.positionZ)
+                           .build();
+            // Prepare a response message
+            std::string responseData = networkManager_.generateResponseMessage("success", response);
 
+            // Send data to the the chunk server
+            chunkServerWorker_.sendDataToChunkServer(responseData);
+        }
+        else
+        {
+            logger_.log("Error with extracting data!");
+        }
     }
     catch (const std::bad_variant_access &ex)
     {
         logger_.log("Error here: " + std::string(ex.what()));
-        // Handle the case where the data is not of type PositionStruct
-        // This might be logging the error, throwing another exception, etc.
     }
-
-    // Update the clientData object with the new position
-    clientData.updateCharacterPositionData(clientID, characterPosition);
-
-
 }
-
 
 void EventHandler::handleMoveCharacterClientEvent(const Event &event, ClientData &clientData)
 {
-    //  TODO - Implement this method
+    // Here we will send recieved data from chunk server back to all clients in this chunk
+    // Retrieve the data from the event
+    const auto &data = event.getData();
+    int clientID = event.getClientID();
+
+    try
+    {
+        // Try to extract the data
+        if (std::holds_alternative<ClientDataStruct>(data))
+        {
+            ClientDataStruct passedClientData = std::get<ClientDataStruct>(data);
+            // Get the clientData object with the new init data
+            const ClientDataStruct *currentClientData = clientData.getClientData(clientID);
+            std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = currentClientData->socket;
+
+            // Prepare the response message
+            nlohmann::json response;
+            ResponseBuilder builder;
+
+            // Check if the authentication is not successful
+            if (clientID == 0 || currentClientData->hash == "")
+            {
+                // Add response data
+                response = builder
+                               .setHeader("message", "Movement failed for character!")
+                               .setHeader("hash", currentClientData->hash)
+                               .setHeader("clientId", clientID)
+                               .setHeader("eventType", "moveCharacter")
+                               .setBody("", "")
+                               .build();
+                // Prepare a response message
+                std::string responseData = networkManager_.generateResponseMessage("error", response);
+                // Send the response to the client
+                networkManager_.sendResponse(clientSocket, responseData);
+                return;
+            }
+
+            // Add the message to the response
+            response = builder
+                           .setHeader("message", "Movement success for character!")
+                           .setHeader("hash", currentClientData->hash)
+                           .setHeader("clientId", currentClientData->clientId)
+                           .setHeader("eventType", "moveCharacter")
+                           .setBody("characterId", currentClientData->characterData.characterId)
+                           .setBody("characterPosX", passedClientData.characterData.characterPosition.positionX)
+                           .setBody("characterPosY", passedClientData.characterData.characterPosition.positionY)
+                           .setBody("characterPosZ", passedClientData.characterData.characterPosition.positionZ)
+                           .build();
+            // Prepare a response message
+            std::string responseData = networkManager_.generateResponseMessage("success", response);
+
+            //TODO - Implement Chunk ID ?? (maybe in the future) and send data only to the clients in the same chunk
+            // Get all existing clients data as array
+            std::unordered_map<int, ClientDataStruct> clientDataMap = clientData.getClientsDataMap();
+
+            // Iterate through all exist clients to send data to them
+            for (const auto &clientDataItem : clientDataMap)
+            {
+                // Send the response to the current item Client
+                networkManager_.sendResponse(clientDataItem.second.socket, responseData);
+            }
+        }
+        else
+        {
+            logger_.log("Error with extracting data!");
+        }
+    }
+    catch (const std::bad_variant_access &ex)
+    {
+        logger_.log("Error here: " + std::string(ex.what()));
+    }
 }
+
 
 void EventHandler::handleInteractChunkEvent(const Event &event, ClientData &clientData)
 {
     //  TODO - Implement this method
 }
+
+void EventHandler::handleInteractClientEvent(const Event &event, ClientData &clientData)
+{
+    //  TODO - Implement this method
+}
+
 
 void EventHandler::dispatchEvent(const Event &event, ClientData &clientData)
 {
