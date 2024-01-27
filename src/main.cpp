@@ -18,7 +18,11 @@ int main() {
         auto configs = config.parseConfig("/home/shardanov/mmorpg-prototype-game-server/build/config.json");
 
         // Initialize EventQueue
-        EventQueue eventQueue;
+        EventQueue eventQueueChunkServer;
+        EventQueue eventQueueGameServer;
+
+        // Initialize ClientData
+        ClientData clientData;
 
         // Initialize Scheduler
         Scheduler scheduler;
@@ -30,13 +34,13 @@ int main() {
         Database database(configs, logger);
 
         // Initialize NetworkManager
-        NetworkManager networkManager(eventQueue, configs, logger);
+        NetworkManager networkManager(eventQueueGameServer, configs, logger);
 
         // Initialize ChunkServerWorker
-        ChunkServerWorker chunkServerWorker(eventQueue, networkManager, configs, logger);
+        ChunkServerWorker chunkServerWorker(eventQueueChunkServer, networkManager, configs, logger);
 
         // Initialize GameServer
-        GameServer gameServer(eventQueue, scheduler, networkManager, chunkServerWorker, database, characterManager, logger);
+        GameServer gameServer(clientData, eventQueueChunkServer, eventQueueGameServer, scheduler, networkManager, chunkServerWorker, database, characterManager, logger);
 
         // Start ChunkServerWorker IO Context in a separate thread
         chunkServerWorker.startIOEventLoop(); 

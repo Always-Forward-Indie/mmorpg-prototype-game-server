@@ -5,6 +5,10 @@ JSONParser::JSONParser()
 {
 }
 
+JSONParser::~JSONParser()
+{
+}
+
 CharacterDataStruct JSONParser::parseCharacterData(const std::array<char, max_length> &dataBuffer, size_t bytes_transferred)
 {
     nlohmann::json jsonData = nlohmann::json::parse(dataBuffer.data(), dataBuffer.data() + bytes_transferred);
@@ -80,21 +84,21 @@ PositionStruct JSONParser::parsePositionData(const std::array<char, max_length> 
     if (jsonData.contains("body") && 
     jsonData["body"].is_object() && 
     jsonData["body"].contains("characterPosX") && 
-    jsonData["body"]["characterPosX"].is_number_float()) {
+    jsonData["body"]["characterPosX"].is_number_float() || jsonData["body"]["characterPosX"].is_number_integer()) {
         positionData.positionX = jsonData["body"]["characterPosX"].get<float>();
     }
 
     if (jsonData.contains("body") && 
     jsonData["body"].is_object() && 
     jsonData["body"].contains("characterPosY") && 
-    jsonData["body"]["characterPosY"].is_number_float()) {
+    jsonData["body"]["characterPosY"].is_number_float() || jsonData["body"]["characterPosY"].is_number_integer()) {
         positionData.positionY = jsonData["body"]["characterPosY"].get<float>();
     }
 
     if (jsonData.contains("body") && 
     jsonData["body"].is_object() && 
     jsonData["body"].contains("characterPosZ") && 
-    jsonData["body"]["characterPosZ"].is_number_float()) {
+    jsonData["body"]["characterPosZ"].is_number_float() || jsonData["body"]["characterPosZ"].is_number_integer()) {
         positionData.positionZ = jsonData["body"]["characterPosZ"].get<float>();
     }
 
@@ -122,6 +126,26 @@ ClientDataStruct JSONParser::parseClientData(const std::array<char, max_length> 
     }
 
     return clientData;
+}
+
+// parse characters list
+nlohmann::json JSONParser::parseCharactersList(const std::array<char, max_length> &dataBuffer, size_t bytes_transferred)
+{
+    nlohmann::json jsonData = nlohmann::json::parse(dataBuffer.data(), dataBuffer.data() + bytes_transferred);
+    nlohmann::json charactersList;
+
+    // ... parse jsonData to CharactersList ...
+    if (jsonData.contains("body") && 
+    jsonData["body"].is_object() && 
+    jsonData["body"].contains("charactersList") && 
+    jsonData["body"]["charactersList"].is_array()) {
+        charactersList = jsonData["body"]["charactersList"];
+        //charactersList = charactersJson.dump(); // Convert to string
+        // Remove backslashes from the string
+        //charactersList.erase(std::remove(charactersList.begin(), charactersList.end(), '\\'), charactersList.end());
+    }
+
+   return charactersList;
 }
 
 MessageStruct JSONParser::parseMessage(const std::array<char, max_length> &dataBuffer, size_t bytes_transferred)

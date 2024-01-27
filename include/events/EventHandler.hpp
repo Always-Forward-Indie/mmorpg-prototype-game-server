@@ -21,6 +21,10 @@ public:
 private:
     void handleJoinClientEvent(const Event& event, ClientData& clientData);
     void handleJoinChunkEvent(const Event& event, ClientData& clientData);
+    void handleLeaveClientEvent(const Event& event, ClientData& clientData);
+    void handleLeaveChunkEvent(const Event& event, ClientData& clientData);
+    void handleGetConnectedCharactersClientEvent(const Event& event, ClientData& clientData);
+    void handleGetConnectedCharactersChunkEvent(const Event& event, ClientData& clientData);
     void handleMoveCharacterChunkEvent(const Event& event, ClientData& clientData);
     void handleMoveCharacterClientEvent(const Event& event, ClientData& clientData);
     void handleInteractChunkEvent(const Event& event, ClientData& clientData);

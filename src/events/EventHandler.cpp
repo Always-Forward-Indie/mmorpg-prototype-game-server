@@ -183,7 +183,6 @@ void EventHandler::handleJoinClientEvent(const Event &event, ClientData &clientD
     }
 }
 
-//TODO - Implement this method and same method for handleMoveCharacterClientEvent
 void EventHandler::handleMoveCharacterChunkEvent(const Event &event, ClientData &clientData)
 {
     // Here we will update the position of the character in the object and send it back to the game server
@@ -237,6 +236,8 @@ void EventHandler::handleMoveCharacterChunkEvent(const Event &event, ClientData 
             // Prepare a response message
             std::string responseData = networkManager_.generateResponseMessage("success", response);
 
+            logger_.log("Sending data to Chunk Server: " + responseData, YELLOW);
+
             // Send data to the the chunk server
             chunkServerWorker_.sendDataToChunkServer(responseData);
         }
@@ -273,12 +274,12 @@ void EventHandler::handleMoveCharacterClientEvent(const Event &event, ClientData
             ResponseBuilder builder;
 
             // Check if the authentication is not successful
-            if (clientID == 0 || currentClientData->hash == "")
+            if (clientID == 0)
             {
                 // Add response data
                 response = builder
                                .setHeader("message", "Movement failed for character!")
-                               .setHeader("hash", currentClientData->hash)
+                               .setHeader("hash", "")
                                .setHeader("clientId", clientID)
                                .setHeader("eventType", "moveCharacter")
                                .setBody("", "")
@@ -290,10 +291,11 @@ void EventHandler::handleMoveCharacterClientEvent(const Event &event, ClientData
                 return;
             }
 
+            //TODO - Do we need hash key here?
             // Add the message to the response
             response = builder
                            .setHeader("message", "Movement success for character!")
-                           .setHeader("hash", currentClientData->hash)
+                           .setHeader("hash", "")
                            .setHeader("clientId", currentClientData->clientId)
                            .setHeader("eventType", "moveCharacter")
                            .setBody("characterId", currentClientData->characterData.characterId)
@@ -326,6 +328,137 @@ void EventHandler::handleMoveCharacterClientEvent(const Event &event, ClientData
     }
 }
 
+// get connected characters list
+void EventHandler::handleGetConnectedCharactersChunkEvent(const Event &event, ClientData &clientData)
+{
+    // Here we will send recieved data from chunk server back to all clients in this chunk
+    // Retrieve the data from the event
+    const auto &data = event.getData();
+    int clientID = event.getClientID();
+
+    try
+    {
+        // Try to extract the data
+        if (std::holds_alternative<ClientDataStruct>(data))
+        {
+            ClientDataStruct passedClientData = std::get<ClientDataStruct>(data);
+            // Get the clientData object with the new init data
+            const ClientDataStruct *currentClientData = clientData.getClientData(clientID);
+
+            // Prepare the response message
+            nlohmann::json response;
+            ResponseBuilder builder;
+
+            // Check if the authentication is not successful
+            if (clientID == 0)
+            {
+                // Add response data
+                response = builder
+                               .setHeader("message", "Getting connected characters failed!")
+                               .setHeader("hash", "")
+                               .setHeader("clientId", clientID)
+                               .setHeader("eventType", "getConnectedCharacters")
+                               .setBody("", "")
+                               .build();
+                // Prepare a response message
+                std::string responseData = networkManager_.generateResponseMessage("error", response);
+                // Send the response to the client
+                chunkServerWorker_.sendDataToChunkServer(responseData);
+                return;
+            }
+
+            //TODO - Implement Chunk ID ?? (maybe in the future) and send data only to the clients in the same chunk
+            //TODO - Do we need hash key here?
+            // Add the message to the response
+            response = builder
+                           .setHeader("message", "Getting connected characters success!")
+                           .setHeader("hash", "")
+                           .setHeader("clientId", currentClientData->clientId)
+                           .setHeader("eventType", "getConnectedCharacters")
+                           .setBody("", "")
+                           .build();
+            // Prepare a response message
+            std::string responseData = networkManager_.generateResponseMessage("success", response);
+
+            // Send the response to the client
+            chunkServerWorker_.sendDataToChunkServer(responseData);
+        }
+        else
+        {
+            logger_.log("Error with extracting data!");
+        }
+    }
+    catch (const std::bad_variant_access &ex)
+    {
+        logger_.log("Error here: " + std::string(ex.what()));
+    }
+}
+
+// get connected characters list
+void EventHandler::handleGetConnectedCharactersClientEvent(const Event &event, ClientData &clientData)
+{
+    // Here we will send recieved data from chunk server back to all clients in this chunk
+    // Retrieve the data from the event
+    const auto &data = event.getData();
+    int clientID = event.getClientID();
+
+    try
+    {
+        // Try to extract the data
+        if (std::holds_alternative<nlohmann::json>(data))
+        {
+            nlohmann::json passedClientData = std::get<nlohmann::json>(data);
+            // Get the clientData object with the new init data
+            const ClientDataStruct *currentClientData = clientData.getClientData(clientID);
+            std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = currentClientData->socket;
+
+            // Prepare the response message
+            nlohmann::json response;
+            ResponseBuilder builder;
+
+            // Check if the authentication is not successful
+            if (clientID == 0)
+            {
+                // Add response data
+                response = builder
+                               .setHeader("message", "Getting connected characters failed!")
+                               .setHeader("hash", "")
+                               .setHeader("clientId", clientID)
+                               .setHeader("eventType", "getConnectedCharacters")
+                               .setBody("", "")
+                               .build();
+                // Prepare a response message
+                std::string responseData = networkManager_.generateResponseMessage("error", response);
+                // Send the response to the client
+                networkManager_.sendResponse(clientSocket, responseData);
+                return;
+            }
+
+            //TODO - Do we need hash key here?
+            // Add the message to the response
+            response = builder
+                           .setHeader("message", "Getting connected characters success!")
+                           .setHeader("hash", "")
+                           .setHeader("clientId", currentClientData->clientId)
+                           .setHeader("eventType", "getConnectedCharacters")
+                           .setBody("charactersList", passedClientData)
+                           .build();
+            // Prepare a response message
+            std::string responseData = networkManager_.generateResponseMessage("success", response);
+
+            // Send the response to the client
+            networkManager_.sendResponse(clientSocket, responseData);
+        }
+        else
+        {
+            logger_.log("Error with extracting data!");
+        }
+    }
+    catch (const std::bad_variant_access &ex)
+    {
+        logger_.log("Error here: " + std::string(ex.what()));
+    }
+}
 
 void EventHandler::handleInteractChunkEvent(const Event &event, ClientData &clientData)
 {
@@ -347,6 +480,12 @@ void EventHandler::dispatchEvent(const Event &event, ClientData &clientData)
         break;
     case Event::JOIN_CHARACTER_CHUNK:
         handleJoinChunkEvent(event, clientData);
+        break;
+    case Event::GET_CONNECTED_CHARACTERS_CHUNK:
+        handleGetConnectedCharactersChunkEvent(event, clientData);
+        break;
+    case Event::GET_CONNECTED_CHARACTERS_CLIENT:
+        handleGetConnectedCharactersClientEvent(event, clientData);
         break;
     case Event::MOVE_CHARACTER_CHUNK:
         handleMoveCharacterChunkEvent(event, clientData);

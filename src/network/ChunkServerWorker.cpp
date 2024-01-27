@@ -144,6 +144,7 @@ void ChunkServerWorker::receiveDataFromChunkServer()
                                            CharacterDataStruct characterData = jsonParser_.parseCharacterData(*dataBufferChunk, bytes_transferred);
                                            PositionStruct positionData = jsonParser_.parsePositionData(*dataBufferChunk, bytes_transferred);
                                            MessageStruct message = jsonParser_.parseMessage(*dataBufferChunk, bytes_transferred);
+                                           nlohmann::json charactersList = jsonParser_.parseCharactersList(*dataBufferChunk, bytes_transferred);
 
                                            // Set the client data
                                            characterData.characterPosition = positionData;
@@ -157,10 +158,17 @@ void ChunkServerWorker::receiveDataFromChunkServer()
                                                eventQueue_.push(joinedClientEvent);
                                            }
 
-                                           if (eventType == "moveCharacter" && clientData.hash != "" && clientData.clientId != 0 && clientData.characterData.characterId != 0)
+                                           // get connected characters
+                                           if (eventType == "getConnectedCharacters" && clientData.clientId != 0)
                                            {
-                                               Event joinedClientEvent(Event::MOVE_CHARACTER_CLIENT, clientData.clientId, clientData, chunk_socket_);
-                                               eventQueue_.push(joinedClientEvent);
+                                                Event getConnectedCharactersEvent(Event::GET_CONNECTED_CHARACTERS_CLIENT, clientData.clientId, charactersList, chunk_socket_);
+                                                eventQueue_.push(getConnectedCharactersEvent);
+                                           }
+
+                                           if (eventType == "moveCharacter" && clientData.clientId != 0 && characterData.characterId != 0)
+                                           {
+                                               Event moveCharacterEvent(Event::MOVE_CHARACTER_CLIENT, clientData.clientId, clientData, chunk_socket_);
+                                               eventQueue_.push(moveCharacterEvent);
                                            }
 
                                            // Continue reading from the server
@@ -171,11 +179,4 @@ void ChunkServerWorker::receiveDataFromChunkServer()
                                            logger_.logError("Error in receiving data from Chunk Server: " + ec.message());
                                        }
                                    });
-}
-
-// Close the connection when done
-void ChunkServerWorker::closeConnection()
-{
-    logger_.log("Closing connection to chunk server");
-    chunk_socket_->close();
 }

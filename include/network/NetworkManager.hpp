@@ -24,6 +24,7 @@ private:
     void handleAccept(std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket, const boost::system::error_code& error);
     void startReadingFromClient(std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket);
     void handleClientData(std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket, const std::array<char, max_length>& dataBuffer, size_t bytes_transferred);
+    void processMessage(std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket, const std::string& message);
 
     boost::asio::io_context io_context_;
     boost::asio::ip::tcp::acceptor acceptor_;

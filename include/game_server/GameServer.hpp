@@ -14,7 +14,9 @@
 
 class GameServer {
 public:
-    GameServer(EventQueue& eventQueue, 
+    GameServer(ClientData &clientData,
+    EventQueue& eventQueueGameServer, 
+    EventQueue& eventQueueChunkServer, 
     Scheduler& scheduler,
     NetworkManager& networkManager, 
     ChunkServerWorker& chunkServerWorker, 
@@ -28,9 +30,10 @@ private:
     void mainEventLoop();
 
     std::thread event_thread_;
-    ClientData clientData_;
+    ClientData& clientData_;
     Logger& logger_;
-    EventQueue& eventQueue_;
+    EventQueue& eventQueueGameServer_;
+    EventQueue& eventQueueChunkServer_;
     EventHandler eventHandler_;
     NetworkManager& networkManager_;
     CharacterManager& characterManager_;

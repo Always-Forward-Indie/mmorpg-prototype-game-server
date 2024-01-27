@@ -67,20 +67,51 @@
     }
 
     void NetworkManager::handleClientData(std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket,
-                                      const std::array<char, max_length> &dataBuffer,
-                                      size_t bytes_transferred) {
+                                        const std::array<char, max_length> &dataBuffer,
+                                        size_t bytes_transferred) {
+        static std::string accumulatedData; // Buffer to accumulate data
 
-            std::string receivedData(dataBuffer.data(), bytes_transferred);
-            logger_.log("Received data from Client: " + receivedData, YELLOW);
+        // Append new data to the accumulated buffer
+        accumulatedData.append(dataBuffer.data(), bytes_transferred);
 
-        try
+        // Check for the delimiter in the accumulated data
+        std::string delimiter = "\r\n\r\n"; // Your chosen delimiter
+        size_t delimiterPos;
+        while ((delimiterPos = accumulatedData.find(delimiter)) != std::string::npos) { // Assuming '\r\n\r\n' is the delimiter
+            // Extract one message up to the delimiter
+            std::string message = accumulatedData.substr(0, delimiterPos);
+
+            // Log the received message
+            logger_.log("Received data from Client: " + message, YELLOW);
+
+            // Process the message
+            processMessage(clientSocket, message);
+
+            // Erase processed message and delimiter from the buffer
+            accumulatedData.erase(0, delimiterPos + 1); // +1 to remove the delimiter as well
+        }
+    }
+
+    void NetworkManager::processMessage(std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket, const std::string& message) {
+    // Convert the message string to a buffer array for parsing
+    std::array<char, max_length> messageBuffer;
+    std::copy(message.begin(), message.end(), messageBuffer.begin());
+    size_t messageLength = message.length();
+
+    // Now we can use JSON parsing logic on the `messageBuffer` with `messageLength` bytes of data
+    try
         {
             // Parse the data received from the client using JSONParser
-            std::string eventType = jsonParser_.parseEventType(dataBuffer, bytes_transferred);
-            ClientDataStruct clientData = jsonParser_.parseClientData(dataBuffer, bytes_transferred);
-            CharacterDataStruct characterData = jsonParser_.parseCharacterData(dataBuffer, bytes_transferred);
-            PositionStruct positionData = jsonParser_.parsePositionData(dataBuffer, bytes_transferred);
-            MessageStruct message = jsonParser_.parseMessage(dataBuffer, bytes_transferred);
+            std::string eventType = jsonParser_.parseEventType(messageBuffer, messageLength);
+            ClientDataStruct clientData = jsonParser_.parseClientData(messageBuffer, messageLength);
+            CharacterDataStruct characterData = jsonParser_.parseCharacterData(messageBuffer, messageLength);
+            PositionStruct positionData = jsonParser_.parsePositionData(messageBuffer, messageLength);
+            MessageStruct message = jsonParser_.parseMessage(messageBuffer, messageLength);
+
+            logger_.log("Event type: " + eventType, YELLOW);
+            logger_.log("Client ID: " + std::to_string(clientData.clientId), YELLOW);
+            logger_.log("Client hash: " + clientData.hash, YELLOW);
+            logger_.log("Character ID: " + std::to_string(characterData.characterId), YELLOW);
 
             // Check if the type of request is joinGame
             if (eventType == "joinGame" && clientData.hash != "" && clientData.clientId != 0)
@@ -95,10 +126,28 @@
                 eventQueue_.push(joinToChunkEvent);
             }
 
+            // Check if the type of request is getConnectedCharacters
+            if (eventType == "getConnectedCharacters" && clientData.hash != "" && clientData.clientId != 0)
+            {
+                // Set the client data
+                characterData.characterPosition = positionData;
+                clientData.characterData = characterData;
+                clientData.socket = clientSocket;
+
+                // Create a new event where join to Chunk Server and push it to the queue
+                Event getConnectedCharactersEvent(Event::GET_CONNECTED_CHARACTERS_CHUNK, clientData.clientId, clientData, clientSocket);
+                eventQueue_.push(getConnectedCharactersEvent);
+            }
+
             // Check if the type of request is moveCharacters
-            if(eventType == "moveCharacter" && clientData.hash != "" && clientData.clientId != 0 && clientData.characterData.characterId != 0) {
-                Event moveCharEvent(Event::MOVE_CHARACTER_CHUNK, clientData.clientId, clientData, clientSocket);
-                eventQueue_.push(moveCharEvent);
+            if(eventType == "moveCharacter" && clientData.hash != "" && clientData.clientId != 0 && characterData.characterId != 0) {
+                // Set the client data
+                characterData.characterPosition = positionData;
+                clientData.characterData = characterData;
+                clientData.socket = clientSocket;
+
+                Event moveCharacterEvent(Event::MOVE_CHARACTER_CHUNK, clientData.clientId, clientData, clientSocket);
+                eventQueue_.push(moveCharacterEvent);
             }
         }
         catch (const nlohmann::json::parse_error &e)
@@ -215,7 +264,9 @@
 
         std::string responseString = response.dump();
 
-        //logger_.log("Response generated: " + responseString, YELLOW);
+        logger_.log("Response generated: " + responseString, YELLOW);
 
         return responseString+ "\n";
     }
+
+    
