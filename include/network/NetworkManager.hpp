@@ -12,6 +12,7 @@
 class NetworkManager {
 public:
     NetworkManager(EventQueue& eventQueue, std::tuple<DatabaseConfig, GameServerConfig, ChunkServerConfig> &configs, Logger &logger);
+    ~NetworkManager();
     void startAccept();
     void startIOEventLoop();
     void sendResponse(std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket, const std::string& responseString);
@@ -28,6 +29,7 @@ private:
 
     boost::asio::io_context io_context_;
     boost::asio::ip::tcp::acceptor acceptor_;
+    std::thread networkManagerThread_;
     std::tuple<DatabaseConfig, GameServerConfig, ChunkServerConfig>& configs_;
     EventQueue& eventQueue_;
     Logger& logger_;

@@ -23,11 +23,18 @@ public:
     Database& database,
     CharacterManager& characterManager,
     Logger& logger);
+    ~GameServer();
     void startMainEventLoop();
+    void mainEventLoop();
+
+    void mainEventLoopGS();
+    void mainEventLoopCH();
+
     
 private:
     //Events
-    void mainEventLoop();
+    std::thread event_game_server_thread_;
+    std::thread event_chunk_server_thread_;
 
     std::thread event_thread_;
     ClientData& clientData_;

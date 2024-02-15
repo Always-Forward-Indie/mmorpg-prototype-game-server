@@ -19,6 +19,7 @@ public:
   void dispatchEvent(const Event& event, ClientData& clientData);
 
 private:
+    void handlePingClientEvent(const Event& event, ClientData& clientData);
     void handleJoinClientEvent(const Event& event, ClientData& clientData);
     void handleJoinChunkEvent(const Event& event, ClientData& clientData);
     void handleLeaveClientEvent(const Event& event, ClientData& clientData);
@@ -29,6 +30,8 @@ private:
     void handleMoveCharacterClientEvent(const Event& event, ClientData& clientData);
     void handleInteractChunkEvent(const Event& event, ClientData& clientData);
     void handleInteractClientEvent(const Event& event, ClientData& clientData);
+    void handleDisconnectChunkEvent(const Event& event, ClientData& clientData);
+    void handleDisconnectClientEvent(const Event& event, ClientData& clientData);
 
     NetworkManager& networkManager_;
     ChunkServerWorker& chunkServerWorker_;

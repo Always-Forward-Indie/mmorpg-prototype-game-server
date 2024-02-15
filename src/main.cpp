@@ -1,4 +1,6 @@
 #include <iostream>
+#include <csignal>
+#include <atomic>
 #include "utils/Config.hpp"
 #include "utils/Logger.hpp"
 #include "game_server/GameServer.hpp"
@@ -7,6 +9,12 @@
 #include "utils/Database.hpp"
 #include "utils/Scheduler.hpp"
 #include "services/CharacterManager.hpp"
+
+std::atomic<bool> running(true);
+
+void signalHandler(int signal) {
+    running = false;
+}
 
 int main() {
     try {
@@ -40,7 +48,10 @@ int main() {
         ChunkServerWorker chunkServerWorker(eventQueueChunkServer, networkManager, configs, logger);
 
         // Initialize GameServer
-        GameServer gameServer(clientData, eventQueueChunkServer, eventQueueGameServer, scheduler, networkManager, chunkServerWorker, database, characterManager, logger);
+        GameServer gameServer(clientData, eventQueueGameServer, eventQueueChunkServer, scheduler, networkManager, chunkServerWorker, database, characterManager, logger);
+
+        //Start the IO Networking event loop in the main thread
+        networkManager.startIOEventLoop();
 
         // Start ChunkServerWorker IO Context in a separate thread
         chunkServerWorker.startIOEventLoop(); 
@@ -49,10 +60,14 @@ int main() {
         gameServer.startMainEventLoop();
 
         //Start Scheduler loop in a separate thread
-        scheduler.start();
+       // scheduler.start();
 
-        //Start the IO Networking event loop in the main thread
-        networkManager.startIOEventLoop();
+        // Register signal handler for graceful shutdown
+        signal(SIGINT, signalHandler);
+
+        while (running) {
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+        }
 
         return 0;
     } catch (const std::exception& e) {

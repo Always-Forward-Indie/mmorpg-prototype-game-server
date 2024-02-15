@@ -460,6 +460,135 @@ void EventHandler::handleGetConnectedCharactersClientEvent(const Event &event, C
     }
 }
 
+// disconnect the client
+void EventHandler::handleDisconnectClientEvent(const Event &event, ClientData &clientData)
+{
+    // Here we will disconnect the client
+    const auto data = event.getData();
+
+    // Extract init data
+    try
+    {
+        // Try to extract the data
+        if (std::holds_alternative<ClientDataStruct>(data))
+        {
+            ClientDataStruct passedClientData = std::get<ClientDataStruct>(data);
+
+            // Remove the client data
+            clientData.removeClientData(passedClientData.clientId);
+
+            //send the response to all clients
+            nlohmann::json response;
+            ResponseBuilder builder;
+            response = builder
+                           .setHeader("message", "Client disconnected!")
+                           .setHeader("hash", "")
+                           .setHeader("clientId", passedClientData.clientId)
+                           .setHeader("eventType", "disconnectClient")
+                           .setBody("", "")
+                           .build();
+            std::string responseData = networkManager_.generateResponseMessage("success", response);
+
+            // Send the response to the all existing clients in the clientDataMap
+            for (auto const &client : clientData.getClientsDataMap())
+            {
+                networkManager_.sendResponse(client.second.socket, responseData);
+            }
+        }
+        else
+        {
+            logger_.log("Error with extracting data!");
+        }
+    }
+    catch (const std::bad_variant_access &ex)
+    {
+        logger_.log("Error here:" + std::string(ex.what()));
+    }
+}
+
+// disconnect the client
+void EventHandler::handleDisconnectChunkEvent(const Event &event, ClientData &clientData)
+{
+    // Here we will disconnect the client
+    const auto data = event.getData();
+
+    // Extract init data
+    try
+    {
+        // Try to extract the data
+        if (std::holds_alternative<ClientDataStruct>(data))
+        {
+            ClientDataStruct passedClientData = std::get<ClientDataStruct>(data);
+
+            //send the response to all clients
+            nlohmann::json response;
+            ResponseBuilder builder;
+            response = builder
+                           .setHeader("message", "Client disconnected!")
+                           .setHeader("hash", "")
+                           .setHeader("clientId", passedClientData.clientId)
+                           .setHeader("eventType", "disconnectClient")
+                           .setBody("", "")
+                           .build();
+            std::string responseData = networkManager_.generateResponseMessage("success", response);
+
+            // Send the response to the chunk server
+            chunkServerWorker_.sendDataToChunkServer(responseData);
+        }
+        else
+        {
+            logger_.log("Error with extracting data!");
+        }
+    }
+    catch (const std::bad_variant_access &ex)
+    {
+        logger_.log("Error here:" + std::string(ex.what()));
+    }
+}
+
+//TODO - check this method why it's called only first time
+// ping the client
+void EventHandler::handlePingClientEvent(const Event &event, ClientData &clientData)
+{
+    // Here we will ping the client
+    const auto data = event.getData();
+
+    logger_.log("Handling PING event!", YELLOW);
+
+    // Extract init data
+    try
+    {
+        // Try to extract the data
+        if (std::holds_alternative<ClientDataStruct>(data))
+        {
+            ClientDataStruct passedClientData = std::get<ClientDataStruct>(data);
+          
+            //send the response to all clients
+            nlohmann::json response;
+            ResponseBuilder builder;
+            response = builder
+                           .setHeader("message", "Pong!")
+                           .setHeader("eventType", "pingClient")
+                           .setBody("", "")
+                           .build();
+            std::string responseData = networkManager_.generateResponseMessage("success", response);
+
+            logger_.log("Sending PING data to Client: " + responseData, YELLOW);
+
+            // Send the response to the client
+            networkManager_.sendResponse(passedClientData.socket, responseData);
+        }
+        else
+        {
+            logger_.log("Error with extracting data!");
+        }
+    }
+    catch (const std::bad_variant_access &ex)
+    {
+        logger_.log("Error here:" + std::string(ex.what()));
+    }
+}
+
 void EventHandler::handleInteractChunkEvent(const Event &event, ClientData &clientData)
 {
     //  TODO - Implement this method
@@ -475,6 +604,9 @@ void EventHandler::dispatchEvent(const Event &event, ClientData &clientData)
 {
     switch (event.getType())
     {
+    case Event::PING_CLIENT:
+        handlePingClientEvent(event, clientData);
+        break;
     case Event::JOIN_CHARACTER_CLIENT:
         handleJoinClientEvent(event, clientData);
         break;
@@ -496,6 +628,11 @@ void EventHandler::dispatchEvent(const Event &event, ClientData &clientData)
     case Event::INTERACT:
         handleInteractChunkEvent(event, clientData);
         break;
-        // Other cases...
+    case Event::DISCONNECT_CLIENT:
+        handleDisconnectClientEvent(event, clientData);
+        break;
+    case Event::DISCONNECT_CLIENT_CHUNK:
+        handleDisconnectChunkEvent(event, clientData);
+        break;
     }
 }

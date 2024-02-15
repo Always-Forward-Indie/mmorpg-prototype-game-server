@@ -12,7 +12,20 @@ using EventData = std::variant<int, float, std::string, nlohmann::json, Position
 
 class Event {
 public:
-    enum EventType { JOIN_CHARACTER_CLIENT, JOIN_CHARACTER_CHUNK, GET_CONNECTED_CHARACTERS_CLIENT, GET_CONNECTED_CHARACTERS_CHUNK, MOVE_CHARACTER_CHUNK, MOVE_CHARACTER_CLIENT, LEAVE_GAME_CLIENT, LEAVE_GAME_CHUNK, INTERACT }; // Define more event types as needed
+    enum EventType { 
+        PING_CLIENT,
+        JOIN_CHARACTER_CLIENT, 
+        JOIN_CHARACTER_CHUNK, 
+        DISCONNECT_CLIENT, 
+        DISCONNECT_CLIENT_CHUNK, 
+        GET_CONNECTED_CHARACTERS_CLIENT, 
+        GET_CONNECTED_CHARACTERS_CHUNK, 
+        MOVE_CHARACTER_CHUNK, 
+        MOVE_CHARACTER_CLIENT, 
+        LEAVE_GAME_CLIENT, 
+        LEAVE_GAME_CHUNK, 
+        INTERACT 
+    }; // Define more event types as needed
     Event() = default; // Default constructor
     Event(EventType type, int clientID, const EventData data, std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket);
    // Event(EventType type, int clientID, const EventData data);

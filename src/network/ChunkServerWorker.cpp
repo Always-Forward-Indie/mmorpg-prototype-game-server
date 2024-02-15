@@ -32,7 +32,7 @@ void ChunkServerWorker::startIOEventLoop()
 // In your destructor, join the io_thread to ensure it's properly cleaned up
 ChunkServerWorker::~ChunkServerWorker()
 {
-    logger_.logError("ChunkServerWorker destructor called");
+    logger_.logError("Chunk Server destructor is called...", RED);
     // Clean up
     work_.reset(); // Allow io_context to exit
     if (io_thread_.joinable())
@@ -165,10 +165,18 @@ void ChunkServerWorker::receiveDataFromChunkServer()
                                                 eventQueue_.push(getConnectedCharactersEvent);
                                            }
 
+                                           // move character
                                            if (eventType == "moveCharacter" && clientData.clientId != 0 && characterData.characterId != 0)
                                            {
                                                Event moveCharacterEvent(Event::MOVE_CHARACTER_CLIENT, clientData.clientId, clientData, chunk_socket_);
                                                eventQueue_.push(moveCharacterEvent);
+                                           }
+
+                                            // disconnect client
+                                           if(eventType == "disconnectClient" && clientData.clientId != 0)
+                                           {
+                                               Event disconnectClientEvent(Event::DISCONNECT_CLIENT, clientData.clientId, clientData, chunk_socket_);
+                                               eventQueue_.push(disconnectClientEvent);
                                            }
 
                                            // Continue reading from the server

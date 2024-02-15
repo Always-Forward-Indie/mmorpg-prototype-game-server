@@ -63,7 +63,20 @@
     void NetworkManager::startIOEventLoop()
     {
         logger_.log("Starting Game Server IO Context...", YELLOW);
-        io_context_.run(); // Start the event loop
+
+        // Start io_service in a separate thread
+        networkManagerThread_ = std::thread([this]()
+                                { io_context_.run(); });
+
+    }
+
+    NetworkManager::~NetworkManager()
+    {
+        logger_.log("Network Manager destructor is called...", RED);
+        // Close the acceptor and all client sockets
+        acceptor_.close();
+        io_context_.stop();
+        networkManagerThread_.join();
     }
 
     void NetworkManager::handleClientData(std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket,
@@ -148,6 +161,30 @@
 
                 Event moveCharacterEvent(Event::MOVE_CHARACTER_CHUNK, clientData.clientId, clientData, clientSocket);
                 eventQueue_.push(moveCharacterEvent);
+            }
+
+            // Check if the type of request is disconnectClient
+            if(eventType == "disconnectClient" && clientData.hash != "" && clientData.clientId != 0) {
+                // Set the client data
+                characterData.characterPosition = positionData;
+                clientData.characterData = characterData;
+                clientData.socket = clientSocket;
+
+                Event disconnectEvent(Event::DISCONNECT_CLIENT_CHUNK, clientData.clientId, clientData, clientSocket);
+                eventQueue_.push(disconnectEvent);
+            }
+
+            //ping client
+            if(eventType == "pingClient") {
+                // Set the client data
+                //characterData.characterPosition = positionData;
+                //clientData.characterData = characterData;
+                clientData.socket = clientSocket;
+
+                Event pingEvent(Event::PING_CLIENT, clientData.clientId, clientData, clientSocket);
+                eventQueue_.push(pingEvent);
+
+                logger_.log("Ping event pushed to the queue", YELLOW);
             }
         }
         catch (const nlohmann::json::parse_error &e)
