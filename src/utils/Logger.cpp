@@ -1,8 +1,5 @@
 #include "utils/Logger.hpp"
 
-std::mutex logger_mutex_;
-static std::mutex timeMutex;
-
 std::string Logger::getCurrentTimestamp() {
         auto now = std::chrono::system_clock::now();
         auto in_time_t = std::chrono::system_clock::to_time_t(now);
