@@ -82,6 +82,7 @@ void EventHandler::handleJoinChunkEvent(const Event &event, ClientData &clientDa
                            .setBody("characterPosX", currentClientData->characterData.characterPosition.positionX)
                            .setBody("characterPosY", currentClientData->characterData.characterPosition.positionY)
                            .setBody("characterPosZ", currentClientData->characterData.characterPosition.positionZ)
+                           .setBody("characterRotZ", currentClientData->characterData.characterPosition.rotationZ)
                            .build();
             // Prepare a response message
             std::string responseData = networkManager_.generateResponseMessage("success", response);
@@ -157,12 +158,13 @@ void EventHandler::handleJoinClientEvent(const Event &event, ClientData &clientD
                            .setBody("characterPosX", passedClientData.characterData.characterPosition.positionX)
                            .setBody("characterPosY", passedClientData.characterData.characterPosition.positionY)
                            .setBody("characterPosZ", passedClientData.characterData.characterPosition.positionZ)
+                           .setBody("characterRotZ", passedClientData.characterData.characterPosition.rotationZ)
                            .build();
             // Prepare a response message
             std::string responseData = networkManager_.generateResponseMessage("success", response);
 
-            //TODO - Implement Chunk ID ?? (maybe in the future) and send data only to the clients in the same chunk
-            // Get all existing clients data as array
+            // TODO - Implement Chunk ID ?? (maybe in the future) and send data only to the clients in the same chunk
+            //  Get all existing clients data as array
             std::unordered_map<int, ClientDataStruct> clientDataMap = clientData.getClientsDataMap();
 
             // Iterate through all exist clients to send data to them
@@ -232,6 +234,7 @@ void EventHandler::handleMoveCharacterChunkEvent(const Event &event, ClientData 
                            .setBody("characterPosX", passedClientData.characterData.characterPosition.positionX)
                            .setBody("characterPosY", passedClientData.characterData.characterPosition.positionY)
                            .setBody("characterPosZ", passedClientData.characterData.characterPosition.positionZ)
+                           .setBody("characterRotZ", passedClientData.characterData.characterPosition.rotationZ)
                            .build();
             // Prepare a response message
             std::string responseData = networkManager_.generateResponseMessage("success", response);
@@ -291,8 +294,8 @@ void EventHandler::handleMoveCharacterClientEvent(const Event &event, ClientData
                 return;
             }
 
-            //TODO - Do we need hash key here?
-            // Add the message to the response
+            // TODO - Do we need hash key here?
+            //  Add the message to the response
             response = builder
                            .setHeader("message", "Movement success for character!")
                            .setHeader("hash", "")
@@ -302,12 +305,13 @@ void EventHandler::handleMoveCharacterClientEvent(const Event &event, ClientData
                            .setBody("characterPosX", passedClientData.characterData.characterPosition.positionX)
                            .setBody("characterPosY", passedClientData.characterData.characterPosition.positionY)
                            .setBody("characterPosZ", passedClientData.characterData.characterPosition.positionZ)
+                           .setBody("characterRotZ", passedClientData.characterData.characterPosition.rotationZ)
                            .build();
             // Prepare a response message
             std::string responseData = networkManager_.generateResponseMessage("success", response);
 
-            //TODO - Implement Chunk ID ?? (maybe in the future) and send data only to the clients in the same chunk
-            // Get all existing clients data as array
+            // TODO - Implement Chunk ID ?? (maybe in the future) and send data only to the clients in the same chunk
+            //  Get all existing clients data as array
             std::unordered_map<int, ClientDataStruct> clientDataMap = clientData.getClientsDataMap();
 
             // Iterate through all exist clients to send data to them
@@ -367,9 +371,9 @@ void EventHandler::handleGetConnectedCharactersChunkEvent(const Event &event, Cl
                 return;
             }
 
-            //TODO - Implement Chunk ID ?? (maybe in the future) and send data only to the clients in the same chunk
-            //TODO - Do we need hash key here?
-            // Add the message to the response
+            // TODO - Implement Chunk ID ?? (maybe in the future) and send data only to the clients in the same chunk
+            // TODO - Do we need hash key here?
+            //  Add the message to the response
             response = builder
                            .setHeader("message", "Getting connected characters success!")
                            .setHeader("hash", "")
@@ -434,8 +438,8 @@ void EventHandler::handleGetConnectedCharactersClientEvent(const Event &event, C
                 return;
             }
 
-            //TODO - Do we need hash key here?
-            // Add the message to the response
+            // TODO - Do we need hash key here?
+            //  Add the message to the response
             response = builder
                            .setHeader("message", "Getting connected characters success!")
                            .setHeader("hash", "")
@@ -477,7 +481,7 @@ void EventHandler::handleDisconnectClientEvent(const Event &event, ClientData &c
             // Remove the client data
             clientData.removeClientData(passedClientData.clientId);
 
-            //send the response to all clients
+            // send the response to all clients
             nlohmann::json response;
             ResponseBuilder builder;
             response = builder
@@ -520,7 +524,7 @@ void EventHandler::handleDisconnectChunkEvent(const Event &event, ClientData &cl
         {
             ClientDataStruct passedClientData = std::get<ClientDataStruct>(data);
 
-            //send the response to all clients
+            // send the response to all clients
             nlohmann::json response;
             ResponseBuilder builder;
             response = builder
@@ -546,8 +550,8 @@ void EventHandler::handleDisconnectChunkEvent(const Event &event, ClientData &cl
     }
 }
 
-//TODO - check this method why it's called only first time
-// ping the client
+// TODO - check this method why it's called only first time
+//  ping the client
 void EventHandler::handlePingClientEvent(const Event &event, ClientData &clientData)
 {
     // Here we will ping the client
@@ -562,8 +566,8 @@ void EventHandler::handlePingClientEvent(const Event &event, ClientData &clientD
         if (std::holds_alternative<ClientDataStruct>(data))
         {
             ClientDataStruct passedClientData = std::get<ClientDataStruct>(data);
-          
-            //send the response to all clients
+
+            // send the response to all clients
             nlohmann::json response;
             ResponseBuilder builder;
             response = builder
@@ -598,7 +602,6 @@ void EventHandler::handleInteractClientEvent(const Event &event, ClientData &cli
 {
     //  TODO - Implement this method
 }
-
 
 void EventHandler::dispatchEvent(const Event &event, ClientData &clientData)
 {
