@@ -11,6 +11,9 @@
 
 class ChunkServerWorker {
 private:
+    // Create a new events batch
+   // std::vector<Event> eventsBatch;
+
     boost::asio::io_context io_context_chunk_;
     boost::asio::executor_work_guard<boost::asio::io_context::executor_type> work_;
     std::shared_ptr<boost::asio::ip::tcp::socket> chunk_socket_;

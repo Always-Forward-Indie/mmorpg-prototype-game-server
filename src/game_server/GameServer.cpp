@@ -25,8 +25,8 @@ Logger& logger)
 
 void GameServer::mainEventLoopGS()
 {
-  logger_.log("Add Tasks To Scheduler...", YELLOW);
-
+    logger_.log("Add Tasks To Game Server Scheduler...", YELLOW);
+    constexpr int BATCH_SIZE = 10; // Process up to 10 events at a time
     //TODO work on this later
     //TODO - save different client data to the database in different time intervals (depend by the client data type)
     // Schedule tasks
@@ -36,10 +36,18 @@ void GameServer::mainEventLoopGS()
     {
         logger_.log("Starting Game Server Event Loop...", YELLOW);
         while (true) {
-            Event event;
+            // Create an event object to store the next event
+            // Event event;
 
-            if (eventQueueGameServer_.pop(event)) {
-                eventHandler_.dispatchEvent(event, clientData_);
+            // // Pop the next event from the queue
+            // if (eventQueueGameServer_.pop(event)) {
+            //     // Dispatch the event from the event handler
+            //     eventHandler_.dispatchEvent(event, clientData_);
+            // }
+
+            std::vector<Event> eventsBatch;
+            if (eventQueueGameServer_.popBatch(eventsBatch, BATCH_SIZE)) {
+                processBatch(eventsBatch);
             }
 
             // Optionally include a small delay or yield to prevent the loop from consuming too much CPU
@@ -54,7 +62,8 @@ void GameServer::mainEventLoopGS()
 
 void GameServer::mainEventLoopCH()
 {
-  //logger_.log("Add Tasks To Scheduler...", YELLOW);
+     constexpr int BATCH_SIZE = 10;
+    logger_.log("Add Tasks To Chunk Server Scheduler...", YELLOW);
 
     //TODO work on this later
     //TODO - save different client data to the database in different time intervals (depend by the client data type)
@@ -65,10 +74,15 @@ void GameServer::mainEventLoopCH()
     {
         logger_.log("Starting Chunk Server Event Loop...", YELLOW);
         while (true) {
-            Event event;
+            // Event event;
 
-            if (eventQueueChunkServer_.pop(event)) {
-                eventHandler_.dispatchEvent(event, clientData_);
+            // if (eventQueueChunkServer_.pop(event)) {
+            //     eventHandler_.dispatchEvent(event, clientData_);
+            // }
+
+            std::vector<Event> eventsBatch;
+            if (eventQueueChunkServer_.popBatch(eventsBatch, BATCH_SIZE)) {
+                processBatch(eventsBatch);
             }
 
             // Optionally include a small delay or yield to prevent the loop from consuming too much CPU
@@ -78,6 +92,17 @@ void GameServer::mainEventLoopCH()
     catch(const std::exception& e)
     {
        logger_.logError(e.what(), RED);
+    }
+}
+
+// Implement asynchronous processing of event batches
+void GameServer::processBatch(const std::vector<Event>& eventsBatch) {
+    // Asynchronously process events in the batch
+    for (const auto& event : eventsBatch) {
+        // Asynchronously process each event using std::async or std::thread
+        std::async(std::launch::async | std::launch::deferred, [&]() {
+            eventHandler_.dispatchEvent(event, clientData_);
+        });
     }
 }
 

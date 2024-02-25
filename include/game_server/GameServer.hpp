@@ -24,6 +24,9 @@ public:
     CharacterManager& characterManager,
     Logger& logger);
     ~GameServer();
+    
+    void processBatch(const std::vector<Event> &eventsBatch);
+
     void startMainEventLoop();
     void mainEventLoop();
 

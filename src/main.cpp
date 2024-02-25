@@ -10,12 +10,6 @@
 #include "utils/Scheduler.hpp"
 #include "services/CharacterManager.hpp"
 
-std::atomic<bool> running(true);
-
-void signalHandler(int signal) {
-    running = false;
-}
-
 int main() {
     try {
         // Initialize Config
@@ -61,15 +55,6 @@ int main() {
 
         //Start Scheduler loop in a separate thread
        // scheduler.start();
-
-        //TODO fix issue where the server does not stop on Ctrl+C
-        // Temporary commented out the signal handler
-        // Register signal handler for graceful shutdown
-        //signal(SIGINT, signalHandler);
-
-        // while (running) {
-        //     std::this_thread::sleep_for(std::chrono::seconds(1));
-        // }
 
         return 0;
     } catch (const std::exception& e) {

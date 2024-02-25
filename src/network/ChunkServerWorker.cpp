@@ -145,6 +145,12 @@ void ChunkServerWorker::receiveDataFromChunkServer()
                                            PositionStruct positionData = jsonParser_.parsePositionData(*dataBufferChunk, bytes_transferred);
                                            MessageStruct message = jsonParser_.parseMessage(*dataBufferChunk, bytes_transferred);
                                            nlohmann::json charactersList = jsonParser_.parseCharactersList(*dataBufferChunk, bytes_transferred);
+                                            // Create a new events batch
+                                            std::vector<Event> eventsBatch;
+
+
+                                           // Define a constant for the batch size
+                                           constexpr int BATCH_SIZE = 10;
 
                                            // Set the client data
                                            characterData.characterPosition = positionData;
@@ -155,29 +161,78 @@ void ChunkServerWorker::receiveDataFromChunkServer()
                                            {
                                                // Create a new event where send recieved from Chunk data back to the Client and push it to the queue
                                                Event joinedClientEvent(Event::JOIN_CHARACTER_CLIENT, clientData.clientId, clientData, chunk_socket_);
-                                               eventQueue_.push(joinedClientEvent);
+                                               // eventQueue_.push(joinedClientEvent);
+
+                                               // Add the event to the current batch
+                                               eventsBatch.push_back(joinedClientEvent);
+
+                                               // If the batch size has been reached, push the batch to the event queue
+                                               if (eventsBatch.size() >= BATCH_SIZE)
+                                               {
+                                                   eventQueue_.pushBatch(eventsBatch);
+                                                   // Clear the batch for the next set of events
+                                                   eventsBatch.clear();
+                                               }
                                            }
 
                                            // get connected characters
                                            if (eventType == "getConnectedCharacters" && clientData.clientId != 0)
                                            {
-                                                Event getConnectedCharactersEvent(Event::GET_CONNECTED_CHARACTERS_CLIENT, clientData.clientId, charactersList, chunk_socket_);
-                                                eventQueue_.push(getConnectedCharactersEvent);
+                                               Event getConnectedCharactersEvent(Event::GET_CONNECTED_CHARACTERS_CLIENT, clientData.clientId, charactersList, chunk_socket_);
+                                               // eventQueue_.push(getConnectedCharactersEvent);
+
+                                               // Add the event to the current batch
+                                               eventsBatch.push_back(getConnectedCharactersEvent);
+
+                                               // If the batch size has been reached, push the batch to the event queue
+                                               if (eventsBatch.size() >= BATCH_SIZE)
+                                               {
+                                                   eventQueue_.pushBatch(eventsBatch);
+                                                   // Clear the batch for the next set of events
+                                                   eventsBatch.clear();
+                                               }
                                            }
 
                                            // move character
                                            if (eventType == "moveCharacter" && clientData.clientId != 0 && characterData.characterId != 0)
                                            {
                                                Event moveCharacterEvent(Event::MOVE_CHARACTER_CLIENT, clientData.clientId, clientData, chunk_socket_);
-                                               eventQueue_.push(moveCharacterEvent);
+                                               // eventQueue_.push(moveCharacterEvent);
+
+                                               // Add the event to the current batch
+                                               eventsBatch.push_back(moveCharacterEvent);
+
+                                               // If the batch size has been reached, push the batch to the event queue
+                                               if (eventsBatch.size() >= BATCH_SIZE)
+                                               {
+                                                   eventQueue_.pushBatch(eventsBatch);
+                                                   // Clear the batch for the next set of events
+                                                   eventsBatch.clear();
+                                               }
                                            }
 
-                                            // disconnect client
-                                           if(eventType == "disconnectClient" && clientData.clientId != 0)
+                                           // disconnect client
+                                           if (eventType == "disconnectClient" && clientData.clientId != 0)
                                            {
                                                Event disconnectClientEvent(Event::DISCONNECT_CLIENT, clientData.clientId, clientData, chunk_socket_);
-                                               eventQueue_.push(disconnectClientEvent);
+                                               // eventQueue_.push(disconnectClientEvent);
+
+                                               // Add the event to the current batch
+                                               eventsBatch.push_back(disconnectClientEvent);
+
+                                               // If the batch size has been reached, push the batch to the event queue
+                                               if (eventsBatch.size() >= BATCH_SIZE)
+                                               {
+                                                   eventQueue_.pushBatch(eventsBatch);
+                                                   // Clear the batch for the next set of events
+                                                   eventsBatch.clear();
+                                               }
                                            }
+
+                                            // Push any remaining events in the batch to the event queue
+                                            if (!eventsBatch.empty()) {
+                                                eventQueue_.pushBatch(eventsBatch);
+                                            }
 
                                            // Continue reading from the server
                                            receiveDataFromChunkServer();
