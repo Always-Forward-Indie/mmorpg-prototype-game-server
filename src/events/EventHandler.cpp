@@ -79,10 +79,10 @@ void EventHandler::handleJoinChunkEvent(const Event &event, ClientData &clientDa
                            .setBody("characterExp", currentClientData->characterData.characterExperiencePoints)
                            .setBody("characterCurrentHealth", currentClientData->characterData.characterCurrentHealth)
                            .setBody("characterCurrentMana", currentClientData->characterData.characterCurrentMana)
-                           .setBody("characterPosX", currentClientData->characterData.characterPosition.positionX)
-                           .setBody("characterPosY", currentClientData->characterData.characterPosition.positionY)
-                           .setBody("characterPosZ", currentClientData->characterData.characterPosition.positionZ)
-                           .setBody("characterRotZ", currentClientData->characterData.characterPosition.rotationZ)
+                           .setBody("posX", currentClientData->characterData.characterPosition.positionX)
+                           .setBody("posY", currentClientData->characterData.characterPosition.positionY)
+                           .setBody("posZ", currentClientData->characterData.characterPosition.positionZ)
+                           .setBody("rotZ", currentClientData->characterData.characterPosition.rotationZ)
                            .build();
             // Prepare a response message
             std::string responseData = networkManager_.generateResponseMessage("success", response);
@@ -155,10 +155,10 @@ void EventHandler::handleJoinClientEvent(const Event &event, ClientData &clientD
                            .setBody("characterExp", passedClientData.characterData.characterExperiencePoints)
                            .setBody("characterCurrentHealth", passedClientData.characterData.characterCurrentHealth)
                            .setBody("characterCurrentMana", passedClientData.characterData.characterCurrentMana)
-                           .setBody("characterPosX", passedClientData.characterData.characterPosition.positionX)
-                           .setBody("characterPosY", passedClientData.characterData.characterPosition.positionY)
-                           .setBody("characterPosZ", passedClientData.characterData.characterPosition.positionZ)
-                           .setBody("characterRotZ", passedClientData.characterData.characterPosition.rotationZ)
+                           .setBody("posX", passedClientData.characterData.characterPosition.positionX)
+                           .setBody("posY", passedClientData.characterData.characterPosition.positionY)
+                           .setBody("posZ", passedClientData.characterData.characterPosition.positionZ)
+                           .setBody("rotZ", passedClientData.characterData.characterPosition.rotationZ)
                            .build();
             // Prepare a response message
             std::string responseData = networkManager_.generateResponseMessage("success", response);
@@ -231,10 +231,10 @@ void EventHandler::handleMoveCharacterChunkEvent(const Event &event, ClientData 
                            .setHeader("clientId", passedClientData.clientId)
                            .setHeader("eventType", "moveCharacter")
                            .setBody("characterId", passedClientData.characterData.characterId)
-                           .setBody("characterPosX", passedClientData.characterData.characterPosition.positionX)
-                           .setBody("characterPosY", passedClientData.characterData.characterPosition.positionY)
-                           .setBody("characterPosZ", passedClientData.characterData.characterPosition.positionZ)
-                           .setBody("characterRotZ", passedClientData.characterData.characterPosition.rotationZ)
+                           .setBody("posX", passedClientData.characterData.characterPosition.positionX)
+                           .setBody("posY", passedClientData.characterData.characterPosition.positionY)
+                           .setBody("posZ", passedClientData.characterData.characterPosition.positionZ)
+                           .setBody("rotZ", passedClientData.characterData.characterPosition.rotationZ)
                            .build();
             // Prepare a response message
             std::string responseData = networkManager_.generateResponseMessage("success", response);
@@ -302,10 +302,10 @@ void EventHandler::handleMoveCharacterClientEvent(const Event &event, ClientData
                            .setHeader("clientId", currentClientData->clientId)
                            .setHeader("eventType", "moveCharacter")
                            .setBody("characterId", currentClientData->characterData.characterId)
-                           .setBody("characterPosX", passedClientData.characterData.characterPosition.positionX)
-                           .setBody("characterPosY", passedClientData.characterData.characterPosition.positionY)
-                           .setBody("characterPosZ", passedClientData.characterData.characterPosition.positionZ)
-                           .setBody("characterRotZ", passedClientData.characterData.characterPosition.rotationZ)
+                           .setBody("posX", passedClientData.characterData.characterPosition.positionX)
+                           .setBody("posY", passedClientData.characterData.characterPosition.positionY)
+                           .setBody("posZ", passedClientData.characterData.characterPosition.positionZ)
+                           .setBody("rotZ", passedClientData.characterData.characterPosition.rotationZ)
                            .build();
             // Prepare a response message
             std::string responseData = networkManager_.generateResponseMessage("success", response);
@@ -641,15 +641,16 @@ void EventHandler::handleSpawnMobsInZoneEvent(const Event &event, ClientData &cl
                 nlohmann::json mobJson;
                 mobJson["mobId"] = mob.id;
                 mobJson["mobUID"] = mob.uid;
+                mobJson["mobZoneId"] = mob.zoneId;
                 mobJson["mobName"] = mob.name;
                 mobJson["mobRaceName"] = mob.raceName;
                 mobJson["mobLevel"] = mob.level;
                 mobJson["mobCurrentHealth"] = mob.currentHealth;
                 mobJson["mobCurrentMana"] = mob.currentMana;
-                mobJson["mobPosX"] = mob.position.positionX;
-                mobJson["mobPosY"] = mob.position.positionY;
-                mobJson["mobPosZ"] = mob.position.positionZ;
-                mobJson["mobRotZ"] = mob.position.rotationZ;
+                mobJson["posX"] = mob.position.positionX;
+                mobJson["posY"] = mob.position.positionY;
+                mobJson["posZ"] = mob.position.positionZ;
+                mobJson["rotZ"] = mob.position.rotationZ;
 
                 //loggler for mob data
                 //logger_.log("Mob item data: " + mobJson.dump(), YELLOW);
