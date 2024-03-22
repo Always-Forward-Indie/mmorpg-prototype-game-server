@@ -8,7 +8,18 @@
 #include "data/DataStructs.hpp"
 
 // Define the types of data that can be sent in an event
-using EventData = std::variant<int, float, std::string, nlohmann::json, PositionStruct, CharacterDataStruct, ClientDataStruct /* other types */>;
+using EventData = std::variant<
+    int, 
+    float, 
+    std::string, 
+    nlohmann::json, 
+    PositionStruct, 
+    CharacterDataStruct, 
+    ClientDataStruct, 
+    SpawnZoneStruct, 
+    std::vector<MobDataStruct>, 
+    MobDataStruct 
+/* other types */>;
 
 class Event {
 public:
@@ -24,7 +35,10 @@ public:
         MOVE_CHARACTER_CLIENT, 
         LEAVE_GAME_CLIENT, 
         LEAVE_GAME_CHUNK, 
-        INTERACT 
+        GET_SPAWN_ZONES,
+        GET_MOB_DATA,
+        SPAWN_MOBS_IN_ZONE,
+        INTERACT
     }; // Define more event types as needed
     Event() = default; // Default constructor
     Event(EventType type, int clientID, const EventData data, std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket);

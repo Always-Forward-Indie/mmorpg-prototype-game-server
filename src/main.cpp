@@ -3,6 +3,7 @@
 #include <atomic>
 #include "utils/Config.hpp"
 #include "utils/Logger.hpp"
+#include "utils/TimeConverter.hpp"
 #include "game_server/GameServer.hpp"
 #include "network/ChunkServerWorker.hpp"
 #include "network/NetworkManager.hpp"
@@ -54,7 +55,7 @@ int main() {
         gameServer.startMainEventLoop();
 
         //Start Scheduler loop in a separate thread
-       // scheduler.start();
+        scheduler.start();
 
         return 0;
     } catch (const std::exception& e) {

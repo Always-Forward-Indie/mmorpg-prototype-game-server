@@ -17,7 +17,9 @@ Logger& logger)
       characterManager_(characterManager),
       eventHandler_(networkManager, chunkServerWorker, database, characterManager, logger),
       scheduler_(scheduler),
-      database_(database)
+      database_(database),
+      mobManager_(database, logger),
+      spawnZoneManager_(mobManager_, database, logger)
 {
     // Start accepting new clients connections
     networkManager_.startAccept();
@@ -31,6 +33,32 @@ void GameServer::mainEventLoopGS()
     //TODO - save different client data to the database in different time intervals (depend by the client data type)
     // Schedule tasks
     //scheduler_.scheduleTask({[&] { characterManager_.updateBasicCharactersData(database_, clientData_); }, 5, std::chrono::system_clock::now()}); // every 5 seconds
+
+    // schedule mob spawn zone tasks
+    scheduler_.scheduleTask({[&] { 
+            // spawn mobs in the zone
+            //std::vector<MobDataStruct> mobsList = 
+            spawnZoneManager_.spawnMobsInZone(1);
+
+            // get spawn zone data by id
+            SpawnZoneStruct spawnZone = spawnZoneManager_.getMobSpawnZoneByID(1);
+
+            //get all the connected clients from clientData_ and push the event with client id
+            auto connectedClients = clientData_.getClientsDataMap();
+               
+                for (const auto& client : connectedClients)
+                {
+                    if(client.second.clientId == 0)
+                    {
+                        continue;
+                    }
+                    
+                    auto clientSocket = client.second.socket;
+                    Event spawnMobsInZoneEvent(Event::SPAWN_MOBS_IN_ZONE, client.second.clientId, spawnZone, clientSocket);
+                    eventQueueGameServer_.push(spawnMobsInZoneEvent);
+                }
+        
+        }, 30, std::chrono::system_clock::now()}); // every 30 seconds
 
     try
     {
@@ -98,11 +126,26 @@ void GameServer::mainEventLoopCH()
 // Implement asynchronous processing of event batches
 void GameServer::processBatch(const std::vector<Event>& eventsBatch) {
     // Asynchronously process events in the batch
+    // for (const auto& event : eventsBatch) {
+    //     // Asynchronously process each event using std::async or std::thread
+    //     std::async(std::launch::async | std::launch::deferred, [&]() {
+    //         eventHandler_.dispatchEvent(event, clientData_);
+    //     });
+    // }
+
+        std::vector<std::future<void>> futures;
+
     for (const auto& event : eventsBatch) {
-        // Asynchronously process each event using std::async or std::thread
-        std::async(std::launch::async | std::launch::deferred, [&]() {
+        // Launch asynchronous task and save the future
+        auto future = std::async(std::launch::async | std::launch::deferred, [&]() {
             eventHandler_.dispatchEvent(event, clientData_);
         });
+        futures.push_back(std::move(future));
+    }
+
+    // Wait for all tasks to complete
+    for (auto& future : futures) {
+        future.wait();
     }
 }
 

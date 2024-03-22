@@ -16,6 +16,9 @@ set(SOURCE_FILES
     src/game_server/GameServer.cpp
     src/services/Authenticator.cpp
     src/services/CharacterManager.cpp
+    src/services/SpawnZoneManager.cpp
+    src/services/SpawnManager.cpp
+    src/services/MobManager.cpp
     src/network/ChunkServerWorker.cpp
     src/network/NetworkManager.cpp
     src/events/Event.cpp
@@ -24,6 +27,8 @@ set(SOURCE_FILES
     src/data/ClientData.cpp
     src/utils/Scheduler.cpp
     src/utils/JSONParser.cpp
+    src/utils/TimeConverter.cpp
+    src/utils/Generators.cpp
     src/utils/Logger.cpp
     src/utils/Database.cpp
     src/utils/Config.cpp
@@ -36,6 +41,9 @@ set(HEADER_FILES
     include/game_server/GameServer.hpp
     include/services/Authenticator.hpp
     include/services/CharacterManager.hpp
+    include/services/SpawnZoneManager.hpp
+    include/services/SpawnManager.hpp
+    include/services/MobManager.hpp
     include/network/ChunkServerWorker.hpp
     include/network/NetworkManager.hpp
     include/events/Event.hpp
@@ -47,6 +55,8 @@ set(HEADER_FILES
     include/utils/Scheduler.hpp
     include/utils/JSONParser.hpp
     include/utils/ResponseBuilder.hpp
+    include/utils/TimeConverter.hpp
+    include/utils/Generators.hpp
     include/utils/Logger.hpp
     include/utils/TerminalColors.hpp
     include/utils/Database.hpp

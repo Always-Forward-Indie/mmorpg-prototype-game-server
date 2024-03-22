@@ -11,6 +11,8 @@
 #include "utils/Logger.hpp"
 #include "utils/Scheduler.hpp"
 #include "services/CharacterManager.hpp"
+#include "services/MobManager.hpp"
+#include "services/SpawnZoneManager.hpp"
 
 class GameServer {
 public:
@@ -46,7 +48,11 @@ private:
     EventQueue& eventQueueChunkServer_;
     EventHandler eventHandler_;
     NetworkManager& networkManager_;
-    CharacterManager& characterManager_;
+
     Scheduler& scheduler_;
     Database& database_;
+
+    CharacterManager& characterManager_;
+    MobManager mobManager_;
+    SpawnZoneManager spawnZoneManager_;
 };

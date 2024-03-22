@@ -30,7 +30,10 @@ private:
     void handleMoveCharacterClientEvent(const Event& event, ClientData& clientData);
     void handleInteractChunkEvent(const Event& event, ClientData& clientData);
     void handleInteractClientEvent(const Event& event, ClientData& clientData);
-    void handleDisconnectChunkEvent(const Event& event, ClientData& clientData);
+    void handleSpawnMobsInZoneEvent(const Event &event, ClientData& clientData);
+    void handleGetSpawnZonesEvent(const Event &event, ClientData &clientData);
+    void handleGetMobDataEvent(const Event &event, ClientData &clientData);
+    void handleDisconnectChunkEvent(const Event &event, ClientData &clientData);
     void handleDisconnectClientEvent(const Event& event, ClientData& clientData);
 
     NetworkManager& networkManager_;
@@ -38,5 +41,4 @@ private:
     Database& database_;
     Logger& logger_;
     CharacterManager& characterManager_;
-    // Other private handler methods
 };

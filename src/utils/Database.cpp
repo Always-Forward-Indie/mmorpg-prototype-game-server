@@ -58,6 +58,12 @@ void Database::prepareDefaultQueries()
                                               "JOIN character_class ON characters.class_id = character_class.id "
                                               "JOIN race on characters.race_id = race.id "
                                               "WHERE characters.owner_id = $1 AND characters.id = $2 LIMIT 1;");
+
+        // get character attributes
+        connection_->prepare("get_character_attributes", "SELECT character_attributes.* FROM character_attributes_mapping "
+        "JOIN character_attributes ON character_attributes_mapping.attribute_id = character_attributes.id "
+        "WHERE character_id = $1;");
+
         connection_->prepare("set_basic_character_data", "UPDATE characters "
                                                     "SET level = $2, experience_points = $3, current_health = $4, current_mana = $5 "
                                                     "WHERE id = $1;");
@@ -72,6 +78,23 @@ void Database::prepareDefaultQueries()
 
         connection_->prepare("get_character_position", "SELECT x, y, z FROM character_position WHERE character_id = $1 LIMIT 1;");
         connection_->prepare("set_character_position", "UPDATE character_position SET x = $1, y = $2, z = $3 WHERE character_id = $4;");
+
+
+        // get mob spawn zone data
+        connection_->prepare("get_mob_spawn_zone_data", "SELECT spawn_zones.*, mob.name as mob_name, mob.level, mob_race.name as race FROM spawn_zones "
+        "JOIN mob ON spawn_zones.mob_id = mob.id "
+        "JOIN mob_race ON mob.race_id = mob_race.id "
+        ";");
+
+        // get mobs list
+        connection_->prepare("get_mobs", "SELECT mob.*, mob_race.name as race FROM mob "
+        "JOIN mob_race ON mob.race_id = mob_race.id "
+                ";");
+
+        // get mob attributes
+        connection_->prepare("get_mob_attributes", "SELECT mob_attributes.*, mob_attributes_mapping.value FROM mob_attributes_mapping "
+        "JOIN mob_attributes ON mob_attributes_mapping.attribute_id = mob_attributes.id "
+        "WHERE mob_attributes_mapping.mob_id = $1;");
     }
     else
     {

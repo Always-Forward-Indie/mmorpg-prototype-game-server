@@ -603,7 +603,134 @@ void EventHandler::handleInteractClientEvent(const Event &event, ClientData &cli
     //  TODO - Implement this method
 }
 
-void EventHandler::dispatchEvent(const Event &event, ClientData &clientData)
+void EventHandler::handleSpawnMobsInZoneEvent(const Event &event, ClientData &clientData)
+{
+    // get the data from the event
+    const auto &data = event.getData();
+    int clientID = event.getClientID();
+
+    try
+    {
+        // Try to extract the data
+        if (std::holds_alternative<SpawnZoneStruct>(data))
+        {
+            SpawnZoneStruct spawnZoneData = std::get<SpawnZoneStruct>(data);
+            
+            // format the zone data to json
+            nlohmann::json spawnZoneDataJson;
+            //format the mob data to json using for loop
+            nlohmann::json mobsListJson;
+
+            spawnZoneDataJson["zoneId"] = spawnZoneData.zoneId;
+            spawnZoneDataJson["zoneName"] = spawnZoneData.zoneName;
+            spawnZoneDataJson["minX"] = spawnZoneData.minX;
+            spawnZoneDataJson["maxX"] = spawnZoneData.maxX;
+            spawnZoneDataJson["minY"] = spawnZoneData.minY;
+            spawnZoneDataJson["maxY"] = spawnZoneData.maxY;
+            spawnZoneDataJson["minZ"] = spawnZoneData.minZ;
+            spawnZoneDataJson["maxZ"] = spawnZoneData.maxZ;
+            spawnZoneDataJson["spawnMobId"] = spawnZoneData.spawnMobId;
+            spawnZoneDataJson["maxSpawnCount"] = spawnZoneData.spawnCount;
+            spawnZoneDataJson["spawnedMobsCount"] = spawnZoneData.spawnedMobsList.size();
+            spawnZoneDataJson["respawnTime"] = spawnZoneData.respawnTime.count();
+            spawnZoneDataJson["spawnEnabled"] = true;
+
+            
+            for (auto &mob : spawnZoneData.spawnedMobsList)
+            {
+                nlohmann::json mobJson;
+                mobJson["mobId"] = mob.id;
+                mobJson["mobUID"] = mob.uid;
+                mobJson["mobName"] = mob.name;
+                mobJson["mobRaceName"] = mob.raceName;
+                mobJson["mobLevel"] = mob.level;
+                mobJson["mobCurrentHealth"] = mob.currentHealth;
+                mobJson["mobCurrentMana"] = mob.currentMana;
+                mobJson["mobPosX"] = mob.position.positionX;
+                mobJson["mobPosY"] = mob.position.positionY;
+                mobJson["mobPosZ"] = mob.position.positionZ;
+                mobJson["mobRotZ"] = mob.position.rotationZ;
+
+                //loggler for mob data
+                //logger_.log("Mob item data: " + mobJson.dump(), YELLOW);
+
+                for(auto &mobAttributeItem : mob.attributes)
+                {
+                    nlohmann::json mobItemJson;
+                    mobItemJson["attributeId"] = mobAttributeItem.id;
+                    mobItemJson["attributeName"] = mobAttributeItem.name;
+                    mobItemJson["attributeSlug"] = mobAttributeItem.slug;
+                    mobItemJson["attributeValue"] = mobAttributeItem.value;
+                    mobJson["attributesData"].push_back(mobItemJson);
+                }
+
+                mobsListJson.push_back(mobJson);
+            }
+
+
+            // Get the clientData object with the new init data
+            const ClientDataStruct *currentClientData = clientData.getClientData(clientID);
+            std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = currentClientData->socket;
+
+            // Prepare the response message
+            nlohmann::json response;
+            ResponseBuilder builder;
+
+            // Check if the authentication is not successful
+            if (clientID == 0)
+            {
+                // Add response data
+                response = builder
+                               .setHeader("message", "Spawning mobs failed!")
+                               .setHeader("hash", "")
+                               .setHeader("clientId", clientID)
+                               .setHeader("eventType", "spawnMobsInZone")
+                               .setBody("", "")
+                               .build();
+                // Prepare a response message
+                std::string responseData = networkManager_.generateResponseMessage("error", response);
+                // Send the response to the client
+                networkManager_.sendResponse(clientSocket, responseData);
+                return;
+            }
+
+            // Add the message to the response
+            response = builder
+                           .setHeader("message", "Spawning mobs success!")
+                           .setHeader("hash", "")
+                           .setHeader("clientId", currentClientData->clientId)
+                           .setHeader("eventType", "spawnMobsInZone")
+                           .setBody("spawnZoneData", spawnZoneDataJson)
+                           .setBody("mobsData", mobsListJson)
+                           .build();
+            // Prepare a response message
+            std::string responseData = networkManager_.generateResponseMessage("success", response);
+
+            // Send the response to the client
+            networkManager_.sendResponse(clientSocket, responseData);
+        }
+        else
+        {
+            logger_.log("Error with extracting data!");
+        }
+    }
+    catch (const std::bad_variant_access &ex)
+    {
+        logger_.log("Error here: " + std::string(ex.what()));
+    }
+}
+
+void EventHandler::handleGetSpawnZonesEvent(const Event &event, ClientData &clientData)
+{
+    //  TODO - Implement this method
+}
+
+void EventHandler::handleGetMobDataEvent(const Event &event, ClientData &clientData)
+{
+    //  TODO - Implement this method
+}
+
+void EventHandler::dispatchEvent(const Event& event, ClientData& clientData)
 {
     switch (event.getType())
     {
@@ -637,5 +764,15 @@ void EventHandler::dispatchEvent(const Event &event, ClientData &clientData)
     case Event::DISCONNECT_CLIENT_CHUNK:
         handleDisconnectChunkEvent(event, clientData);
         break;
+    case Event::SPAWN_MOBS_IN_ZONE:
+        handleSpawnMobsInZoneEvent(event, clientData);
+        break;
+    case Event::GET_SPAWN_ZONES:
+        handleGetSpawnZonesEvent(event, clientData);
+        break;
+    case Event::GET_MOB_DATA:
+        handleGetMobDataEvent(event, clientData);
+        break;
+    
     }
 }
