@@ -12,9 +12,13 @@ class SpawnZoneManager
 public:
     SpawnZoneManager(MobManager& mobManager, Database& database, Logger& logger);
     void loadMobSpawnZones();
+
     std::map<int, SpawnZoneStruct> getMobSpawnZones();
     SpawnZoneStruct getMobSpawnZoneByID(int zoneId);
+    std::vector<MobDataStruct> getMobsInZone(int zoneId);
+
     std::vector<MobDataStruct> spawnMobsInZone(int zoneId);
+    void moveMobsInZone(int zoneId);
     void mobDied(int zoneId, std::string mobUID);
 
     MobDataStruct getMobByUID(std::string mobUID);

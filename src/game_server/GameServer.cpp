@@ -1,14 +1,14 @@
 #include "game_server/GameServer.hpp"
 
 GameServer::GameServer(ClientData &clientData,
-EventQueue& eventQueueGameServer, 
-EventQueue& eventQueueChunkServer, 
-Scheduler& scheduler,
-NetworkManager& networkManager, 
-ChunkServerWorker& chunkServerWorker, 
-Database& database,
-CharacterManager& characterManager,
-Logger& logger) 
+                       EventQueue &eventQueueGameServer,
+                       EventQueue &eventQueueChunkServer,
+                       Scheduler &scheduler,
+                       NetworkManager &networkManager,
+                       ChunkServerWorker &chunkServerWorker,
+                       Database &database,
+                       CharacterManager &characterManager,
+                       Logger &logger)
     : networkManager_(networkManager),
       clientData_(clientData),
       logger_(logger),
@@ -29,41 +29,68 @@ void GameServer::mainEventLoopGS()
 {
     logger_.log("Add Tasks To Game Server Scheduler...", YELLOW);
     constexpr int BATCH_SIZE = 10; // Process up to 10 events at a time
-    //TODO work on this later
-    //TODO - save different client data to the database in different time intervals (depend by the client data type)
-    // Schedule tasks
-    //scheduler_.scheduleTask({[&] { characterManager_.updateBasicCharactersData(database_, clientData_); }, 5, std::chrono::system_clock::now()}); // every 5 seconds
+                                   // TODO work on this later
+    // TODO - save different client data to the database in different time intervals (depend by the client data type)
+    //  Schedule tasks
+    // scheduler_.scheduleTask({[&] { characterManager_.updateBasicCharactersData(database_, clientData_); }, 5, std::chrono::system_clock::now()}); // every 5 seconds
 
     // schedule mob spawn zone tasks
-    scheduler_.scheduleTask({[&] { 
-            // spawn mobs in the zone
-            //std::vector<MobDataStruct> mobsList = 
-            spawnZoneManager_.spawnMobsInZone(1);
+    scheduler_.scheduleTask({[&]
+                             {
+                                 // spawn mobs in the zone
+                                 // std::vector<MobDataStruct> mobsList =
+                                 spawnZoneManager_.spawnMobsInZone(1);
 
-            // get spawn zone data by id
-            SpawnZoneStruct spawnZone = spawnZoneManager_.getMobSpawnZoneByID(1);
+                                 // get spawn zone data by id
+                                 SpawnZoneStruct spawnZone = spawnZoneManager_.getMobSpawnZoneByID(1);
 
-            //get all the connected clients from clientData_ and push the event with client id
-            auto connectedClients = clientData_.getClientsDataMap();
-               
-                for (const auto& client : connectedClients)
-                {
-                    if(client.second.clientId == 0)
-                    {
-                        continue;
-                    }
-                    
-                    auto clientSocket = client.second.socket;
-                    Event spawnMobsInZoneEvent(Event::SPAWN_MOBS_IN_ZONE, client.second.clientId, spawnZone, clientSocket);
-                    eventQueueGameServer_.push(spawnMobsInZoneEvent);
-                }
-        
-        }, 30, std::chrono::system_clock::now()}); // every 30 seconds
+                                 // get all the connected clients from clientData_ and push the event with client id
+                                 auto connectedClients = clientData_.getClientsDataMap();
+
+                                 for (const auto &client : connectedClients)
+                                 {
+                                     if (client.second.clientId == 0)
+                                     {
+                                         continue;
+                                     }
+
+                                     auto clientSocket = client.second.socket;
+                                     Event spawnMobsInZoneEvent(Event::SPAWN_MOBS_IN_ZONE, client.second.clientId, spawnZone, clientSocket);
+                                     eventQueueGameServer_.push(spawnMobsInZoneEvent);
+                                 }
+                             },
+                             15, std::chrono::system_clock::now()}); // every 30 seconds
+
+    scheduler_.scheduleTask({[&]
+                             {
+                                 // generate new movement coordinates for mobs in the zone
+                                 spawnZoneManager_.moveMobsInZone(1);
+
+                                 // get mobs list in the zone
+                                 std::vector<MobDataStruct> mobsList = spawnZoneManager_.getMobsInZone(1);
+
+                                 // get all the connected clients from clientData_ and push the event with client id
+                                 auto connectedClients = clientData_.getClientsDataMap();
+
+                                 for (const auto &client : connectedClients)
+                                 {
+                                     if (client.second.clientId == 0)
+                                     {
+                                         continue;
+                                     }
+
+                                     auto clientSocket = client.second.socket;
+                                     Event moveMobsInZoneEvent(Event::ZONE_MOVE_MOBS, client.second.clientId, mobsList, clientSocket);
+                                     eventQueueGameServer_.push(moveMobsInZoneEvent);
+                                 }
+                             },
+                             10, std::chrono::system_clock::now()}); // every 15 seconds
 
     try
     {
         logger_.log("Starting Game Server Event Loop...", YELLOW);
-        while (true) {
+        while (true)
+        {
             // Create an event object to store the next event
             // Event event;
 
@@ -74,7 +101,8 @@ void GameServer::mainEventLoopGS()
             // }
 
             std::vector<Event> eventsBatch;
-            if (eventQueueGameServer_.popBatch(eventsBatch, BATCH_SIZE)) {
+            if (eventQueueGameServer_.popBatch(eventsBatch, BATCH_SIZE))
+            {
                 processBatch(eventsBatch);
             }
 
@@ -82,26 +110,27 @@ void GameServer::mainEventLoopGS()
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
     }
-    catch(const std::exception& e)
+    catch (const std::exception &e)
     {
-       logger_.logError(e.what(), RED);
+        logger_.logError(e.what(), RED);
     }
 }
 
 void GameServer::mainEventLoopCH()
 {
-     constexpr int BATCH_SIZE = 10;
+    constexpr int BATCH_SIZE = 10;
     logger_.log("Add Tasks To Chunk Server Scheduler...", YELLOW);
 
-    //TODO work on this later
-    //TODO - save different client data to the database in different time intervals (depend by the client data type)
-    // Schedule tasks
-    //scheduler_.scheduleTask({[&] { characterManager_.updateBasicCharactersData(database_, clientData_); }, 5, std::chrono::system_clock::now()}); // every 5 seconds
+    // TODO work on this later
+    // TODO - save different client data to the database in different time intervals (depend by the client data type)
+    //  Schedule tasks
+    // scheduler_.scheduleTask({[&] { characterManager_.updateBasicCharactersData(database_, clientData_); }, 5, std::chrono::system_clock::now()}); // every 5 seconds
 
     try
     {
         logger_.log("Starting Chunk Server Event Loop...", YELLOW);
-        while (true) {
+        while (true)
+        {
             // Event event;
 
             // if (eventQueueChunkServer_.pop(event)) {
@@ -109,7 +138,8 @@ void GameServer::mainEventLoopCH()
             // }
 
             std::vector<Event> eventsBatch;
-            if (eventQueueChunkServer_.popBatch(eventsBatch, BATCH_SIZE)) {
+            if (eventQueueChunkServer_.popBatch(eventsBatch, BATCH_SIZE))
+            {
                 processBatch(eventsBatch);
             }
 
@@ -117,14 +147,15 @@ void GameServer::mainEventLoopCH()
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
     }
-    catch(const std::exception& e)
+    catch (const std::exception &e)
     {
-       logger_.logError(e.what(), RED);
+        logger_.logError(e.what(), RED);
     }
 }
 
 // Implement asynchronous processing of event batches
-void GameServer::processBatch(const std::vector<Event>& eventsBatch) {
+void GameServer::processBatch(const std::vector<Event> &eventsBatch)
+{
     // Asynchronously process events in the batch
     // for (const auto& event : eventsBatch) {
     //     // Asynchronously process each event using std::async or std::thread
@@ -133,18 +164,19 @@ void GameServer::processBatch(const std::vector<Event>& eventsBatch) {
     //     });
     // }
 
-        std::vector<std::future<void>> futures;
+    std::vector<std::future<void>> futures;
 
-    for (const auto& event : eventsBatch) {
+    for (const auto &event : eventsBatch)
+    {
         // Launch asynchronous task and save the future
-        auto future = std::async(std::launch::async | std::launch::deferred, [&]() {
-            eventHandler_.dispatchEvent(event, clientData_);
-        });
+        auto future = std::async(std::launch::async | std::launch::deferred, [&]()
+                                 { eventHandler_.dispatchEvent(event, clientData_); });
         futures.push_back(std::move(future));
     }
 
     // Wait for all tasks to complete
-    for (auto& future : futures) {
+    for (auto &future : futures)
+    {
         future.wait();
     }
 }
@@ -159,11 +191,11 @@ void GameServer::startMainEventLoop()
 }
 
 GameServer::~GameServer()
-{  
+{
     logger_.log("Shutting down Game Server...", YELLOW);
     // Join the main event loop thread
     event_game_server_thread_.join();
-    
+
     // Join the chunk server event loop thread
     event_chunk_server_thread_.join();
 }

@@ -33,6 +33,7 @@ private:
     void handleSpawnMobsInZoneEvent(const Event &event, ClientData& clientData);
     void handleGetSpawnZonesEvent(const Event &event, ClientData &clientData);
     void handleGetMobDataEvent(const Event &event, ClientData &clientData);
+    void handleZoneMoveMobsEvent(const Event &event, ClientData &clientData);
     void handleDisconnectChunkEvent(const Event &event, ClientData &clientData);
     void handleDisconnectClientEvent(const Event& event, ClientData& clientData);
 

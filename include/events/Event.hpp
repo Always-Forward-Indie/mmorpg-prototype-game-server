@@ -38,6 +38,8 @@ public:
         GET_SPAWN_ZONES,
         GET_MOB_DATA,
         SPAWN_MOBS_IN_ZONE,
+        ZONE_MOVE_MOBS,
+        MOVE_MOB,
         INTERACT
     }; // Define more event types as needed
     Event() = default; // Default constructor

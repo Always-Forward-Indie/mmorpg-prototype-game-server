@@ -70,6 +70,20 @@ SpawnZoneStruct SpawnZoneManager::getMobSpawnZoneByID(int zoneId)
     }
 }
 
+// get mobs in the zone
+std::vector<MobDataStruct> SpawnZoneManager::getMobsInZone(int zoneId)
+{
+    auto zone = mobSpawnZones_.find(zoneId);
+    if (zone != mobSpawnZones_.end())
+    {
+        return zone->second.spawnedMobsList;
+    }
+    else
+    {
+        return std::vector<MobDataStruct>();
+    }
+}
+
 // spawn count of mobs in spawn zone wiht random position in zone
 std::vector<MobDataStruct> SpawnZoneManager::spawnMobsInZone(int zoneId)
 {
@@ -90,6 +104,7 @@ std::vector<MobDataStruct> SpawnZoneManager::spawnMobsInZone(int zoneId)
             mob.zoneId = zoneId;
             mob.position.positionX = xDist(gen) * (zone->second.maxX - zone->second.minX) + zone->second.minX;
             mob.position.positionY = yDist(gen) * (zone->second.maxY - zone->second.minY) + zone->second.minY;
+            mob.position.positionZ = 90.0f;
             mob.position.rotationZ = zDist(gen) * (zone->second.maxZ - zone->second.minZ) + zone->second.minZ;
             //generate unique id for the mob
             mob.uid = std::to_string(mob.id) + "_" + std::to_string(Generators::generateUniqueTimeBasedKey(zoneId));
@@ -105,6 +120,32 @@ std::vector<MobDataStruct> SpawnZoneManager::spawnMobsInZone(int zoneId)
     }
 
     return mobs;
+}
+
+//move mobs in the zone randomly to simulate movement
+void SpawnZoneManager::moveMobsInZone(int zoneId)
+{
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<float> xDist;
+    std::uniform_real_distribution<float> yDist;
+    std::uniform_real_distribution<float> zDist;
+
+    auto zone = mobSpawnZones_.find(zoneId);
+
+    if (zone != mobSpawnZones_.end())
+    {
+        for (auto& mob : zone->second.spawnedMobsList)
+        {
+            // skip or move the mob from list randomly
+            if (Generators::generateSimpleRandomNumber(1, 10) > 8)
+            {
+                mob.position.positionX = xDist(gen) * (zone->second.maxX - zone->second.minX) + zone->second.minX;
+                mob.position.positionY = yDist(gen) * (zone->second.maxY - zone->second.minY) + zone->second.minY;
+                mob.position.rotationZ = zDist(gen) * (zone->second.maxZ - zone->second.minZ) + zone->second.minZ;
+            }
+        }
+    }
 }
 
 // detect that the mob is dead and decrease spawnedMobs

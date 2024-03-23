@@ -652,9 +652,6 @@ void EventHandler::handleSpawnMobsInZoneEvent(const Event &event, ClientData &cl
                 mobJson["posZ"] = mob.position.positionZ;
                 mobJson["rotZ"] = mob.position.rotationZ;
 
-                //loggler for mob data
-                //logger_.log("Mob item data: " + mobJson.dump(), YELLOW);
-
                 for(auto &mobAttributeItem : mob.attributes)
                 {
                     nlohmann::json mobItemJson;
@@ -731,6 +728,104 @@ void EventHandler::handleGetMobDataEvent(const Event &event, ClientData &clientD
     //  TODO - Implement this method
 }
 
+void EventHandler::handleZoneMoveMobsEvent(const Event &event, ClientData &clientData)
+{
+    // get the data from the event
+    const auto &data = event.getData();
+    int clientID = event.getClientID();
+
+    try
+    {
+        // Try to extract the data
+        if (std::holds_alternative<std::vector<MobDataStruct>>(data))
+        {
+            std::vector<MobDataStruct> mobsList = std::get<std::vector<MobDataStruct>>(data);
+
+            // format the mob data to json using for loop
+            nlohmann::json mobsListJson;
+
+            for (auto &mob : mobsList)
+            {
+                nlohmann::json mobJson;
+                mobJson["mobId"] = mob.id;
+                mobJson["mobUID"] = mob.uid;
+                mobJson["mobZoneId"] = mob.zoneId;
+                mobJson["mobName"] = mob.name;
+                mobJson["mobRaceName"] = mob.raceName;
+                mobJson["mobLevel"] = mob.level;
+                mobJson["mobCurrentHealth"] = mob.currentHealth;
+                mobJson["mobCurrentMana"] = mob.currentMana;
+                mobJson["posX"] = mob.position.positionX;
+                mobJson["posY"] = mob.position.positionY;
+                mobJson["posZ"] = mob.position.positionZ;
+                mobJson["rotZ"] = mob.position.rotationZ;
+
+                for(auto &mobAttributeItem : mob.attributes)
+                {
+                    nlohmann::json mobItemJson;
+                    mobItemJson["attributeId"] = mobAttributeItem.id;
+                    mobItemJson["attributeName"] = mobAttributeItem.name;
+                    mobItemJson["attributeSlug"] = mobAttributeItem.slug;
+                    mobItemJson["attributeValue"] = mobAttributeItem.value;
+                    mobJson["attributesData"].push_back(mobItemJson);
+                }
+
+                mobsListJson.push_back(mobJson);
+            }
+
+            // Get the clientData object with the new init data
+            const ClientDataStruct *currentClientData = clientData.getClientData(clientID);
+            std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = currentClientData->socket;
+
+            // Prepare the response message
+            nlohmann::json response;
+            ResponseBuilder builder;
+
+            // Check if the authentication is not successful
+            if (clientID == 0)
+            {
+                // Add response data
+                response = builder
+                    .setHeader("message", "Moving mobs failed!")
+                    .setHeader("hash", "")
+                    .setHeader("clientId", clientID)
+                    .setHeader("eventType", "zoneMoveMobs")
+                    .setBody("", "")
+                    .build();
+                // Prepare a response message
+                std::string responseData = networkManager_.generateResponseMessage("error", response);
+                // Send the response to the client
+                networkManager_.sendResponse(clientSocket, responseData);
+                return;
+            }
+
+            // Add the message to the response
+            response = builder
+                .setHeader("message", "Moving mobs success!")
+                .setHeader("hash", "")
+                .setHeader("clientId", currentClientData->clientId)
+                .setHeader("eventType", "zoneMoveMobs")
+                .setBody("mobsData", mobsListJson)
+                .build();
+
+            // Prepare a response message
+            std::string responseData = networkManager_.generateResponseMessage("success", response);
+
+            // Send the response to the client
+            networkManager_.sendResponse(clientSocket, responseData);
+        }
+        else
+        {
+            logger_.log("Error with extracting data!");
+        }
+    }
+    catch (const std::bad_variant_access &ex)
+    {
+        logger_.log("Error here: " + std::string(ex.what()));
+    }
+
+}
+
 void EventHandler::dispatchEvent(const Event& event, ClientData& clientData)
 {
     switch (event.getType())
@@ -773,6 +868,9 @@ void EventHandler::dispatchEvent(const Event& event, ClientData& clientData)
         break;
     case Event::GET_MOB_DATA:
         handleGetMobDataEvent(event, clientData);
+        break;
+    case Event::ZONE_MOVE_MOBS:
+        handleZoneMoveMobsEvent(event, clientData);
         break;
     
     }
