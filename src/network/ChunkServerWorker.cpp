@@ -16,7 +16,7 @@ ChunkServerWorker::ChunkServerWorker(EventQueue &eventQueue, NetworkManager &net
     boost::asio::ip::tcp::resolver resolver(io_context_chunk_);
     auto endpoints = resolver.resolve(host, std::to_string(port));
 
-    logger_.log("Connecting to the Chunk Server...", YELLOW);
+    logger_.log("Connecting to the Chunk Server on IP: "+ host +" Port: "+ std::to_string(port), YELLOW);
 
     connect(endpoints, retryCount); // Start the connection attempt
 }

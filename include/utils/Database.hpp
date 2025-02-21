@@ -5,6 +5,7 @@
 #include <memory>
 #include "utils/Config.hpp"
 #include "utils/Logger.hpp"
+#include <variant>
 
 class Database {
 public:
@@ -22,11 +23,10 @@ public:
     // Handle database connection or query errors
     void handleDatabaseError(const std::exception &e);
     // Execute a query with a transaction
-    using ParamType = std::variant<int, float, double, std::string>; // Define a type of data alias for the parameter type
     pqxx::result executeQueryWithTransaction(
-    pqxx::work &transaction,
-    const std::string &preparedQueryName,
-    const std::vector<ParamType> &parameters);
+        pqxx::work &transaction,
+        const std::string &preparedQueryName,
+        const std::vector<std::variant<int, float, double, std::string>> &parameters);
 
 private:
     // Database connection

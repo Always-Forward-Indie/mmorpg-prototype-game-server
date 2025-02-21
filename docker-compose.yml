@@ -1,0 +1,19 @@
+services:
+  game-server:
+    build: .
+    ports:
+      - "27016:27016"
+    volumes:
+      - /usr/src/app/build
+    environment:
+      - ENV=development
+    #restart: unless-stopped
+    security_opt:
+      - seccomp=unconfined
+    command: ["/usr/src/app/MMOGameServer"]
+    networks:
+      - mmo_network
+
+networks:
+  mmo_network:
+    external: true

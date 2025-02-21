@@ -27,7 +27,7 @@ void Database::connect(std::tuple<DatabaseConfig, GameServerConfig, ChunkServerC
         logger_.log("Port: " + std::to_string(port), BLUE);
 
         connection_ = std::make_unique<pqxx::connection>(
-            "dbname=" + databaseName + " user=" + user + " password=" + password + " hostaddr=" + host + " port=" + std::to_string(port));
+            "dbname=" + databaseName + " user=" + user + " password=" + password + " host=" + host + " port=" + std::to_string(port));
 
         if (connection_->is_open())
         {
@@ -122,34 +122,42 @@ void Database::handleDatabaseError(const std::exception &e)
 }
 
 // Function to execute a query with a transaction
-using ParamType = std::variant<int, float, double, std::string>; // Define a type of data alias for the parameter type
 pqxx::result Database::executeQueryWithTransaction(
     pqxx::work &transaction,
     const std::string &preparedQueryName,
-    const std::vector<ParamType> &parameters)
+    const std::vector<std::variant<int, float, double, std::string>> &parameters)
 {
- try
+    try
     {
-        // Create a pqxx::params object to hold the parameters
-        pqxx::params pq_params;
-
-        // Loop through the parameters and add them to the pqxx::params object
+        // Convert all parameters to strings
+        std::vector<std::string> paramStrings;
         for (const auto &param : parameters)
         {
-            std::visit([&](const auto &value) {
-                pq_params.append(value);
-            }, param);
+            paramStrings.push_back(std::visit([](const auto &value) -> std::string {
+                if constexpr (std::is_same_v<std::decay_t<decltype(value)>, std::string>)
+                    return value;
+                else
+                    return std::to_string(value);
+            }, param));
         }
 
-        // Execute the prepared query and assign the result to a pqxx::result object
-        pqxx::result result = transaction.exec_prepared(preparedQueryName, pq_params);
-        // Return the result
+        // Convert to a vector of raw C-style strings (needed for exec_prepared)
+        std::vector<const char *> cstrParams;
+        for (auto &param : paramStrings)
+        {
+            cstrParams.push_back(param.c_str());
+        }
+
+        // Use the parameter pack expansion to pass all arguments dynamically
+        pqxx::result result = transaction.exec_prepared(preparedQueryName, pqxx::prepare::make_dynamic_params(cstrParams.begin(), cstrParams.end()));
+
         return result;
     }
     catch (const std::exception &e)
     {
-        transaction.abort(); // Rollback the transaction
-        handleDatabaseError(e); // Handle database connection or query errors
-        return pqxx::result(); // Return an empty result
+        transaction.abort(); // Rollback transaction
+        handleDatabaseError(e);
+        return pqxx::result();
     }
 }
+
