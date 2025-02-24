@@ -27,12 +27,14 @@ set(SOURCE_FILES
     src/events/EventHandler.cpp
     src/data/ClientData.cpp
     src/utils/Scheduler.cpp
+    src/utils/ThreadPool.cpp
     src/utils/JSONParser.cpp
     src/utils/TimeConverter.cpp
     src/utils/Generators.cpp
     src/utils/Logger.cpp
     src/utils/Database.cpp
     src/utils/Config.cpp
+    src/utils/TimeUtils.cpp
     # ... other source files
 )
 
@@ -54,6 +56,7 @@ set(HEADER_FILES
     include/data/ClientData.hpp
     include/data/SpecialStructs.hpp
     include/utils/Scheduler.hpp
+    include/utils/ThreadPool.hpp
     include/utils/JSONParser.hpp
     include/utils/ResponseBuilder.hpp
     include/utils/TimeConverter.hpp
@@ -62,6 +65,7 @@ set(HEADER_FILES
     include/utils/TerminalColors.hpp
     include/utils/Database.hpp
     include/utils/Config.hpp
+    include/utils/TimeUtils.hpp
     # ... other header files
 )
 

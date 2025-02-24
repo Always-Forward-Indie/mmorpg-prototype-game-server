@@ -623,12 +623,12 @@ void EventHandler::handleSpawnMobsInZoneEvent(const Event &event, ClientData &cl
 
             spawnZoneDataJson["zoneId"] = spawnZoneData.zoneId;
             spawnZoneDataJson["zoneName"] = spawnZoneData.zoneName;
-            spawnZoneDataJson["minX"] = spawnZoneData.minX;
-            spawnZoneDataJson["maxX"] = spawnZoneData.maxX;
-            spawnZoneDataJson["minY"] = spawnZoneData.minY;
-            spawnZoneDataJson["maxY"] = spawnZoneData.maxY;
-            spawnZoneDataJson["minZ"] = spawnZoneData.minZ;
-            spawnZoneDataJson["maxZ"] = spawnZoneData.maxZ;
+            spawnZoneDataJson["minX"] = spawnZoneData.posX;
+            spawnZoneDataJson["maxX"] = spawnZoneData.sizeX;
+            spawnZoneDataJson["minY"] = spawnZoneData.posY;
+            spawnZoneDataJson["maxY"] = spawnZoneData.sizeY;
+            spawnZoneDataJson["minZ"] = spawnZoneData.posZ;
+            spawnZoneDataJson["maxZ"] = spawnZoneData.sizeZ;
             spawnZoneDataJson["spawnMobId"] = spawnZoneData.spawnMobId;
             spawnZoneDataJson["maxSpawnCount"] = spawnZoneData.spawnCount;
             spawnZoneDataJson["spawnedMobsCount"] = spawnZoneData.spawnedMobsList.size();

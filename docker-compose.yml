@@ -4,13 +4,12 @@ services:
     ports:
       - "27016:27016"
     volumes:
-      - /usr/src/app/build
+      - ./src:/usr/src/app/src  # ✅ Mount only the `src` folder
+      - ./include:/usr/src/app/include  # ✅ Mount only the `include` folder
     environment:
       - ENV=development
-    #restart: unless-stopped
     security_opt:
       - seccomp=unconfined
-    command: ["/usr/src/app/MMOGameServer"]
     networks:
       - mmo_network
 

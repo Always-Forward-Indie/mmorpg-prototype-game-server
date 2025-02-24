@@ -6,6 +6,7 @@
 #include "utils/TimeConverter.hpp"
 #include "services/MobManager.hpp"
 #include <random>
+#include <shared_mutex>
 
 class SpawnZoneManager
 {
