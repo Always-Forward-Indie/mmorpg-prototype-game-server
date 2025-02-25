@@ -49,6 +49,7 @@ set(HEADER_FILES
     include/services/MobManager.hpp
     include/network/ChunkServerWorker.hpp
     include/network/NetworkManager.hpp
+    include/network/ClientSession.hpp
     include/events/Event.hpp
     include/events/EventQueue.hpp
     include/events/EventHandler.hpp

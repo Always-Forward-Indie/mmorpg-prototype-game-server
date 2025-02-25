@@ -478,6 +478,16 @@ void EventHandler::handleDisconnectClientEvent(const Event &event, ClientData &c
         {
             ClientDataStruct passedClientData = std::get<ClientDataStruct>(data);
 
+            if(passedClientData.clientId == 0)
+            {
+                logger_.log("Client ID is 0, so we will just remove client from our list!");
+
+                  // Remove the client data
+                clientData.removeClientDataBySocket(passedClientData.socket);
+
+                return;
+            }
+
             // Remove the client data
             clientData.removeClientData(passedClientData.clientId);
 

@@ -34,6 +34,7 @@ int main() {
         // Initialize EventQueue
         EventQueue eventQueueChunkServer;
         EventQueue eventQueueGameServer;
+        EventQueue eventQueueGameServerPing;
 
         // Initialize ClientData
         ClientData clientData;
@@ -48,13 +49,13 @@ int main() {
         Database database(configs, logger);
 
         // Initialize NetworkManager
-        NetworkManager networkManager(eventQueueGameServer, configs, logger);
+        NetworkManager networkManager(eventQueueGameServer, eventQueueGameServerPing, configs, logger);
 
         // Initialize ChunkServerWorker
         ChunkServerWorker chunkServerWorker(eventQueueChunkServer, networkManager, configs, logger);
 
         // Initialize GameServer
-        GameServer gameServer(clientData, eventQueueGameServer, eventQueueChunkServer, scheduler, networkManager, chunkServerWorker, database, characterManager, logger);
+        GameServer gameServer(clientData, eventQueueGameServer, eventQueueChunkServer, eventQueueGameServerPing, scheduler, networkManager, chunkServerWorker, database, characterManager, logger);
 
         // Start the IO Networking event loop in the main thread
         networkManager.startIOEventLoop();

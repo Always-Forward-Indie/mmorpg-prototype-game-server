@@ -134,3 +134,14 @@ void ClientData::removeClientData(const int& id) {
         clientDataMap_.erase(it);
     }
 }
+
+// remove client data by socket
+void ClientData::removeClientDataBySocket(const std::shared_ptr<boost::asio::ip::tcp::socket>& socket) {
+    std::lock_guard<std::mutex> lock(clientDataMutex_); // lock_guard is a mutex wrapper that provides a convenient RAII-style mechanism for owning a mutex for the duration of a scoped block.
+    for (auto it = clientDataMap_.begin(); it != clientDataMap_.end(); ++it) {
+        if (it->second.socket == socket) {
+            clientDataMap_.erase(it);
+            break;
+        }
+    }
+}

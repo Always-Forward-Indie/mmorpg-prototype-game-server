@@ -19,6 +19,7 @@ public:
     const ClientDataStruct *getClientData(const int &id) const;
     std::unordered_map<int, ClientDataStruct> getClientsDataMap() const;
     void removeClientData(const int &id);
+    void removeClientDataBySocket(const std::shared_ptr<boost::asio::ip::tcp::socket>& socket);
 
 private:
     std::unordered_map<int, ClientDataStruct> clientDataMap_;

@@ -22,6 +22,7 @@ public:
     GameServer(ClientData &clientData,
                EventQueue& eventQueueGameServer, 
                EventQueue& eventQueueChunkServer, 
+               EventQueue& eventQueueGameServerPing,
                Scheduler& scheduler,
                NetworkManager& networkManager, 
                ChunkServerWorker& chunkServerWorker, 
@@ -32,22 +33,30 @@ public:
     ~GameServer();
 
     void processBatch(const std::vector<Event> &eventsBatch);
+    void processPingBatch(const std::vector<Event>& pingEvents);
+
     void startMainEventLoop();
     void stop();
 
     void mainEventLoopGS();
     void mainEventLoopCH();
+    void mainEventLoopPing();
+
 
 private:
     std::atomic<bool> running_{true};
 
     std::thread event_game_server_thread_;
     std::thread event_chunk_server_thread_;
+    std::thread event_ping_thread_;
+
 
     ClientData& clientData_;
     Logger& logger_;
     EventQueue& eventQueueGameServer_;
     EventQueue& eventQueueChunkServer_;
+    EventQueue& eventQueueGameServerPing_;
+
     EventHandler eventHandler_;
     NetworkManager& networkManager_;
 

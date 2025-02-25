@@ -8,33 +8,27 @@
 #include "utils/Config.hpp"
 #include "utils/JSONParser.hpp"
 #include "events/EventQueue.hpp"
+#include <thread>
+#include <vector>
+#include <memory>
 
 class NetworkManager {
 public:
-    NetworkManager(EventQueue& eventQueue, std::tuple<DatabaseConfig, GameServerConfig, ChunkServerConfig> &configs, Logger &logger);
+    NetworkManager(EventQueue& eventQueue, EventQueue& eventQueuePing, std::tuple<DatabaseConfig, GameServerConfig, ChunkServerConfig>& configs, Logger &logger);
     ~NetworkManager();
     void startAccept();
     void startIOEventLoop();
-    void sendResponse(std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket, const std::string& responseString);
+    void sendResponse(std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket, const std::string &responseString);
     std::string generateResponseMessage(const std::string &status, const nlohmann::json &message);
 
-    // Other networking methods as needed...
-
 private:
-    static constexpr size_t max_length = 1024; // Define the appropriate value
-    void handleAccept(std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket, const boost::system::error_code& error);
-    void startReadingFromClient(std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket);
-    void handleClientData(std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket, const std::array<char, max_length>& dataBuffer, size_t bytes_transferred);
-    void processMessage(std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket, const std::string& message);
-
-    // Create a new events batch
-    //std::vector<Event> eventsBatch;
-
+    static constexpr size_t max_length = 1024;
     boost::asio::io_context io_context_;
     boost::asio::ip::tcp::acceptor acceptor_;
-    std::thread networkManagerThread_;
+    std::vector<std::thread> threadPool_;
     std::tuple<DatabaseConfig, GameServerConfig, ChunkServerConfig>& configs_;
     EventQueue& eventQueue_;
+    EventQueue& eventQueuePing_;
     Logger& logger_;
     JSONParser jsonParser_;
 };

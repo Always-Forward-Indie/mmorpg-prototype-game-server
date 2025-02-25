@@ -5,11 +5,6 @@ Event::Event(EventType type, int clientID, const EventData data, std::shared_ptr
 {
 }
 
-// Event::Event(EventType type, int clientID, const EventData data)
-//     : type(type), clientID(clientID), eventData(data)
-// {
-// }
-
 // Getter for clientID
 int Event::getClientID() const
 {

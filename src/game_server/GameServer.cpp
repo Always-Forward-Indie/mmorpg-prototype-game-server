@@ -4,6 +4,7 @@
 GameServer::GameServer(ClientData &clientData,
                        EventQueue &eventQueueGameServer,
                        EventQueue &eventQueueChunkServer,
+                       EventQueue &eventQueueGameServerPing,
                        Scheduler &scheduler,
                        NetworkManager &networkManager,
                        ChunkServerWorker &chunkServerWorker,
@@ -15,6 +16,7 @@ GameServer::GameServer(ClientData &clientData,
       logger_(logger),
       eventQueueGameServer_(eventQueueGameServer),
       eventQueueChunkServer_(eventQueueChunkServer),
+      eventQueueGameServerPing_(eventQueueGameServerPing),
       characterManager_(characterManager),
       eventHandler_(networkManager, chunkServerWorker, database, characterManager, logger),
       scheduler_(scheduler),
@@ -130,26 +132,97 @@ void GameServer::mainEventLoopCH()
     }
 }
 
-
-void GameServer::processBatch(const std::vector<Event> &eventsBatch)
+void GameServer::mainEventLoopPing()
 {
-    for (const auto &event : eventsBatch)
+    constexpr int BATCH_SIZE = 1; // Ping обрабатывай сразу
+
+    logger_.log("Starting Ping Event Loop...", YELLOW);
+
+    try
     {
-        threadPool_.enqueueTask([this, event]()
+        while (running_)
         {
+            std::vector<Event> pingEvents;
+            if (eventQueueGameServerPing_.popBatch(pingEvents, BATCH_SIZE))
+            {
+                processPingBatch(pingEvents);
+            }
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+    }
+    catch (const std::exception &e)
+    {
+        logger_.logError("Ping Event Loop Error: " + std::string(e.what()), RED);
+    }
+}
+
+void GameServer::processPingBatch(const std::vector<Event>& pingEvents)
+{
+    for (const auto& event : pingEvents)
+    {
+        threadPool_.enqueueTask([this, event] {
             try
             {
                 eventHandler_.dispatchEvent(event, clientData_);
             }
             catch (const std::exception &e)
             {
-                logger_.logError("Error in dispatchEvent: " + std::string(e.what()));
+                logger_.logError("Error processing PING_EVENT: " + std::string(e.what()));
             }
         });
     }
 
     eventCondition.notify_all();
 }
+
+void GameServer::processBatch(const std::vector<Event>& eventsBatch)
+{
+    std::vector<Event> priorityEvents;
+    std::vector<Event> normalEvents;
+
+    // Separate ping events from other events
+    for (const auto& event : eventsBatch)
+    {
+        // if (event.PING_CLIENT == Event::PING_CLIENT)
+        //     priorityEvents.push_back(event);
+        // else
+            normalEvents.push_back(event);
+    }
+
+    // Process priority ping events first
+    for (const auto& event : priorityEvents)
+    {
+        threadPool_.enqueueTask([this, event] {
+            try
+            {
+                eventHandler_.dispatchEvent(event, clientData_);
+            }
+            catch (const std::exception &e)
+            {
+                logger_.logError("Error processing priority dispatchEvent: " + std::string(e.what()));
+            }
+        });
+    }
+
+    // Process normal events
+    for (const auto& event : normalEvents)
+    {
+        threadPool_.enqueueTask([this, event] {
+            try
+            {
+                eventHandler_.dispatchEvent(event, clientData_);
+            }
+            catch (const std::exception &e)
+            {
+                logger_.logError("Error in normal dispatchEvent: " + std::string(e.what()));
+            }
+        });
+    }
+
+    eventCondition.notify_all();
+}
+
 
 
 void GameServer::startMainEventLoop()
@@ -162,6 +235,7 @@ void GameServer::startMainEventLoop()
 
     event_game_server_thread_ = std::thread(&GameServer::mainEventLoopGS, this);
     event_chunk_server_thread_ = std::thread(&GameServer::mainEventLoopCH, this);
+    event_ping_thread_ = std::thread(&GameServer::mainEventLoopPing, this);
 }
 
 void GameServer::stop()
@@ -182,4 +256,7 @@ GameServer::~GameServer()
 
     if (event_chunk_server_thread_.joinable())
         event_chunk_server_thread_.join();
+
+    if (event_ping_thread_.joinable())
+        event_ping_thread_.join();
 }
