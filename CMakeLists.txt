@@ -22,9 +22,11 @@ set(SOURCE_FILES
     src/services/MobManager.cpp
     src/network/ChunkServerWorker.cpp
     src/network/NetworkManager.cpp
+    src/network/ClientSession.cpp
     src/events/Event.cpp
     src/events/EventQueue.cpp
     src/events/EventHandler.cpp
+    src/events/EventDispatcher.cpp
     src/data/ClientData.cpp
     src/utils/Scheduler.cpp
     src/utils/ThreadPool.cpp
@@ -35,6 +37,7 @@ set(SOURCE_FILES
     src/utils/Database.cpp
     src/utils/Config.cpp
     src/utils/TimeUtils.cpp
+    src/handlers/MessageHandler.cpp
     # ... other source files
 )
 
@@ -53,6 +56,7 @@ set(HEADER_FILES
     include/events/Event.hpp
     include/events/EventQueue.hpp
     include/events/EventHandler.hpp
+    include/events/EventDispatcher.hpp
     include/data/DataStructs.hpp
     include/data/ClientData.hpp
     include/data/SpecialStructs.hpp
@@ -67,6 +71,7 @@ set(HEADER_FILES
     include/utils/Database.hpp
     include/utils/Config.hpp
     include/utils/TimeUtils.hpp
+    include/handlers/MessageHandler.hpp
     # ... other header files
 )
 

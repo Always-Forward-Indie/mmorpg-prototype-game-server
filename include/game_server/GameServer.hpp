@@ -17,18 +17,19 @@
 #include "services/MobManager.hpp"
 #include "services/SpawnZoneManager.hpp"
 
+
 class GameServer {
 public:
     GameServer(ClientData &clientData,
-               EventQueue& eventQueueGameServer, 
-               EventQueue& eventQueueChunkServer, 
-               EventQueue& eventQueueGameServerPing,
-               Scheduler& scheduler,
-               NetworkManager& networkManager, 
-               ChunkServerWorker& chunkServerWorker, 
-               Database& database,
-               CharacterManager& characterManager,
-               Logger& logger);
+                EventHandler &eventHandler,
+                EventQueue& eventQueueGameServer, 
+                EventQueue& eventQueueChunkServer, 
+                EventQueue& eventQueueGameServerPing,
+                Scheduler& scheduler,
+                ChunkServerWorker& chunkServerWorker, 
+                Database& database,
+                CharacterManager& characterManager,
+                Logger& logger);
     
     ~GameServer();
 
@@ -57,18 +58,19 @@ private:
     EventQueue& eventQueueChunkServer_;
     EventQueue& eventQueueGameServerPing_;
 
-    EventHandler eventHandler_;
-    NetworkManager& networkManager_;
+    EventHandler& eventHandler_;
 
     Scheduler& scheduler_;
     Database& database_;
 
     CharacterManager& characterManager_;
     MobManager mobManager_;
-    SpawnZoneManager spawnZoneManager_;
 
     std::mutex eventMutex;
     std::condition_variable eventCondition;
 
     ThreadPool threadPool_{std::thread::hardware_concurrency()};
+
+public:
+    SpawnZoneManager spawnZoneManager_;
 };

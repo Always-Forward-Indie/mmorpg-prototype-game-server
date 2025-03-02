@@ -60,6 +60,8 @@ struct MobDataStruct
     int currentMana = 0;
     std::vector<MobAttributeStruct> attributes;
     PositionStruct position;
+    bool isAggressive = false;
+    bool isDead = false;
 
     float speedMultiplier = 1.0f; 
     float nextMoveTime = 0.0f;

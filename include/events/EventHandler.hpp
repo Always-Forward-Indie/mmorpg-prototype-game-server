@@ -1,3 +1,5 @@
+#pragma once
+
 #include "Event.hpp"
 #include <string>
 #include <boost/asio.hpp>

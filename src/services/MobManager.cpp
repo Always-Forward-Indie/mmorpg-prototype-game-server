@@ -32,6 +32,10 @@ void MobManager::loadMobs()
             mobData.name = row["name"].as<std::string>();
             mobData.level = row["level"].as<int>();
             mobData.raceName = row["race"].as<std::string>();
+            mobData.currentHealth = row["current_health"].as<int>();
+            mobData.currentMana = row["current_mana"].as<int>();
+            mobData.isAggressive = row["is_aggressive"].as<bool>();
+            mobData.isDead = row["is_dead"].as<bool>();
 
             // get mob attributes
             pqxx::result selectMobAttributes = database_.executeQueryWithTransaction(
@@ -54,19 +58,6 @@ void MobManager::loadMobs()
                 mobAttribute.value = attributeRow["value"].as<int>();
 
                 mobData.attributes.push_back(mobAttribute);
-            }
-
-            //get health and mana from attributes
-            for (const auto& attribute : mobData.attributes)
-            {
-                if (attribute.slug == "max_health")
-                {
-                    mobData.currentHealth = attribute.value;
-                }
-                else if (attribute.slug == "max_mana")
-                {
-                    mobData.currentMana = attribute.value;
-                }
             }
 
             mobs_[mobData.id] = mobData;

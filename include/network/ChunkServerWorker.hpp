@@ -25,14 +25,13 @@ private:
     int retryCount = 0;
     static constexpr int MAX_RETRY_COUNT = 5;
     static constexpr int RETRY_TIMEOUT = 5;
-    NetworkManager &networkManager_;
     JSONParser jsonParser_;
 
     // Process received data from the Chunk Server
     void processChunkData(const std::array<char, 1024>& buffer, std::size_t bytes_transferred);
 
 public:
-    ChunkServerWorker(EventQueue &eventQueue, NetworkManager &networkManager, 
+    ChunkServerWorker(EventQueue &eventQueue,
                         std::tuple<DatabaseConfig, GameServerConfig, ChunkServerConfig>& configs, Logger &logger);
     ~ChunkServerWorker();
     void startIOEventLoop();

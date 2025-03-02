@@ -2,7 +2,7 @@
 #include <chrono>
 #include <cstdlib>
 
-ChunkServerWorker::ChunkServerWorker(EventQueue &eventQueue, NetworkManager &networkManager, 
+ChunkServerWorker::ChunkServerWorker(EventQueue &eventQueue,
                                      std::tuple<DatabaseConfig, GameServerConfig, ChunkServerConfig>& configs, Logger &logger)
     : io_context_chunk_(),
       work_(boost::asio::make_work_guard(io_context_chunk_)),
@@ -10,7 +10,6 @@ ChunkServerWorker::ChunkServerWorker(EventQueue &eventQueue, NetworkManager &net
       retry_timer_(io_context_chunk_),
       eventQueue_(eventQueue),
       logger_(logger),
-      networkManager_(networkManager),
       jsonParser_()
 {
     short port = std::get<2>(configs).port;

@@ -47,15 +47,24 @@ int main() {
 
         // Initialize Database
         Database database(configs, logger);
+        
+        // Initialize ChunkServerWorker
+        ChunkServerWorker chunkServerWorker(eventQueueChunkServer, configs, logger);
 
         // Initialize NetworkManager
         NetworkManager networkManager(eventQueueGameServer, eventQueueGameServerPing, configs, logger);
 
-        // Initialize ChunkServerWorker
-        ChunkServerWorker chunkServerWorker(eventQueueChunkServer, networkManager, configs, logger);
+        // Event Handler
+        EventHandler eventHandler(networkManager, chunkServerWorker, database, characterManager, logger);
 
         // Initialize GameServer
-        GameServer gameServer(clientData, eventQueueGameServer, eventQueueChunkServer, eventQueueGameServerPing, scheduler, networkManager, chunkServerWorker, database, characterManager, logger);
+        GameServer gameServer(clientData, eventHandler, eventQueueGameServer, eventQueueChunkServer, eventQueueGameServerPing, scheduler, chunkServerWorker, database, characterManager, logger);
+
+        // Set the GameServer object in the NetworkManager
+        networkManager.setGameServer(&gameServer);
+
+        // Start accepting connections
+        networkManager.startAccept();
 
         // Start the IO Networking event loop in the main thread
         networkManager.startIOEventLoop();

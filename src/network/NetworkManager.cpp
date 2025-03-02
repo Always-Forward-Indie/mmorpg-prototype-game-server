@@ -1,5 +1,6 @@
 #include "network/NetworkManager.hpp"
-#include "network/ClientSession.hpp"
+#include "events/EventDispatcher.hpp"
+#include "handlers/MessageHandler.hpp"
 
 NetworkManager::NetworkManager(
     EventQueue &eventQueue, 
@@ -45,8 +46,11 @@ void NetworkManager::startAccept() {
             std::string portNumber = std::to_string(remoteEndpoint.port());
             logger_.log("New Client with IP: " + clientIP + " Port: " + portNumber + " - connected!", GREEN);
             // Pass the shared pointer to the ClientSession
-            auto session = std::make_shared<ClientSession>(clientSocket, logger_, eventQueue_, eventQueuePing_, jsonParser_);
+            auto session = std::make_shared<ClientSession>(clientSocket, gameServer_, logger_, eventQueue_, eventQueuePing_, jsonParser_, *eventDispatcher_, *messageHandler_);
             session->start();
+        }
+        else{
+            logger_.log("Accept client connection error: " + error.message(), RED);
         }
         startAccept();
     });
@@ -113,4 +117,15 @@ std::string NetworkManager::generateResponseMessage(const std::string &status, c
     std::string responseString = response.dump();
     logger_.log("Response generated: " + responseString, YELLOW);
     return responseString + "\n";
+}
+
+void NetworkManager::setGameServer(GameServer* gameServer) { 
+    if (!gameServer) {
+        throw std::runtime_error("Invalid GameServer pointer in NetworkManager!");
+    }
+    gameServer_ = gameServer; 
+
+
+    eventDispatcher_ = std::make_unique<EventDispatcher>(eventQueue_, eventQueuePing_, gameServer_, logger_);
+    messageHandler_ = std::make_unique<MessageHandler>(jsonParser_);
 }

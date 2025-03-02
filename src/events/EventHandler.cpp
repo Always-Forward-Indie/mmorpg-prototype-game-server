@@ -657,6 +657,8 @@ void EventHandler::handleSpawnMobsInZoneEvent(const Event &event, ClientData &cl
                 mobJson["mobLevel"] = mob.level;
                 mobJson["mobCurrentHealth"] = mob.currentHealth;
                 mobJson["mobCurrentMana"] = mob.currentMana;
+                mobJson["isAggressive"] = mob.isAggressive;
+                mobJson["isDead"] = mob.isDead;
                 mobJson["posX"] = mob.position.positionX;
                 mobJson["posY"] = mob.position.positionY;
                 mobJson["posZ"] = mob.position.positionZ;

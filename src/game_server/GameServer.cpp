@@ -2,29 +2,29 @@
 #include <unordered_set>
 
 GameServer::GameServer(ClientData &clientData,
-                       EventQueue &eventQueueGameServer,
-                       EventQueue &eventQueueChunkServer,
-                       EventQueue &eventQueueGameServerPing,
-                       Scheduler &scheduler,
-                       NetworkManager &networkManager,
-                       ChunkServerWorker &chunkServerWorker,
-                       Database &database,
-                       CharacterManager &characterManager,
-                       Logger &logger)
-    : networkManager_(networkManager),
+                        EventHandler &eventHandler,
+                        EventQueue &eventQueueGameServer,
+                        EventQueue &eventQueueChunkServer,
+                        EventQueue &eventQueueGameServerPing,
+                        Scheduler &scheduler,
+                        ChunkServerWorker &chunkServerWorker,
+                        Database &database,
+                        CharacterManager &characterManager,
+                        Logger &logger)
+    :
       clientData_(clientData),
       logger_(logger),
       eventQueueGameServer_(eventQueueGameServer),
       eventQueueChunkServer_(eventQueueChunkServer),
       eventQueueGameServerPing_(eventQueueGameServerPing),
       characterManager_(characterManager),
-      eventHandler_(networkManager, chunkServerWorker, database, characterManager, logger),
+      eventHandler_(eventHandler),
       scheduler_(scheduler),
       database_(database),
       mobManager_(database, logger),
       spawnZoneManager_(mobManager_, database, logger)
 {
-    networkManager_.startAccept();
+    
 }
 
 void GameServer::mainEventLoopGS()
