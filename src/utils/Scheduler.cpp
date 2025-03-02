@@ -1,97 +1,84 @@
 #include "utils/Scheduler.hpp"
+#include <algorithm>
 
-Scheduler::Scheduler()
-    : stopFlag(false) {}
+Scheduler::Scheduler() : stopFlag(false) {}
 
-void Scheduler::start()
-{
+Scheduler::~Scheduler() {
+    stop();
+}
+
+void Scheduler::start() {
     thread = std::thread(&Scheduler::run, this);
 }
 
-void Scheduler::stop()
-{
-    stopFlag.store(true);
-    if (thread.joinable())
+void Scheduler::stop() {
     {
+        std::lock_guard<std::mutex> lock(mutex);
+        stopFlag.store(true);
+    }
+    cv.notify_all();
+    if (thread.joinable()) {
         thread.join();
     }
 }
 
-Scheduler::~Scheduler()
-{
-    stop();
-}
-
-void Scheduler::scheduleTask(const Task &task)
-{
-    std::lock_guard<std::mutex> lock(mutex);
-    
-    // Check if the task is already in the list
-    if (std::none_of(tasks.begin(), tasks.end(), [&](const Task &t) { return t.id == task.id; }))
+void Scheduler::scheduleTask(const Task &task) {
     {
-        tasks.push_back(task);
+        std::lock_guard<std::mutex> lock(mutex);
+        tasksHeap.push(task);
     }
+    cv.notify_all();
 }
 
-void Scheduler::removeTask(int id)
-{
+void Scheduler::removeTask(int id) {
     std::lock_guard<std::mutex> lock(mutex);
-    for (auto &task : tasks)
-    {
-        if (task.id == id)
-        {
-            task.stopFlag = true; // mark the task for deletion
+    // Пересобираем кучу, помечая задачи с заданным id
+    std::vector<Task> temp;
+    while (!tasksHeap.empty()) {
+        Task t = tasksHeap.top();
+        tasksHeap.pop();
+        if (t.id == id) {
+            t.stopFlag = true;
         }
+        temp.push_back(t);
     }
+    for (const auto &t : temp) {
+        tasksHeap.push(t);
+    }
+    cv.notify_all();
 }
 
-void Scheduler::run()
-{
-    while (!stopFlag.load())
-    {
+void Scheduler::run() {
+    std::unique_lock<std::mutex> lock(mutex);
+    while (!stopFlag.load()) {
+        if (tasksHeap.empty()) {
+            cv.wait(lock, [this] { return stopFlag.load() || !tasksHeap.empty(); });
+            if (stopFlag.load())
+                break;
+        }
+        // Получаем задачу с минимальным nextRunTime
+        Task t = tasksHeap.top();
+        // Если задача помечена на удаление, просто удаляем её
+        if (t.stopFlag) {
+            tasksHeap.pop();
+            continue;
+        }
         auto now = std::chrono::system_clock::now();
-        std::vector<Task> tasksToRun;
-
-        {
-            std::lock_guard<std::mutex> lock(mutex);
-            
-            // remove tasks that need to be stopped
-            tasks.erase(std::remove_if(tasks.begin(), tasks.end(),
-                                       [](const Task &task) { return task.stopFlag; }),
-                        tasks.end());
-
-            // copy tasks that need to be run
-            for (auto &task : tasks)
-            {
-                if (now >= task.nextRunTime)
-                {
-                    tasksToRun.push_back(task); // Копируем задачу для выполнения
-                    task.nextRunTime = now + std::chrono::seconds(task.interval);
-                }
-            }
+        if (now >= t.nextRunTime) {
+            // Готовая задача – удаляем её из кучи, освобождаем мьютекс и выполняем
+            tasksHeap.pop();
+            lock.unlock();
+            t.func();
+            lock.lock();
+            // Обновляем время следующего запуска и возвращаем задачу в кучу
+            t.nextRunTime = now + std::chrono::seconds(t.interval);
+            tasksHeap.push(t);
+            cv.notify_all();
+        } else {
+            // Ждём до следующего времени выполнения или появления новой задачи с более ранним временем
+            cv.wait_until(lock, t.nextRunTime, [this, &t] {
+                return stopFlag.load() || (!tasksHeap.empty() && tasksHeap.top().nextRunTime < t.nextRunTime);
+            });
         }
-
-        // run the tasks
-        for (auto &task : tasksToRun)
-        {
-            task.func();
-        }
-
-        // sleep until the next task
-        std::chrono::milliseconds sleep_time(100);
-        {
-            std::lock_guard<std::mutex> lock(mutex);
-            if (!tasks.empty())
-            {
-                auto nextRunTime = std::min_element(tasks.begin(), tasks.end(),
-                                                    [](const Task &a, const Task &b) {
-                                                        return a.nextRunTime < b.nextRunTime;
-                                                    })->nextRunTime;
-                sleep_time = std::chrono::duration_cast<std::chrono::milliseconds>(nextRunTime - now);
-            }
-        }
-
-        std::this_thread::sleep_for(std::max(sleep_time, std::chrono::milliseconds(1)));
     }
 }
-

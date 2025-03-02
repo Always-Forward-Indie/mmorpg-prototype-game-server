@@ -1,31 +1,42 @@
 #pragma once
 
-#include <iostream>
-#include <thread>
-#include <chrono>
 #include <functional>
+#include <queue>
 #include <vector>
 #include <mutex>
+#include <condition_variable>
+#include <chrono>
 #include <atomic>
 #include <algorithm>
 #include "data/SpecialStructs.hpp"
+#include <thread>
 
-class Scheduler
-{
+// Компаратор для min-heap (задача с меньшим nextRunTime имеет больший приоритет)
+struct TaskComparator {
+    bool operator()(const Task &a, const Task &b) const {
+        return a.nextRunTime > b.nextRunTime;
+    }
+};
+
+class Scheduler {
 public:
     Scheduler();
     ~Scheduler();
 
     void start();
     void stop();
+
+    // Добавляем задачу в планировщик
     void scheduleTask(const Task &task);
-    void removeTask(int id); // Добавлен метод для удаления задачи
+    // Помечаем задачу для удаления (пересобираем кучу)
+    void removeTask(int id);
 
 private:
     void run();
 
-    std::vector<Task> tasks;
-    std::thread thread;
+    std::priority_queue<Task, std::vector<Task>, TaskComparator> tasksHeap;
     std::mutex mutex;
+    std::condition_variable cv;
     std::atomic<bool> stopFlag;
+    std::thread thread;
 };

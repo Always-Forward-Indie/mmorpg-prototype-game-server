@@ -89,11 +89,11 @@ void ChunkServerWorker::processChunkData(const std::array<char, 1024>& buffer, s
     logger_.log("Received data from Chunk Server: " + receivedData, YELLOW);
 
     // Parse JSON data
-    std::string eventType = jsonParser_.parseEventType(buffer, bytes_transferred);
-    ClientDataStruct clientData = jsonParser_.parseClientData(buffer, bytes_transferred);
-    CharacterDataStruct characterData = jsonParser_.parseCharacterData(buffer, bytes_transferred);
-    PositionStruct positionData = jsonParser_.parsePositionData(buffer, bytes_transferred);
-    nlohmann::json charactersList = jsonParser_.parseCharactersList(buffer, bytes_transferred);
+    std::string eventType = jsonParser_.parseEventType(buffer.data(), bytes_transferred);
+    ClientDataStruct clientData = jsonParser_.parseClientData(buffer.data(), bytes_transferred);
+    CharacterDataStruct characterData = jsonParser_.parseCharacterData(buffer.data(), bytes_transferred);
+    PositionStruct positionData = jsonParser_.parsePositionData(buffer.data(), bytes_transferred);
+    nlohmann::json charactersList = jsonParser_.parseCharactersList(buffer.data(), bytes_transferred);
 
     std::vector<Event> eventsBatch;
     constexpr int BATCH_SIZE = 10;

@@ -1,6 +1,7 @@
 #include "data/ClientData.hpp"
 #include <iostream>
 #include <mutex>
+#include <shared_mutex>
 
 // Somewhere in your ClientData class definition
 //std::mutex updateMutex;
@@ -12,22 +13,21 @@ ClientData::ClientData()
 
 void ClientData::storeClientData(const ClientDataStruct &clientData)
 {
-    std::lock_guard<std::mutex> lock(clientDataMutex_); // lock_guard is a mutex wrapper that provides a convenient RAII-style mechanism for owning a mutex for the duration of a scoped block.
+    std::lock_guard<std::shared_mutex> lock(clientDataMutex_); // lock_guard is a mutex wrapper that provides a convenient RAII-style mechanism for owning a mutex for the duration of a scoped block.
     // Assuming that clientDataMap_ is an unordered_map with the key as the hash and the value as ClientDataStruct.
     clientDataMap_[clientData.clientId] = clientData;
     //logger_.log("ClientDataStruct stored in ClientData class with hash = " + std::to_string(clientData.clientId), BLUE);
 }
 
-std::unordered_map<int, ClientDataStruct> ClientData::getClientsDataMap() const
-{
-    std::lock_guard<std::mutex> lock(clientDataMutex_); // lock_guard is a mutex wrapper that provides a convenient RAII-style mechanism for owning a mutex for the duration of a scoped block.
+std::unordered_map<int, ClientDataStruct> ClientData::getClientsDataMap() const {
+    std::shared_lock<std::shared_mutex> lock(clientDataMutex_);
     return clientDataMap_;
 }
 
 // Set the needDBUpdate flag to true or false
 void ClientData::markClientUpdate(const int &id, const bool &dbNeedsUpdate)
 {
-    std::lock_guard<std::mutex> lock(clientDataMutex_); // lock_guard is a mutex wrapper that provides a convenient RAII-style mechanism for owning a mutex for the duration of a scoped block.
+    std::lock_guard<std::shared_mutex> lock(clientDataMutex_); // lock_guard is a mutex wrapper that provides a convenient RAII-style mechanism for owning a mutex for the duration of a scoped block.
     // Assuming that clientDataMap_ is an unordered_map with the key as the hash and the value as ClientDataStruct.
     auto it = clientDataMap_.find(id);
     if (it != clientDataMap_.end())
@@ -39,7 +39,7 @@ void ClientData::markClientUpdate(const int &id, const bool &dbNeedsUpdate)
 // Set the needDBUpdate flag to true or false
 void ClientData::markCharacterUpdate(const int &id, const bool &dbNeedsUpdate)
 {
-    std::lock_guard<std::mutex> lock(clientDataMutex_); // lock_guard is a mutex wrapper that provides a convenient RAII-style mechanism for owning a mutex for the duration of a scoped block.
+    std::lock_guard<std::shared_mutex> lock(clientDataMutex_); // lock_guard is a mutex wrapper that provides a convenient RAII-style mechanism for owning a mutex for the duration of a scoped block.
     // Assuming that clientDataMap_ is an unordered_map with the key as the hash and the value as ClientDataStruct.
     auto it = clientDataMap_.find(id);
     if (it != clientDataMap_.end())
@@ -51,7 +51,7 @@ void ClientData::markCharacterUpdate(const int &id, const bool &dbNeedsUpdate)
 // Set the needDBUpdate flag to true or false
 void ClientData::markPositionUpdate(const int &id, const bool &dbNeedsUpdate)
 {
-    std::lock_guard<std::mutex> lock(clientDataMutex_); // lock_guard is a mutex wrapper that provides a convenient RAII-style mechanism for owning a mutex for the duration of a scoped block.
+    std::lock_guard<std::shared_mutex> lock(clientDataMutex_); // lock_guard is a mutex wrapper that provides a convenient RAII-style mechanism for owning a mutex for the duration of a scoped block.
     // Assuming that clientDataMap_ is an unordered_map with the key as the hash and the value as ClientDataStruct.
     auto it = clientDataMap_.find(id);
     if (it != clientDataMap_.end())
@@ -63,7 +63,7 @@ void ClientData::markPositionUpdate(const int &id, const bool &dbNeedsUpdate)
 // Update client data
 void ClientData::updateClientData(const int &id, const std::string &field, const std::string &value)
 {
-        std::lock_guard<std::mutex> lock(clientDataMutex_); // lock_guard is a mutex wrapper that provides a convenient RAII-style mechanism for owning a mutex for the duration of a scoped block.
+    std::lock_guard<std::shared_mutex> lock(clientDataMutex_); // lock_guard is a mutex wrapper that provides a convenient RAII-style mechanism for owning a mutex for the duration of a scoped block.
     // Assuming that clientDataMap_ is an unordered_map with the key as the hash and the value as ClientDataStruct.
     auto it = clientDataMap_.find(id);
     if (it != clientDataMap_.end())
@@ -90,7 +90,7 @@ void ClientData::updateClientData(const int &id, const std::string &field, const
 // Update client character data with argument CharacterDataStruct
 void ClientData::updateCharacterData(const int &id, const CharacterDataStruct &characterData)
 {
-    std::lock_guard<std::mutex> lock(clientDataMutex_); // lock_guard is a mutex wrapper that provides a convenient RAII-style mechanism for owning a mutex for the duration of a scoped block.
+    std::lock_guard<std::shared_mutex> lock(clientDataMutex_); // lock_guard is a mutex wrapper that provides a convenient RAII-style mechanism for owning a mutex for the duration of a scoped block.
     auto it = clientDataMap_.find(id); // Find the client data in the map
     if (it != clientDataMap_.end())
     {
@@ -102,7 +102,7 @@ void ClientData::updateCharacterData(const int &id, const CharacterDataStruct &c
 // Update client character position data with argument PositionStruct
 void ClientData::updateCharacterPositionData(const int &id, const PositionStruct &positionData)
 {
-    std::lock_guard<std::mutex> lock(clientDataMutex_); // lock_guard is a mutex wrapper that provides a convenient RAII-style mechanism for owning a mutex for the duration of a scoped block.
+    std::lock_guard<std::shared_mutex> lock(clientDataMutex_); // lock_guard is a mutex wrapper that provides a convenient RAII-style mechanism for owning a mutex for the duration of a scoped block.
     auto it = clientDataMap_.find(id); // Find the client data in the map
     if (it != clientDataMap_.end())
     {
@@ -117,7 +117,7 @@ const ClientDataStruct *ClientData::getClientData(const int &id) const
     {
         return nullptr;
     }
-    std::lock_guard<std::mutex> lock(clientDataMutex_); // lock_guard is a mutex wrapper that provides a convenient RAII-style mechanism for owning a mutex for the duration of a scoped block.
+    std::lock_guard<std::shared_mutex> lock(clientDataMutex_); // lock_guard is a mutex wrapper that provides a convenient RAII-style mechanism for owning a mutex for the duration of a scoped block.
     auto it = clientDataMap_.find(id); // Find the client data in the map
     if (it != clientDataMap_.end())
     {
@@ -137,7 +137,7 @@ void ClientData::removeClientData(const int& id) {
 
 // remove client data by socket
 void ClientData::removeClientDataBySocket(const std::shared_ptr<boost::asio::ip::tcp::socket>& socket) {
-    std::lock_guard<std::mutex> lock(clientDataMutex_); // lock_guard is a mutex wrapper that provides a convenient RAII-style mechanism for owning a mutex for the duration of a scoped block.
+    std::lock_guard<std::shared_mutex> lock(clientDataMutex_); // lock_guard is a mutex wrapper that provides a convenient RAII-style mechanism for owning a mutex for the duration of a scoped block.
     for (auto it = clientDataMap_.begin(); it != clientDataMap_.end(); ++it) {
         if (it->second.socket == socket) {
             clientDataMap_.erase(it);

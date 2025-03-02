@@ -95,8 +95,6 @@ void GameServer::mainEventLoopGS()
             {
                 processBatch(eventsBatch);
             }
-
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
     }
     catch (const std::exception &e)
@@ -122,8 +120,6 @@ void GameServer::mainEventLoopCH()
             {
                 processBatch(eventsBatch);
             }
-
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
     }
     catch (const std::exception &e)
@@ -147,8 +143,6 @@ void GameServer::mainEventLoopPing()
             {
                 processPingBatch(pingEvents);
             }
-
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
     }
     catch (const std::exception &e)

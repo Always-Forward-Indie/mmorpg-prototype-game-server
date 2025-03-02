@@ -3,6 +3,7 @@
 #include <unordered_map>
 #include <mutex>
 #include "DataStructs.hpp"
+#include <shared_mutex>
 
 class ClientData
 {
@@ -23,5 +24,5 @@ public:
 
 private:
     std::unordered_map<int, ClientDataStruct> clientDataMap_;
-    mutable std::mutex clientDataMutex_; // mutex for each significant data segment if needed
+    mutable std::shared_mutex clientDataMutex_;
 };
