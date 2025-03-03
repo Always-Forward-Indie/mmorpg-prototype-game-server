@@ -65,6 +65,21 @@ void EventHandler::handleJoinChunkEvent(const Event &event, ClientData &clientDa
                 return;
             }
 
+
+            // create attributes array
+            nlohmann::json attributes = nlohmann::json::array();
+
+            for (const auto &attribute : currentClientData->characterData.attributes)
+            {
+                nlohmann::json attributeData;
+                attributeData["attributeId"] = attribute.id;
+                attributeData["attributeSlug"] = attribute.slug;
+                attributeData["attributeName"] = attribute.name;
+                attributeData["attributeValue"] = attribute.value;
+                attributes.push_back(attributeData);
+            }
+
+
             // Add the message to the response
             response = builder
                            .setHeader("message", "Authentication success for user!")
@@ -74,6 +89,7 @@ void EventHandler::handleJoinChunkEvent(const Event &event, ClientData &clientDa
                            .setBody("characterId", currentClientData->characterData.characterId)
                            .setBody("characterClass", currentClientData->characterData.characterClass)
                            .setBody("characterLevel", currentClientData->characterData.characterLevel)
+                            .setBody("characterExpForNextLevel", currentClientData->characterData.expForNextLevel)
                            .setBody("characterName", currentClientData->characterData.characterName)
                            .setBody("characterRace", currentClientData->characterData.characterRace)
                            .setBody("characterExp", currentClientData->characterData.characterExperiencePoints)
@@ -83,6 +99,7 @@ void EventHandler::handleJoinChunkEvent(const Event &event, ClientData &clientDa
                            .setBody("posY", currentClientData->characterData.characterPosition.positionY)
                            .setBody("posZ", currentClientData->characterData.characterPosition.positionZ)
                            .setBody("rotZ", currentClientData->characterData.characterPosition.rotationZ)
+                            .setBody("attributesData", attributes)
                            .build();
             // Prepare a response message
             std::string responseData = networkManager_.generateResponseMessage("success", response);
@@ -141,6 +158,18 @@ void EventHandler::handleJoinClientEvent(const Event &event, ClientData &clientD
                 return;
             }
 
+            // create attributes array
+            nlohmann::json attributes = nlohmann::json::array();
+            for (const auto &attribute : passedClientData.characterData.attributes)
+            {
+                nlohmann::json attributeData;
+                attributeData["attributeId"] = attribute.id;
+                attributeData["attributeSlug"] = attribute.slug;
+                attributeData["attributeName"] = attribute.name;
+                attributeData["attributeValue"] = attribute.value;
+                attributes.push_back(attributeData);
+            }
+
             // Add the message to the response
             response = builder
                            .setHeader("message", "Authentication success for user!")
@@ -150,6 +179,7 @@ void EventHandler::handleJoinClientEvent(const Event &event, ClientData &clientD
                            .setBody("characterId", passedClientData.characterData.characterId)
                            .setBody("characterClass", passedClientData.characterData.characterClass)
                            .setBody("characterLevel", passedClientData.characterData.characterLevel)
+                           .setBody("characterExpForNextLevel", passedClientData.characterData.expForNextLevel)
                            .setBody("characterName", passedClientData.characterData.characterName)
                            .setBody("characterRace", passedClientData.characterData.characterRace)
                            .setBody("characterExp", passedClientData.characterData.characterExperiencePoints)
@@ -159,6 +189,7 @@ void EventHandler::handleJoinClientEvent(const Event &event, ClientData &clientD
                            .setBody("posY", passedClientData.characterData.characterPosition.positionY)
                            .setBody("posZ", passedClientData.characterData.characterPosition.positionZ)
                            .setBody("rotZ", passedClientData.characterData.characterPosition.rotationZ)
+                            .setBody("attributesData", attributes)
                            .build();
             // Prepare a response message
             std::string responseData = networkManager_.generateResponseMessage("success", response);

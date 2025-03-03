@@ -11,6 +11,28 @@ struct PositionStruct
     bool needDBUpdate = false;
 };
 
+struct MessageStruct
+{
+    std::string status = "";
+    std::string message = "";
+};
+
+struct CharacterAttributeStruct
+{
+    int id = 0;
+    std::string name = "";
+    std::string slug = "";
+    int value = 0;
+};
+
+struct MobAttributeStruct
+{
+    int id = 0;
+    std::string name = "";
+    std::string slug = "";
+    int value = 0;
+};
+
 struct CharacterDataStruct
 {
     int characterId = 0;
@@ -18,10 +40,12 @@ struct CharacterDataStruct
     int characterExperiencePoints = 0;
     int characterCurrentHealth = 0;
     int characterCurrentMana = 0;
+    int expForNextLevel = 0;
     std::string characterName = "";
     std::string characterClass = "";
     std::string characterRace = "";
     PositionStruct characterPosition;
+    std::vector<CharacterAttributeStruct> attributes;
     bool needDBUpdate = false;
 };
 
@@ -32,20 +56,6 @@ struct ClientDataStruct
     std::shared_ptr<boost::asio::ip::tcp::socket> socket;
     CharacterDataStruct characterData;
     bool needDBUpdate = false;
-};
-
-struct MessageStruct
-{
-    std::string status = "";
-    std::string message = "";
-};
-
-struct MobAttributeStruct
-{
-    int id = 0;
-    std::string name = "";
-    std::string slug = "";
-    int value = 0;
 };
 
 struct MobDataStruct

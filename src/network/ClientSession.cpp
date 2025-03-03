@@ -45,11 +45,9 @@ ClientSession::ClientSession(std::shared_ptr<boost::asio::ip::tcp::socket> socke
                 } else if (ec == boost::asio::error::eof) {
                     logger_.logError("Client disconnected gracefully.", RED);
                     handleClientDisconnect();
-                    //socket_->close();
                 } else {
                     logger_.logError("Error during async_read_some: " + ec.message(), RED);
                     handleClientDisconnect();
-                    //socket_->close();
                 }
             });
     }
@@ -80,7 +78,6 @@ ClientSession::ClientSession(std::shared_ptr<boost::asio::ip::tcp::socket> socke
             socket_->close(ec);
         }
         
-    
         // Construct minimal disconnect event
         ClientDataStruct clientData;
         clientData.socket = socket_;

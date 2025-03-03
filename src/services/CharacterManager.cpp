@@ -89,6 +89,35 @@ CharacterDataStruct CharacterManager::getBasicCharacterData(Database &database, 
         characterDataStruct.characterCurrentHealth = selectCharacterData[0][6].as<int>();
         characterDataStruct.characterCurrentMana = selectCharacterData[0][7].as<int>();
 
+        //get character attributes
+        pqxx::result selectCharacterAttributes = database.executeQueryWithTransaction(
+            transaction,
+            "get_character_attributes",
+            {characterId});
+
+        // Iterate through the result set and populate CharacterAttributeStruct objects
+        for (const auto &row : selectCharacterAttributes)
+        {
+            CharacterAttributeStruct characterAttribute;
+            characterAttribute.id = row["id"].as<int>();
+            characterAttribute.name = row["name"].as<std::string>();
+            characterAttribute.slug = row["slug"].as<std::string>();
+            characterAttribute.value = row["value"].as<int>();
+
+            // Add the populated CharacterAttributeStruct to the vector
+            characterDataStruct.attributes.push_back(characterAttribute);
+        }
+
+        //get exp for next level
+        pqxx::result selectExpForNextLevel = database.executeQueryWithTransaction(
+            transaction,
+            "get_character_exp_for_next_level",
+            {characterDataStruct.characterLevel});
+
+        // add exp for next level to character data
+        characterDataStruct.expForNextLevel = selectExpForNextLevel[0][0].as<int>();
+        
+
         transaction.commit(); // Commit the transaction
     }
     catch (const std::exception &e)

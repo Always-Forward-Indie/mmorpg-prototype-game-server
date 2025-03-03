@@ -14,34 +14,70 @@ CharacterDataStruct JSONParser::parseCharacterData(const char* data, size_t leng
         jsonData["body"].contains("characterId") && jsonData["body"]["characterId"].is_number_integer()) {
         characterData.characterId = jsonData["body"]["characterId"].get<int>();
     }
+
     if (jsonData.contains("body") && jsonData["body"].is_object() &&
         jsonData["body"].contains("characterLevel") && jsonData["body"]["characterLevel"].is_number_integer()) {
         characterData.characterLevel = jsonData["body"]["characterLevel"].get<int>();
     }
+
+    // get character experience points for next level
+    if (jsonData.contains("body") && jsonData["body"].is_object() &&
+        jsonData["body"].contains("characterExpForNextLevel") && jsonData["body"]["characterExpForNextLevel"].is_number_integer()) {
+        characterData.expForNextLevel = jsonData["body"]["characterExpForNextLevel"].get<int>();
+    }
+
+    // get character experience points
     if (jsonData.contains("body") && jsonData["body"].is_object() &&
         jsonData["body"].contains("characterExp") && jsonData["body"]["characterExp"].is_number_integer()) {
         characterData.characterExperiencePoints = jsonData["body"]["characterExp"].get<int>();
     }
+
     if (jsonData.contains("body") && jsonData["body"].is_object() &&
         jsonData["body"].contains("characterCurrentHealth") && jsonData["body"]["characterCurrentHealth"].is_number_integer()) {
         characterData.characterCurrentHealth = jsonData["body"]["characterCurrentHealth"].get<int>();
     }
+
     if (jsonData.contains("body") && jsonData["body"].is_object() &&
         jsonData["body"].contains("characterCurrentMana") && jsonData["body"]["characterCurrentMana"].is_number_integer()) {
         characterData.characterCurrentMana = jsonData["body"]["characterCurrentMana"].get<int>();
     }
+
     if (jsonData.contains("body") && jsonData["body"].is_object() &&
         jsonData["body"].contains("characterName") && jsonData["body"]["characterName"].is_string()) {
         characterData.characterName = jsonData["body"]["characterName"].get<std::string>();
     }
+
     if (jsonData.contains("body") && jsonData["body"].is_object() &&
         jsonData["body"].contains("characterClass") && jsonData["body"]["characterClass"].is_string()) {
         characterData.characterClass = jsonData["body"]["characterClass"].get<std::string>();
     }
+
     if (jsonData.contains("body") && jsonData["body"].is_object() &&
         jsonData["body"].contains("characterRace") && jsonData["body"]["characterRace"].is_string()) {
         characterData.characterRace = jsonData["body"]["characterRace"].get<std::string>();
     }
+
+    // get character attributes
+    if (jsonData.contains("body") && jsonData["body"].is_object() &&
+        jsonData["body"].contains("attributesData") && jsonData["body"]["attributesData"].is_array()) {
+        for (const auto& attribute : jsonData["body"]["attributesData"]) {
+            CharacterAttributeStruct attributeData;
+            if (attribute.contains("id") && attribute["id"].is_number_integer()) {
+                attributeData.id = attribute["id"].get<int>();
+            }
+            if (attribute.contains("name") && attribute["name"].is_string()) {
+                attributeData.name = attribute["name"].get<std::string>();
+            }
+            if (attribute.contains("slug") && attribute["slug"].is_string()) {
+                attributeData.slug = attribute["slug"].get<std::string>();
+            }
+            if (attribute.contains("value") && attribute["value"].is_number_integer()) {
+                attributeData.value = attribute["value"].get<int>();
+            }
+            characterData.attributes.push_back(attributeData);
+        }
+    }
+
 
     return characterData;
 }

@@ -60,9 +60,12 @@ void Database::prepareDefaultQueries()
                                               "WHERE characters.owner_id = $1 AND characters.id = $2 LIMIT 1;");
 
         // get character attributes
-        connection_->prepare("get_character_attributes", "SELECT character_attributes.* FROM character_attributes_mapping "
+        connection_->prepare("get_character_attributes", "SELECT character_attributes.*, character_attributes_mapping.value FROM character_attributes_mapping "
         "JOIN character_attributes ON character_attributes_mapping.attribute_id = character_attributes.id "
-        "WHERE character_id = $1;");
+        "WHERE character_attributes_mapping.character_id = $1;");
+
+        //get character exp for level
+        connection_->prepare("get_character_exp_for_next_level", "SELECT experience_points FROM exp_for_level WHERE level = $1 + 1;");
 
         connection_->prepare("set_basic_character_data", "UPDATE characters "
                                                     "SET level = $2, experience_points = $3, current_health = $4, current_mana = $5 "
