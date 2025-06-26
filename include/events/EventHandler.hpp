@@ -1,47 +1,41 @@
 #pragma once
 
-#include "Event.hpp"
-#include <string>
 #include <boost/asio.hpp>
-#include "data/ClientData.hpp"
+#include <string>
+
+#include "Event.hpp"
 #include "network/NetworkManager.hpp"
+#include "services/GameServices.hpp"
 #include "utils/ResponseBuilder.hpp"
-#include "utils/Logger.hpp"
-#include "utils/Database.hpp"
-#include "network/ChunkServerWorker.hpp"
-#include "services/CharacterManager.hpp"
 
-class EventHandler {
-public:
-  EventHandler(NetworkManager& networkManager, 
-  ChunkServerWorker& chunkServerWorker, 
-  Database& database, 
-  CharacterManager& characterManager,
-  Logger& logger);
-  void dispatchEvent(const Event& event, ClientData& clientData);
+class EventHandler
+{
+   public:
+    EventHandler(NetworkManager& networkManager,
+        GameServices& gameServices);
+    void dispatchEvent(const Event& event);
 
-private:
-    void handlePingClientEvent(const Event& event, ClientData& clientData);
-    void handleJoinClientEvent(const Event& event, ClientData& clientData);
-    void handleJoinChunkEvent(const Event& event, ClientData& clientData);
-    void handleLeaveClientEvent(const Event& event, ClientData& clientData);
-    void handleLeaveChunkEvent(const Event& event, ClientData& clientData);
-    void handleGetConnectedCharactersClientEvent(const Event& event, ClientData& clientData);
-    void handleGetConnectedCharactersChunkEvent(const Event& event, ClientData& clientData);
-    void handleMoveCharacterChunkEvent(const Event& event, ClientData& clientData);
-    void handleMoveCharacterClientEvent(const Event& event, ClientData& clientData);
-    void handleInteractChunkEvent(const Event& event, ClientData& clientData);
-    void handleInteractClientEvent(const Event& event, ClientData& clientData);
-    void handleSpawnMobsInZoneEvent(const Event &event, ClientData& clientData);
-    void handleGetSpawnZonesEvent(const Event &event, ClientData &clientData);
-    void handleGetMobDataEvent(const Event &event, ClientData &clientData);
-    void handleZoneMoveMobsEvent(const Event &event, ClientData &clientData);
-    void handleDisconnectChunkEvent(const Event &event, ClientData &clientData);
-    void handleDisconnectClientEvent(const Event& event, ClientData& clientData);
+   private:
+    void handlePingClientEvent(const Event& event);
+    void handleJoinClientEvent(const Event& event);
+    void handleJoinChunkEvent(const Event& event);
+    void handleLeaveClientEvent(const Event& event);
+    void handleLeaveChunkEvent(const Event& event);
+    void handleGetConnectedCharactersClientEvent(const Event& event);
+    void handleGetConnectedCharactersChunkEvent(const Event& event);
+    void handleMoveCharacterChunkEvent(const Event& event);
+    void handleMoveCharacterClientEvent(const Event& event);
+    void handleInteractChunkEvent(const Event& event);
+    void handleInteractClientEvent(const Event& event);
+    void handleSpawnMobsInZoneEvent(const Event& event);
+    void handleGetSpawnZonesEvent(const Event& event);
+    void handleGetMobDataEvent(const Event& event);
+    void handleZoneMoveMobsEvent(const Event& event);
+    void handleDisconnectChunkEvent(const Event& event);
+    void handleDisconnectClientEvent(const Event& event);
+    void handleJoinChunkServerEvent(const Event& event);
+    void handleDisconnectChunkServerEvent(const Event& event);
 
     NetworkManager& networkManager_;
-    ChunkServerWorker& chunkServerWorker_;
-    Database& database_;
-    Logger& logger_;
-    CharacterManager& characterManager_;
+    GameServices& gameServices_;
 };

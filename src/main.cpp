@@ -6,11 +6,11 @@
 #include "utils/Logger.hpp"
 #include "utils/TimeConverter.hpp"
 #include "game_server/GameServer.hpp"
-#include "network/ChunkServerWorker.hpp"
 #include "network/NetworkManager.hpp"
 #include "utils/Database.hpp"
 #include "utils/Scheduler.hpp"
 #include "services/CharacterManager.hpp"
+#include "services/GameServices.hpp"
 
 std::atomic<bool> running(true);
 
@@ -20,7 +20,7 @@ void signalHandler(int signal) {
 
 int main() {
     try {
-        // Устанавливаем обработчик сигналов (Ctrl+C)
+        // Register signal handlers
         std::signal(SIGINT, signalHandler);
         std::signal(SIGTERM, signalHandler);
 
@@ -36,29 +36,26 @@ int main() {
         EventQueue eventQueueGameServer;
         EventQueue eventQueueGameServerPing;
 
-        // Initialize ClientData
-        ClientData clientData;
-
         // Initialize Scheduler
         Scheduler scheduler;
+
+        // Initialize Database
+        Database database(configs, logger);
 
         // Initialize CharacterManager
         CharacterManager characterManager(logger);
 
-        // Initialize Database
-        Database database(configs, logger);
-        
-        // Initialize ChunkServerWorker
-        ChunkServerWorker chunkServerWorker(eventQueueChunkServer, configs, logger);
+        // Initialize GameServices
+        GameServices gameServices(database, logger);
 
         // Initialize NetworkManager
         NetworkManager networkManager(eventQueueGameServer, eventQueueGameServerPing, configs, logger);
 
         // Event Handler
-        EventHandler eventHandler(networkManager, chunkServerWorker, database, characterManager, logger);
+        EventHandler eventHandler(networkManager, gameServices);
 
         // Initialize GameServer
-        GameServer gameServer(clientData, eventHandler, eventQueueGameServer, eventQueueChunkServer, eventQueueGameServerPing, scheduler, chunkServerWorker, database, characterManager, logger);
+        GameServer gameServer(gameServices, eventHandler, eventQueueGameServer, eventQueueChunkServer, eventQueueGameServerPing, scheduler);
 
         // Set the GameServer object in the NetworkManager
         networkManager.setGameServer(&gameServer);
@@ -68,9 +65,6 @@ int main() {
 
         // Start the IO Networking event loop in the main thread
         networkManager.startIOEventLoop();
-
-        // Start ChunkServerWorker IO Context in a separate thread
-        chunkServerWorker.startIOEventLoop();
 
         // Start Game Server main event loop in a separate thread
         gameServer.startMainEventLoop();

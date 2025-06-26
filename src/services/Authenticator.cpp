@@ -12,10 +12,10 @@
 using namespace pqxx;
 using namespace std;
 
-int Authenticator::authenticate(Database& database, ClientData& clientData, const std::string& hash, const int& user_id) {
+int Authenticator::authenticate(Database& database, const std::string& hash, const int& user_id) {
     try {
-        CharacterDataStruct characterDataStruct;
-        ClientDataStruct clientDataStruct;
+       // CharacterDataStruct characterDataStruct;
+       // ClientDataStruct clientDataStruct;
 
         // Create a PostgreSQL database connection
         pqxx::work transaction(database.getConnection());
@@ -25,14 +25,14 @@ int Authenticator::authenticate(Database& database, ClientData& clientData, cons
                     {hash});
 
         if (!getUserDBData.empty()) {
-            clientDataStruct.clientId = user_id;
-            clientDataStruct.hash = hash;
+           // clientDataStruct.clientId = user_id;
+        //    clientDataStruct.hash = hash;
 
             if(user_id == getUserDBData[0][0].as<int>()){
                 transaction.commit(); // Commit the transaction
             }
 
-            clientData.storeClientData(clientDataStruct);  // Store clientData in the ClientData class
+            //clientData.storeClientData(clientDataStruct);  // Store clientData in the ClientData class
 
             return user_id;
         } else {

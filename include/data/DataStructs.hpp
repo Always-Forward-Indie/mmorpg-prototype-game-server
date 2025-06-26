@@ -8,7 +8,6 @@ struct PositionStruct
     float positionY = 0;
     float positionZ = 0;
     float rotationZ = 0;
-    bool needDBUpdate = false;
 };
 
 struct MessageStruct
@@ -17,9 +16,24 @@ struct MessageStruct
     std::string message = "";
 };
 
+struct ChunkInfoStruct
+{
+    int id = 0;
+    std::string ip = "";
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket;
+    int port = 0;
+    float posX = 0;
+    float posY = 0;
+    float posZ = 0;
+    float sizeX = 0;
+    float sizeY = 0;
+    float sizeZ = 0;
+};
+
 struct CharacterAttributeStruct
 {
     int id = 0;
+    int character_id = 0;
     std::string name = "";
     std::string slug = "";
     int value = 0;
@@ -28,6 +42,7 @@ struct CharacterAttributeStruct
 struct MobAttributeStruct
 {
     int id = 0;
+    int mob_id = 0;
     std::string name = "";
     std::string slug = "";
     int value = 0;
@@ -35,27 +50,28 @@ struct MobAttributeStruct
 
 struct CharacterDataStruct
 {
+    int clientId = 0; // ID of the client that owns this character
     int characterId = 0;
     int characterLevel = 0;
     int characterExperiencePoints = 0;
     int characterCurrentHealth = 0;
     int characterCurrentMana = 0;
+    int characterMaxHealth = 0;
+    int characterMaxMana = 0;
     int expForNextLevel = 0;
     std::string characterName = "";
     std::string characterClass = "";
     std::string characterRace = "";
     PositionStruct characterPosition;
     std::vector<CharacterAttributeStruct> attributes;
-    bool needDBUpdate = false;
 };
 
 struct ClientDataStruct
 {
     int clientId = 0;
+    int characterId = 0;
     std::string hash = "";
     std::shared_ptr<boost::asio::ip::tcp::socket> socket;
-    CharacterDataStruct characterData;
-    bool needDBUpdate = false;
 };
 
 struct MobDataStruct
@@ -68,6 +84,8 @@ struct MobDataStruct
     int level = 0;
     int currentHealth = 0;
     int currentMana = 0;
+    int maxHealth = 0;
+    int maxMana = 0;
     std::vector<MobAttributeStruct> attributes;
     PositionStruct position;
     bool isAggressive = false;

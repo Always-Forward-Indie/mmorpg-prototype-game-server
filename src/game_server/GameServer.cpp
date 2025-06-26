@@ -1,93 +1,33 @@
 #include "game_server/GameServer.hpp"
 #include <unordered_set>
 
-GameServer::GameServer(ClientData &clientData,
+GameServer::GameServer(GameServices &gameServices,
                         EventHandler &eventHandler,
                         EventQueue &eventQueueGameServer,
                         EventQueue &eventQueueChunkServer,
                         EventQueue &eventQueueGameServerPing,
-                        Scheduler &scheduler,
-                        ChunkServerWorker &chunkServerWorker,
-                        Database &database,
-                        CharacterManager &characterManager,
-                        Logger &logger)
+                        Scheduler &scheduler)
     :
-      clientData_(clientData),
-      logger_(logger),
       eventQueueGameServer_(eventQueueGameServer),
       eventQueueChunkServer_(eventQueueChunkServer),
       eventQueueGameServerPing_(eventQueueGameServerPing),
-      characterManager_(characterManager),
       eventHandler_(eventHandler),
       scheduler_(scheduler),
-      database_(database),
-      mobManager_(database, logger),
-      spawnZoneManager_(mobManager_, database, logger)
+      gameServices_(gameServices)
 {
     
 }
 
 void GameServer::mainEventLoopGS()
 {
-    logger_.log("Add Tasks To Game Server Scheduler...", YELLOW);
+    gameServices_.getLogger().log("Add Tasks To Game Server Scheduler...", YELLOW);
     constexpr int BATCH_SIZE = 10;
 
-     // TODO work on this later
-    // TODO - save different client data to the database in different time intervals (depend by the client data type)
-    
-    // Task for spawning mobs in the zone
-    Task spawnMobInZoneTask(
-        [&]
-        {
-            spawnZoneManager_.spawnMobsInZone(1);
-            SpawnZoneStruct spawnZone = spawnZoneManager_.getMobSpawnZoneByID(1);
-
-            auto connectedClients = clientData_.getClientsDataMap();
-            for (const auto &client : connectedClients)
-            {
-                if (client.second.clientId == 0)
-                    continue;
-
-                auto clientSocket = client.second.socket;
-                Event spawnMobsInZoneEvent(Event::SPAWN_MOBS_IN_ZONE, client.second.clientId, spawnZone, clientSocket);
-                eventQueueGameServer_.push(spawnMobsInZoneEvent);
-            }
-        },
-        15,
-        std::chrono::system_clock::now(),
-        1 // unique task ID
-    );
-
-    scheduler_.scheduleTask(spawnMobInZoneTask); 
-
-    // Task for moving mobs in the zone
-    Task moveMobInZoneTask(
-        [&]
-        {
-            spawnZoneManager_.moveMobsInZone(1);
-            std::vector<MobDataStruct> mobsList = spawnZoneManager_.getMobsInZone(1);
-
-            auto connectedClients = clientData_.getClientsDataMap();
-            for (const auto &client : connectedClients)
-            {
-                if (client.second.clientId == 0)
-                    continue;
-
-                auto clientSocket = client.second.socket;
-                Event moveMobsInZoneEvent(Event::ZONE_MOVE_MOBS, client.second.clientId, mobsList, clientSocket);
-                eventQueueGameServer_.push(moveMobsInZoneEvent);
-            }
-        },
-        3,
-        std::chrono::system_clock::now(),
-        2 // unique task ID
-    );
-
-    scheduler_.scheduleTask(moveMobInZoneTask); 
+    // TODO - save different data to the database in different time intervals
 
     try
     {
-        logger_.log("Starting Game Server Event Loop...", YELLOW);
+        gameServices_.getLogger().log("Starting Game Server Event Loop...", YELLOW);
         while (running_)
         {
             std::vector<Event> eventsBatch;
@@ -99,7 +39,7 @@ void GameServer::mainEventLoopGS()
     }
     catch (const std::exception &e)
     {
-        logger_.logError(e.what(), RED);
+        gameServices_.getLogger().logError(e.what(), RED);
     }
 }
 
@@ -108,11 +48,13 @@ void GameServer::mainEventLoopGS()
 void GameServer::mainEventLoopCH()
 {
     constexpr int BATCH_SIZE = 10;
-    logger_.log("Add Tasks To Chunk Server Scheduler...", YELLOW);
+    gameServices_.getLogger().log("Add Tasks To Chunk Server Scheduler...", YELLOW);
+
+    // TODO - Get different data from chunk servers in different time intervals
 
     try
     {
-        logger_.log("Starting Chunk Server Event Loop...", YELLOW);
+        gameServices_.getLogger().log("Starting Chunk Server Event Loop...", YELLOW);
         while (running_)
         {
             std::vector<Event> eventsBatch;
@@ -124,7 +66,7 @@ void GameServer::mainEventLoopCH()
     }
     catch (const std::exception &e)
     {
-        logger_.logError(e.what(), RED);
+        gameServices_.getLogger().logError(e.what(), RED);
     }
 }
 
@@ -132,7 +74,7 @@ void GameServer::mainEventLoopPing()
 {
     constexpr int BATCH_SIZE = 1; // Ping обрабатывай сразу
 
-    logger_.log("Starting Ping Event Loop...", YELLOW);
+    gameServices_.getLogger().log("Starting Ping Event Loop...", YELLOW);
 
     try
     {
@@ -147,7 +89,7 @@ void GameServer::mainEventLoopPing()
     }
     catch (const std::exception &e)
     {
-        logger_.logError("Ping Event Loop Error: " + std::string(e.what()), RED);
+        gameServices_.getLogger().logError("Ping Event Loop Error: " + std::string(e.what()), RED);
     }
 }
 
@@ -158,11 +100,11 @@ void GameServer::processPingBatch(const std::vector<Event>& pingEvents)
         threadPool_.enqueueTask([this, event] {
             try
             {
-                eventHandler_.dispatchEvent(event, clientData_);
+                eventHandler_.dispatchEvent(event);
             }
             catch (const std::exception &e)
             {
-                logger_.logError("Error processing PING_EVENT: " + std::string(e.what()));
+                gameServices_.getLogger().logError("Error processing PING_EVENT: " + std::string(e.what()));
             }
         });
     }
@@ -187,14 +129,17 @@ void GameServer::processBatch(const std::vector<Event>& eventsBatch)
     // Process priority ping events first
     for (const auto& event : priorityEvents)
     {
-        threadPool_.enqueueTask([this, event] {
+        // Create a deep copy of the event to ensure its data remains valid
+        // when processed asynchronously in the thread pool
+        Event eventCopy = event;
+        threadPool_.enqueueTask([this, eventCopy] {
             try
             {
-                eventHandler_.dispatchEvent(event, clientData_);
+                eventHandler_.dispatchEvent(eventCopy);
             }
             catch (const std::exception &e)
             {
-                logger_.logError("Error processing priority dispatchEvent: " + std::string(e.what()));
+                gameServices_.getLogger().logError("Error processing priority dispatchEvent: " + std::string(e.what()));
             }
         });
     }
@@ -202,14 +147,17 @@ void GameServer::processBatch(const std::vector<Event>& eventsBatch)
     // Process normal events
     for (const auto& event : normalEvents)
     {
-        threadPool_.enqueueTask([this, event] {
+        // Create a deep copy of the event to ensure its data remains valid
+        // when processed asynchronously in the thread pool
+        Event eventCopy = event;
+        threadPool_.enqueueTask([this, eventCopy] {
             try
             {
-                eventHandler_.dispatchEvent(event, clientData_);
+                eventHandler_.dispatchEvent(eventCopy);
             }
             catch (const std::exception &e)
             {
-                logger_.logError("Error in normal dispatchEvent: " + std::string(e.what()));
+                gameServices_.getLogger().logError("Error in normal dispatchEvent: " + std::string(e.what()));
             }
         });
     }
@@ -223,7 +171,7 @@ void GameServer::startMainEventLoop()
 {
     if (event_game_server_thread_.joinable() || event_chunk_server_thread_.joinable())
     {
-        logger_.log("Game server event loops are already running!", RED);
+        gameServices_.getLogger().log("Game server event loops are already running!", RED);
         return;
     }
 
@@ -241,7 +189,7 @@ void GameServer::stop()
 
 GameServer::~GameServer()
 {
-    logger_.log("Shutting down Game Server...", YELLOW);
+    gameServices_.getLogger().log("Shutting down Game Server...", YELLOW);
     
     stop();  
 

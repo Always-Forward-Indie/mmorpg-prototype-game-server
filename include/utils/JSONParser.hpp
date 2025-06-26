@@ -13,5 +13,6 @@ public:
     ClientDataStruct parseClientData(const char* data, size_t length);
     MessageStruct parseMessage(const char* data, size_t length);
     std::string parseEventType(const char* data, size_t length);
-    nlohmann::json parseCharactersList(const char* data, size_t length);
+    ChunkInfoStruct parseChunkServerHandshakeData(const char *data, size_t length);
+    nlohmann::json parseCharactersList(const char *data, size_t length);
 };

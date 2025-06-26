@@ -26,5 +26,5 @@ struct ChunkServerConfig {
 
 class Config {
 public:
-    std::tuple<DatabaseConfig, GameServerConfig, ChunkServerConfig> parseConfig(const std::string& configFile);
+    std::tuple<DatabaseConfig, GameServerConfig> parseConfig(const std::string& configFile);
 };

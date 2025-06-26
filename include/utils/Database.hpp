@@ -10,10 +10,10 @@
 class Database {
 public:
     // Constructor
-    Database(std::tuple<DatabaseConfig, GameServerConfig, ChunkServerConfig>& configs, Logger& logger);
+    Database(std::tuple<DatabaseConfig, GameServerConfig>& configs, Logger& logger);
 
     // Establish a database connection
-    void connect(std::tuple<DatabaseConfig, GameServerConfig, ChunkServerConfig>& configs);
+    void connect(std::tuple<DatabaseConfig, GameServerConfig>& configs);
 
     // Prepare default queries
     void prepareDefaultQueries();

@@ -166,3 +166,26 @@ std::string JSONParser::parseEventType(const char* data, size_t length)
 
     return eventType;
 }
+
+
+// parse chunk server handshake data
+ChunkInfoStruct JSONParser::parseChunkServerHandshakeData(const char* data, size_t length)
+{
+    nlohmann::json jsonData = nlohmann::json::parse(data, data + length);
+    ChunkInfoStruct chunkData;
+
+    if (jsonData.contains("header") && jsonData["header"].is_object() &&
+        jsonData["header"].contains("id") && jsonData["header"]["id"].is_number_integer()) {
+        chunkData.id = jsonData["header"]["id"].get<int>();
+    }
+    if (jsonData.contains("header") && jsonData["header"].is_object() &&
+        jsonData["header"].contains("ip") && jsonData["header"]["ip"].is_string()) {
+        chunkData.ip = jsonData["header"]["ip"].get<std::string>();
+    }
+    if (jsonData.contains("header") && jsonData["header"].is_object() &&
+        jsonData["header"].contains("port") && jsonData["header"]["port"].is_number_integer()) {
+        chunkData.port = jsonData["header"]["port"].get<int>();
+    }
+
+    return chunkData;
+}
