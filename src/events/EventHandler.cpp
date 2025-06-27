@@ -131,7 +131,7 @@ EventHandler::handleMoveCharacterChunkEvent(const Event &event)
 
     try
     {
-        // Try to extract the dat
+        // Try to extract the data
         if (std::holds_alternative<CharacterDataStruct>(data))
         {
             CharacterDataStruct passedCharacterData = std::get<CharacterDataStruct>(data);
@@ -280,6 +280,23 @@ EventHandler::handleJoinChunkServerEvent(const Event &event)
             return;
         }
 
+        // Try to extract the data
+        if (std::holds_alternative<ChunkInfoStruct>(data))
+        {
+            ChunkInfoStruct chunkData = std::get<ChunkInfoStruct>(data);
+
+            // Save the chunk data to memory
+            gameServices_.getChunkManager().addChunkInfo(chunkData);
+
+            // load spawn zones
+            Event spawnZonesEvent(Event::GET_SPAWN_ZONES, clientID, SpawnZoneStruct(), clientSocket);
+            dispatchEvent(spawnZonesEvent);
+
+            // load mobs
+            Event mobDataEvent(Event::GET_MOBS_LIST, clientID, MobDataStruct(), clientSocket);
+            dispatchEvent(mobDataEvent);
+        }
+
         // Add the message to the response
         response = builder
                        .setHeader("message", "Joining chunk server success!")
@@ -346,6 +363,85 @@ EventHandler::handleDisconnectChunkServerEvent(const Event &event)
     }
 }
 
+// handle get mobs list event
+void
+EventHandler::handleGetMobsListEvent(const Event &event)
+{
+    // Retrieve the data from the event
+    const auto &data = event.getData();
+    int clientID = event.getClientID();
+    // get socket from the event
+    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
+
+    try
+    {
+        // load the mobs list from the database
+        gameServices_.getMobManager().loadMobs();
+
+        // Get the mobs list from the database as map
+        auto mobsListMap = gameServices_.getMobManager().getMobs();
+
+        nlohmann::json mobsListJson;
+        for (const auto &mobItem : mobsListMap)
+        {
+            const MobDataStruct &mobData = mobItem.second;
+
+            nlohmann::json mobJson;
+            mobJson["mobId"] = mobData.id;
+            mobJson["mobUID"] = mobData.uid;
+            mobJson["mobZoneId"] = mobData.zoneId;
+            mobJson["mobName"] = mobData.name;
+            mobJson["mobRaceName"] = mobData.raceName;
+            mobJson["mobLevel"] = mobData.level;
+            mobJson["mobCurrentHealth"] = mobData.currentHealth;
+            mobJson["mobCurrentMana"] = mobData.currentMana;
+            mobJson["isAggressive"] = mobData.isAggressive;
+            mobJson["isDead"] = mobData.isDead;
+            mobJson["posX"] = mobData.position.positionX;
+            mobJson["posY"] = mobData.position.positionY;
+            mobJson["posZ"] = mobData.position.positionZ;
+            mobJson["rotZ"] = mobData.position.rotationZ;
+
+            for (auto &mobAttributeItem : mobData.attributes)
+            {
+                nlohmann::json attributeItemJson;
+                attributeItemJson["attributeId"] = mobAttributeItem.id;
+                attributeItemJson["attributeName"] = mobAttributeItem.name;
+                attributeItemJson["attributeSlug"] = mobAttributeItem.slug;
+                attributeItemJson["attributeValue"] = mobAttributeItem.value;
+
+                // Add the attribute item to the attributes array
+                mobJson["attributesData"].push_back(attributeItemJson);
+            }
+
+            // Add the current item to the mobs list json
+            mobsListJson.push_back(mobJson);
+        }
+
+        // Prepare the response message
+        nlohmann::json response;
+        ResponseBuilder builder;
+
+        // Add the message to the response
+        response = builder
+                       .setHeader("message", "Getting mobs list success!")
+                       .setHeader("hash", "")
+                       .setHeader("clientId", clientID)
+                       .setHeader("eventType", "setMobsList")
+                       .setBody("mobsList", mobsListJson)
+                       .build();
+        // Prepare a response message
+        std::string responseData = networkManager_.generateResponseMessage("success", response);
+
+        // Send the response to the client
+        networkManager_.sendResponse(clientSocket, responseData);
+    }
+    catch (const std::bad_variant_access &ex)
+    {
+        gameServices_.getLogger().log("Error here: " + std::string(ex.what()));
+    }
+}
+
 // handle get mob data event
 void
 EventHandler::handleGetMobDataEvent(const Event &event)
@@ -356,8 +452,7 @@ EventHandler::handleGetMobDataEvent(const Event &event)
     int clientID = event.getClientID();
 
     // get socket from the event
-    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event
-                                                                     .getClientSocket();
+    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
 
     try
     {
@@ -484,17 +579,16 @@ EventHandler::handleGetSpawnZonesEvent(const Event &event)
     for (const auto &spawnZone : spawnZones)
     {
         nlohmann::json spawnZoneJson;
-        spawnZoneJson["zoneId"] = spawnZone.second.zoneId;
-        spawnZoneJson["zoneName"] = spawnZone.second.zoneName;
-        spawnZoneJson["minX"] = spawnZone.second.posX;
-        spawnZoneJson["maxX"] = spawnZone.second.sizeX;
-        spawnZoneJson["minY"] = spawnZone.second.posY;
-        spawnZoneJson["maxY"] = spawnZone.second.sizeY;
-        spawnZoneJson["minZ"] = spawnZone.second.posZ;
-        spawnZoneJson["maxZ"] = spawnZone.second.sizeZ;
+        spawnZoneJson["id"] = spawnZone.second.zoneId;
+        spawnZoneJson["name"] = spawnZone.second.zoneName;
+        spawnZoneJson["posX"] = spawnZone.second.posX;
+        spawnZoneJson["sizeX"] = spawnZone.second.sizeX;
+        spawnZoneJson["posY"] = spawnZone.second.posY;
+        spawnZoneJson["sizeY"] = spawnZone.second.sizeY;
+        spawnZoneJson["posZ"] = spawnZone.second.posZ;
+        spawnZoneJson["sizeZ"] = spawnZone.second.sizeZ;
         spawnZoneJson["spawnMobId"] = spawnZone.second.spawnMobId;
-        spawnZoneJson["maxSpawnCount"] = spawnZone.second.spawnCount;
-        spawnZoneJson["spawnedMobsCount"] = 0;
+        spawnZoneJson["maxMobSpawnCount"] = spawnZone.second.spawnCount;
         spawnZoneJson["respawnTime"] = spawnZone.second.respawnTime.count();
         spawnZoneJson["spawnEnabled"] = true;
 
@@ -515,7 +609,7 @@ EventHandler::handleGetSpawnZonesEvent(const Event &event)
                            .setHeader("message", "Getting spawn zones failed!")
                            .setHeader("hash", "")
                            .setHeader("clientId", clientID)
-                           .setHeader("eventType", "getSpawnZones")
+                           .setHeader("eventType", "setSpawnZonesList")
                            .setBody("", "")
                            .build();
             // Prepare a response message
@@ -530,7 +624,7 @@ EventHandler::handleGetSpawnZonesEvent(const Event &event)
                        .setHeader("message", "Getting spawn zones success!")
                        .setHeader("hash", "")
                        .setHeader("clientId", clientID)
-                       .setHeader("eventType", "getSpawnZones")
+                       .setHeader("eventType", "setSpawnZonesList")
                        .setBody("spawnZonesData", spawnZonesJson)
                        .build();
         // Prepare a response message
@@ -551,26 +645,29 @@ EventHandler::dispatchEvent(const Event &event)
 {
     switch (event.getType())
     {
-        case Event::JOIN_CHARACTER:
-            handleJoinChunkEvent(event);
-            break;
-        case Event::MOVE_CHARACTER:
-            handleMoveCharacterChunkEvent(event);
-            break;
-        case Event::DISCONNECT_CLIENT:
-            handleDisconnectChunkEvent(event);
-            break;
-        case Event::DISCONNECT_CHUNK_SERVER:
-            handleDisconnectChunkServerEvent(event);
-            break;
-        case Event::GET_SPAWN_ZONES:
-            handleGetSpawnZonesEvent(event);
-            break;
-        case Event::GET_MOB_DATA:
-            handleGetMobDataEvent(event);
-            break;
-        case Event::JOIN_CHUNK_SERVER:
-            handleJoinChunkServerEvent(event);
-            break;
+    case Event::JOIN_CHARACTER:
+        handleJoinChunkEvent(event);
+        break;
+    case Event::MOVE_CHARACTER:
+        handleMoveCharacterChunkEvent(event);
+        break;
+    case Event::DISCONNECT_CLIENT:
+        handleDisconnectChunkEvent(event);
+        break;
+    case Event::DISCONNECT_CHUNK_SERVER:
+        handleDisconnectChunkServerEvent(event);
+        break;
+    case Event::GET_SPAWN_ZONES:
+        handleGetSpawnZonesEvent(event);
+        break;
+    case Event::GET_MOBS_LIST:
+        handleGetMobsListEvent(event);
+        break;
+    case Event::GET_MOB_DATA:
+        handleGetMobDataEvent(event);
+        break;
+    case Event::JOIN_CHUNK_SERVER:
+        handleJoinChunkServerEvent(event);
+        break;
     }
 }

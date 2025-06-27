@@ -35,6 +35,7 @@ class Event
         GET_CONNECTED_CHARACTERS,
         MOVE_CHARACTER,
         GET_SPAWN_ZONES,
+        GET_MOBS_LIST,
         GET_MOB_DATA,
         SPAWN_MOBS_IN_ZONE,
         ZONE_MOVE_MOBS,

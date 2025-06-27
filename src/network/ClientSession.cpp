@@ -44,7 +44,7 @@ ClientSession::doRead()
                 // log the received data
                 logger_.log("DEBUG Received data from client: " + accumulatedData_, YELLOW);
 
-                std::string delimiter = "\r\n\r\n";
+                std::string delimiter = "\n";
                 size_t pos;
                 // Process all complete messages found.
                 while ((pos = accumulatedData_.find(delimiter)) != std::string::npos)
