@@ -19,7 +19,9 @@ using EventData = std::variant<
     ChunkInfoStruct,
     SpawnZoneStruct,
     std::vector<MobDataStruct>,
-    MobDataStruct
+    MobDataStruct,
+    std::vector<MobAttributeStruct>,
+    MobAttributeStruct
     /* other types */>;
 
 class Event
@@ -29,13 +31,15 @@ class Event
     {
         PING_CLIENT,
         JOIN_CHUNK_SERVER,
-        JOIN_CHARACTER,
+        JOIN_PLAYER_CLIENT,
+        GET_CHARACTER_DATA,
         DISCONNECT_CLIENT,
         DISCONNECT_CHUNK_SERVER,
         GET_CONNECTED_CHARACTERS,
         MOVE_CHARACTER,
         GET_SPAWN_ZONES,
         GET_MOBS_LIST,
+        GET_MOBS_ATTRIBUTES,
         GET_MOB_DATA,
         SPAWN_MOBS_IN_ZONE,
         ZONE_MOVE_MOBS,

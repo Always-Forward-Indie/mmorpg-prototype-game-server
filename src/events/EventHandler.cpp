@@ -11,12 +11,107 @@ EventHandler::EventHandler(
 }
 
 void
-EventHandler::handleJoinChunkEvent(const Event &event)
+EventHandler::handleJoinPlayerClientEvent(const Event &event)
+{
+    // Retrieve the data from the event
+    const auto &data = event.getData();
+    int clientID = event.getClientID();
+
+    // get socket from the event
+    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
+
+    try
+    {
+        // Try to extract the data
+        if (std::holds_alternative<ClientDataStruct>(data))
+        {
+            ClientDataStruct passedClientData = std::get<ClientDataStruct>(data);
+            // Save the clientData object with the new init data
+            gameServices_.getClientManager().setClientData(passedClientData);
+
+            // get chunk server connection data
+            ChunkInfoStruct chunkServerData = gameServices_.getChunkManager().getChunkById(1);
+
+            // Prepare a response message
+            nlohmann::json response;
+            ResponseBuilder builder;
+
+            // Check if the authentication is not successful
+            if (passedClientData.clientId == 0 || passedClientData.hash == "")
+            {
+                // Add response data
+                response = builder
+                               .setHeader("message", "Authentication failed for user!")
+                               .setHeader("hash", passedClientData.hash)
+                               .setHeader("clientId", passedClientData.clientId)
+                               .setHeader("eventType", "joinGame")
+                               .setBody("", "")
+                               .build();
+                // Prepare a response message
+                std::string responseData = networkManager_.generateResponseMessage("error", response);
+
+                // Send the response to the Client
+                networkManager_.sendResponse(
+                    passedClientData.socket,
+                    responseData);
+                return;
+            }
+
+            // generate chunk server connection data
+            nlohmann::json chunkServerDataJson;
+            chunkServerDataJson["chunkId"] = chunkServerData.id;
+            chunkServerDataJson["chunkIp"] = chunkServerData.ip;
+            chunkServerDataJson["chunkPort"] = chunkServerData.port;
+            chunkServerDataJson["chunkPosX"] = chunkServerData.posX;
+            chunkServerDataJson["chunkPosY"] = chunkServerData.posY;
+            chunkServerDataJson["chunkPosZ"] = chunkServerData.posZ;
+            chunkServerDataJson["chunkSizeX"] = chunkServerData.sizeX;
+            chunkServerDataJson["chunkSizeY"] = chunkServerData.sizeY;
+            chunkServerDataJson["chunkSizeZ"] = chunkServerData.sizeZ;
+
+            // Add the message to the response
+            response = builder
+                           .setHeader("message", "Authentication success for user!")
+                           .setHeader("hash", passedClientData.hash)
+                           .setHeader("clientId", passedClientData.clientId)
+                           .setHeader("eventType", "joinGame")
+                           .setBody("chunkServerData", chunkServerDataJson)
+                           .build();
+            // Prepare a response message
+            std::string responseData = networkManager_.generateResponseMessage("success", response);
+
+            // Send the response to the Client
+            networkManager_.sendResponse(
+                passedClientData.socket,
+                responseData);
+
+            gameServices_.getLogger().log("Sending data to the Client: " + responseData, YELLOW);
+
+            // Dispatch the event to get character data and send it to the chunk server
+            Event getCharacterDataEvent(Event::GET_CHARACTER_DATA, clientID, passedClientData, chunkServerData.socket);
+            dispatchEvent(getCharacterDataEvent);
+        }
+        else
+        {
+            gameServices_.getLogger().log("Error with extracting data!");
+        }
+    }
+    catch (const std::bad_variant_access &ex)
+    {
+        gameServices_.getLogger().log("Error here: " + std::string(ex.what()));
+    }
+}
+
+void
+EventHandler::handleGetCharacterDataEvent(const Event &event)
 {
     // Here we will init data from DB of the character when client joined and send it to the chunk server
     // Retrieve the data from the event
     const auto data = event.getData();
     int clientID = event.getClientID();
+
+    // get socket from the event
+    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
 
     // Extract init data
     try
@@ -28,15 +123,16 @@ EventHandler::handleJoinChunkEvent(const Event &event)
             // Save the clientData object with the new init data
             gameServices_.getClientManager().setClientData(passedClientData);
 
-            // Get the character data from the database
-            CharacterDataStruct characterData = gameServices_.getCharacterManager().getBasicCharacterDataFromDatabase(gameServices_.getDatabase(), clientID, passedClientData.characterId);
-            // Update the clientData object with the new character data
-            gameServices_.getCharacterManager().addOrUpdateCharacter(characterData);
+            // debug log
+            gameServices_.getLogger().log("Passed - Client ID: " + std::to_string(passedClientData.clientId) +
+                                          ", Character ID: " + std::to_string(passedClientData.characterId) +
+                                          ", Hash: " + passedClientData.hash);
 
-            // Get the character position from the database
-            PositionStruct characterPosition = gameServices_.getCharacterManager().getCharacterPositionFromDatabase(gameServices_.getDatabase(), clientID, passedClientData.characterId);
-            // Update the clientData object with the new position
-            gameServices_.getCharacterManager().updateCharacterPosition(gameServices_.getDatabase(), clientID, passedClientData.characterId, characterPosition);
+            // Get the character data from the database
+            CharacterDataStruct characterData = gameServices_.getCharacterManager().loadCharacterFromDatabase(
+                gameServices_.getDatabase(),
+                passedClientData.clientId,
+                passedClientData.characterId);
 
             // Get the clientData object with the new init data
             const ClientDataStruct currentClientData = gameServices_.getClientManager().getClientData(passedClientData.clientId);
@@ -105,7 +201,7 @@ EventHandler::handleJoinChunkEvent(const Event &event)
 
             // Send the response to the chunk server
             networkManager_.sendResponse(
-                passedClientData.socket,
+                clientSocket,
                 responseData);
         }
         else
@@ -285,6 +381,9 @@ EventHandler::handleJoinChunkServerEvent(const Event &event)
         {
             ChunkInfoStruct chunkData = std::get<ChunkInfoStruct>(data);
 
+            chunkData.ip = "192.168.50.50";  // Set the chunk server IP address for testing purposes
+            chunkData.socket = clientSocket; // Set the socket for the chunk server
+
             // Save the chunk data to memory
             gameServices_.getChunkManager().addChunkInfo(chunkData);
 
@@ -295,6 +394,10 @@ EventHandler::handleJoinChunkServerEvent(const Event &event)
             // load mobs
             Event mobDataEvent(Event::GET_MOBS_LIST, clientID, MobDataStruct(), clientSocket);
             dispatchEvent(mobDataEvent);
+
+            // load mobs attributes
+            Event mobAttributesEvent(Event::GET_MOBS_ATTRIBUTES, clientID, MobAttributeStruct(), clientSocket);
+            dispatchEvent(mobAttributesEvent);
         }
 
         // Add the message to the response
@@ -363,6 +466,69 @@ EventHandler::handleDisconnectChunkServerEvent(const Event &event)
     }
 }
 
+// handle get mobs attributes event
+void
+EventHandler::handleGetMobsAttributesEvent(const Event &event)
+{
+    // Retrieve the data from the event
+    const auto &data = event.getData();
+    int clientID = event.getClientID();
+    // get socket from the event
+    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
+
+    try
+    {
+        // load the mobs list from the database
+        gameServices_.getMobManager().loadMobs();
+
+        // Get the mobs list from the database as map
+        auto mobsAttributesListMap = gameServices_.getMobManager().getMobsAttributes();
+
+        nlohmann::json mobsAttributesListJson;
+
+        for (const auto &mobAttributeItem : mobsAttributesListMap)
+        {
+            const MobAttributeStruct &mobAttributeData = mobAttributeItem.second;
+            nlohmann::json mobAttributeJson;
+            mobAttributeJson["mob_id"] = mobAttributeData.mob_id;
+            mobAttributeJson["id"] = mobAttributeData.id;
+            mobAttributeJson["name"] = mobAttributeData.name;
+            mobAttributeJson["slug"] = mobAttributeData.slug;
+            mobAttributeJson["value"] = mobAttributeData.value;
+            // Add the current item to the mobs attributes list json
+            mobsAttributesListJson.push_back(mobAttributeJson);
+        }
+
+        // If the mobs attributes list is empty, log a message
+        if (mobsAttributesListJson.empty())
+        {
+            gameServices_.getLogger().log("Mobs attributes list is empty!", YELLOW);
+        }
+
+        // Prepare the response message
+        nlohmann::json response;
+        ResponseBuilder builder;
+
+        // Add the message to the response
+        response = builder
+                       .setHeader("message", "Getting mobs attributes list success!")
+                       .setHeader("hash", "")
+                       .setHeader("clientId", clientID)
+                       .setHeader("eventType", "setMobsAttributes")
+                       .setBody("mobsAttributesList", mobsAttributesListJson)
+                       .build();
+        // Prepare a response message
+        std::string responseData = networkManager_.generateResponseMessage("success", response);
+
+        // Send the response to the client
+        networkManager_.sendResponse(clientSocket, responseData);
+    }
+    catch (const std::bad_variant_access &ex)
+    {
+        gameServices_.getLogger().log("Error here: " + std::string(ex.what()));
+    }
+}
+
 // handle get mobs list event
 void
 EventHandler::handleGetMobsListEvent(const Event &event)
@@ -386,15 +552,18 @@ EventHandler::handleGetMobsListEvent(const Event &event)
         {
             const MobDataStruct &mobData = mobItem.second;
 
+            // Create a JSON object for the current mob
             nlohmann::json mobJson;
-            mobJson["mobId"] = mobData.id;
-            mobJson["mobUID"] = mobData.uid;
-            mobJson["mobZoneId"] = mobData.zoneId;
-            mobJson["mobName"] = mobData.name;
-            mobJson["mobRaceName"] = mobData.raceName;
-            mobJson["mobLevel"] = mobData.level;
-            mobJson["mobCurrentHealth"] = mobData.currentHealth;
-            mobJson["mobCurrentMana"] = mobData.currentMana;
+            mobJson["id"] = mobData.id;
+            mobJson["UID"] = mobData.uid;
+            mobJson["zoneId"] = mobData.zoneId;
+            mobJson["name"] = mobData.name;
+            mobJson["race"] = mobData.raceName;
+            mobJson["level"] = mobData.level;
+            mobJson["currentHealth"] = mobData.currentHealth;
+            mobJson["currentMana"] = mobData.currentMana;
+            mobJson["maxMana"] = mobData.maxMana;
+            mobJson["maxHealth"] = mobData.maxHealth;
             mobJson["isAggressive"] = mobData.isAggressive;
             mobJson["isDead"] = mobData.isDead;
             mobJson["posX"] = mobData.position.positionX;
@@ -402,20 +571,14 @@ EventHandler::handleGetMobsListEvent(const Event &event)
             mobJson["posZ"] = mobData.position.positionZ;
             mobJson["rotZ"] = mobData.position.rotationZ;
 
-            for (auto &mobAttributeItem : mobData.attributes)
-            {
-                nlohmann::json attributeItemJson;
-                attributeItemJson["attributeId"] = mobAttributeItem.id;
-                attributeItemJson["attributeName"] = mobAttributeItem.name;
-                attributeItemJson["attributeSlug"] = mobAttributeItem.slug;
-                attributeItemJson["attributeValue"] = mobAttributeItem.value;
-
-                // Add the attribute item to the attributes array
-                mobJson["attributesData"].push_back(attributeItemJson);
-            }
-
             // Add the current item to the mobs list json
             mobsListJson.push_back(mobJson);
+        }
+
+        // If the mobs list is empty, log a message
+        if (mobsListJson.empty())
+        {
+            gameServices_.getLogger().log("Mobs list is empty!", YELLOW);
         }
 
         // Prepare the response message
@@ -470,14 +633,16 @@ EventHandler::handleGetMobDataEvent(const Event &event)
                 MobDataStruct mobData = mobDataMap[passedMobData.id];
 
                 nlohmann::json mobJson;
-                mobJson["mobId"] = mobData.id;
-                mobJson["mobUID"] = mobData.uid;
-                mobJson["mobZoneId"] = mobData.zoneId;
-                mobJson["mobName"] = mobData.name;
-                mobJson["mobRaceName"] = mobData.raceName;
-                mobJson["mobLevel"] = mobData.level;
-                mobJson["mobCurrentHealth"] = mobData.currentHealth;
-                mobJson["mobCurrentMana"] = mobData.currentMana;
+                mobJson["id"] = mobData.id;
+                mobJson["UID"] = mobData.uid;
+                mobJson["zoneId"] = mobData.zoneId;
+                mobJson["name"] = mobData.name;
+                mobJson["race"] = mobData.raceName;
+                mobJson["level"] = mobData.level;
+                mobJson["currentHealth"] = mobData.currentHealth;
+                mobJson["currentMana"] = mobData.currentMana;
+                mobJson["maxMana"] = mobData.maxMana;
+                mobJson["currentHealth"] = mobData.maxHealth;
                 mobJson["isAggressive"] = mobData.isAggressive;
                 mobJson["isDead"] = mobData.isDead;
                 mobJson["posX"] = mobData.position.positionX;
@@ -485,26 +650,16 @@ EventHandler::handleGetMobDataEvent(const Event &event)
                 mobJson["posZ"] = mobData.position.positionZ;
                 mobJson["rotZ"] = mobData.position.rotationZ;
 
-                for (auto &mobAttributeItem : mobData.attributes)
-                {
-                    nlohmann::json mobItemJson;
-                    mobItemJson["attributeId"] = mobAttributeItem.id;
-                    mobItemJson["attributeName"] = mobAttributeItem.name;
-                    mobItemJson["attributeSlug"] = mobAttributeItem.slug;
-                    mobItemJson["attributeValue"] = mobAttributeItem.value;
-                    mobJson["attributesData"].push_back(mobItemJson);
-                }
-
                 // Prepare the response message
                 nlohmann::json response;
                 ResponseBuilder builder;
 
                 // Add the message to the response
                 response = builder
-                               .setHeader("message", "Spawning mobs success!")
+                               .setHeader("message", "Get mob data success!")
                                .setHeader("hash", "")
                                .setHeader("clientId", clientID)
-                               .setHeader("eventType", "spawnMobsInZone")
+                               .setHeader("eventType", "getMobData")
                                .setBody("mobData", mobJson)
                                .build();
                 // Prepare a response message
@@ -645,8 +800,13 @@ EventHandler::dispatchEvent(const Event &event)
 {
     switch (event.getType())
     {
-    case Event::JOIN_CHARACTER:
-        handleJoinChunkEvent(event);
+    // character/client events
+    case Event::JOIN_PLAYER_CLIENT:
+        handleJoinPlayerClientEvent(event);
+        break;
+
+    case Event::GET_CHARACTER_DATA:
+        handleGetCharacterDataEvent(event);
         break;
     case Event::MOVE_CHARACTER:
         handleMoveCharacterChunkEvent(event);
@@ -654,20 +814,29 @@ EventHandler::dispatchEvent(const Event &event)
     case Event::DISCONNECT_CLIENT:
         handleDisconnectChunkEvent(event);
         break;
-    case Event::DISCONNECT_CHUNK_SERVER:
-        handleDisconnectChunkServerEvent(event);
-        break;
+
+    // spawn zones events
     case Event::GET_SPAWN_ZONES:
         handleGetSpawnZonesEvent(event);
         break;
+
+    // mobs events
     case Event::GET_MOBS_LIST:
         handleGetMobsListEvent(event);
+        break;
+    case Event::GET_MOBS_ATTRIBUTES:
+        handleGetMobsAttributesEvent(event);
         break;
     case Event::GET_MOB_DATA:
         handleGetMobDataEvent(event);
         break;
+
+    // chunk server events
     case Event::JOIN_CHUNK_SERVER:
         handleJoinChunkServerEvent(event);
+        break;
+    case Event::DISCONNECT_CHUNK_SERVER:
+        handleDisconnectChunkServerEvent(event);
         break;
     }
 }

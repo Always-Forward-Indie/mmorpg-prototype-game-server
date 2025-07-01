@@ -1,13 +1,14 @@
 #include "services/MobManager.hpp"
 
-MobManager::MobManager(Database& database, Logger& logger)
+MobManager::MobManager(Database &database, Logger &logger)
     : database_(database), logger_(logger)
 {
     loadMobs();
 }
 
 // Function to load mobs from the database and store them in memory
-void MobManager::loadMobs()
+void
+MobManager::loadMobs()
 {
     try
     {
@@ -22,10 +23,10 @@ void MobManager::loadMobs()
             // log that the data is empty
             logger_.logError("No mobs found in the database");
             // Rollback the transaction
-            transaction.abort(); 
+            transaction.abort();
         }
 
-        for (const auto& row : selectMobs)
+        for (const auto &row : selectMobs)
         {
             MobDataStruct mobData;
             mobData.id = row["id"].as<int>();
@@ -49,13 +50,23 @@ void MobManager::loadMobs()
             }
 
             // populate mob attributes
-            for (const auto& attributeRow : selectMobAttributes)
+            for (const auto &attributeRow : selectMobAttributes)
             {
                 MobAttributeStruct mobAttribute;
+                mobAttribute.mob_id = mobData.id; // Set the mob_id for the attribute
                 mobAttribute.id = attributeRow["id"].as<int>();
                 mobAttribute.name = attributeRow["name"].as<std::string>();
                 mobAttribute.slug = attributeRow["slug"].as<std::string>();
                 mobAttribute.value = attributeRow["value"].as<int>();
+
+                if (mobAttribute.slug == "max_health")
+                {
+                    mobData.maxHealth = mobAttribute.value; // Set max health from attribute
+                }
+                else if (mobAttribute.slug == "max_mana")
+                {
+                    mobData.maxMana = mobAttribute.value; // Set max mana from attribute
+                }
 
                 mobData.attributes.push_back(mobAttribute);
             }
@@ -63,23 +74,25 @@ void MobManager::loadMobs()
             mobs_[mobData.id] = mobData;
         }
     }
-    catch (const std::exception& e)
+    catch (const std::exception &e)
     {
         logger_.logError("Error loading mobs: " + std::string(e.what()));
     }
 }
 
 // Function to get all mobs from memory as map
-std::map<int, MobDataStruct> MobManager::getMobs() const
+std::map<int, MobDataStruct>
+MobManager::getMobs() const
 {
     return mobs_;
 }
 
 // Function to get all mobs from memory as vector
-std::vector<MobDataStruct> MobManager::getMobsAsVector() const
+std::vector<MobDataStruct>
+MobManager::getMobsAsVector() const
 {
     std::vector<MobDataStruct> mobs;
-    for (const auto& mob : mobs_)
+    for (const auto &mob : mobs_)
     {
         mobs.push_back(mob.second);
     }
@@ -87,7 +100,8 @@ std::vector<MobDataStruct> MobManager::getMobsAsVector() const
 }
 
 // Function to get a mob by ID
-MobDataStruct MobManager::getMobById(int mobId) const
+MobDataStruct
+MobManager::getMobById(int mobId) const
 {
     auto mob = mobs_.find(mobId);
     if (mob != mobs_.end())
@@ -98,4 +112,19 @@ MobDataStruct MobManager::getMobById(int mobId) const
     {
         return MobDataStruct();
     }
+}
+
+// get mobs attributes
+std::map<int, MobAttributeStruct>
+MobManager::getMobsAttributes() const
+{
+    std::map<int, MobAttributeStruct> mobAttributes;
+    for (const auto &mob : mobs_)
+    {
+        for (const auto &attribute : mob.second.attributes)
+        {
+            mobAttributes[attribute.id] = attribute;
+        }
+    }
+    return mobAttributes;
 }

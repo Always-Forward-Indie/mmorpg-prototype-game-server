@@ -4,3 +4,5 @@
 - [+] Use Client Manager and replace ClientData with it
 - [+] Remove ClientData from EventHandler
 - [ ] Use Chunk Manager
+
+[ ] Send chunk server connection data to player client on join

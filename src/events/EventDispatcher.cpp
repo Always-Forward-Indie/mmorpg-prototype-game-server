@@ -59,7 +59,7 @@ EventDispatcher::handleJoinGame(
     const EventPayload &payload,
     std::shared_ptr<boost::asio::ip::tcp::socket> socket)
 {
-    Event joinEvent(Event::JOIN_CHARACTER, payload.clientData.clientId, payload.clientData, socket);
+    Event joinEvent(Event::JOIN_PLAYER_CLIENT, payload.clientData.clientId, payload.clientData, socket);
     eventsBatch_.push_back(joinEvent);
     // if (eventsBatch_.size() >= BATCH_SIZE)
     //{

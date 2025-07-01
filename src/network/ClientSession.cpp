@@ -79,6 +79,7 @@ ClientSession::processMessage(const std::string &message)
 
         // Set additional client data
         clientData.socket = socket_;
+        clientData.characterId = characterData.characterId;
 
         EventPayload payload{
             .clientData = clientData,
