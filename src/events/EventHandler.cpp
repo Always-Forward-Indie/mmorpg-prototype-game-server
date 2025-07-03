@@ -44,7 +44,7 @@ EventHandler::handleJoinPlayerClientEvent(const Event &event)
                                .setHeader("message", "Authentication failed for user!")
                                .setHeader("hash", passedClientData.hash)
                                .setHeader("clientId", passedClientData.clientId)
-                               .setHeader("eventType", "joinGame")
+                               .setHeader("eventType", "joinGameClient")
                                .setBody("", "")
                                .build();
                 // Prepare a response message
@@ -74,7 +74,7 @@ EventHandler::handleJoinPlayerClientEvent(const Event &event)
                            .setHeader("message", "Authentication success for user!")
                            .setHeader("hash", passedClientData.hash)
                            .setHeader("clientId", passedClientData.clientId)
-                           .setHeader("eventType", "joinGame")
+                           .setHeader("eventType", "joinGameClient")
                            .setBody("chunkServerData", chunkServerDataJson)
                            .build();
             // Prepare a response message
@@ -146,10 +146,10 @@ EventHandler::handleGetCharacterDataEvent(const Event &event)
             {
                 // Add response data
                 response = builder
-                               .setHeader("message", "Authentication failed for user!")
+                               .setHeader("message", "Join Game Character failed for Client!")
                                .setHeader("hash", passedClientData.hash)
                                .setHeader("clientId", passedClientData.clientId)
-                               .setHeader("eventType", "joinGame")
+                               .setHeader("eventType", "setCharacterData")
                                .setBody("", "")
                                .build();
                 // Prepare a response message
@@ -168,28 +168,41 @@ EventHandler::handleGetCharacterDataEvent(const Event &event)
             for (const auto &attribute : characterData.attributes)
             {
                 nlohmann::json attributeData;
-                attributeData["attributeId"] = attribute.id;
-                attributeData["attributeSlug"] = attribute.slug;
-                attributeData["attributeName"] = attribute.name;
-                attributeData["attributeValue"] = attribute.value;
+                attributeData["id"] = attribute.id;
+                attributeData["slug"] = attribute.slug;
+                attributeData["name"] = attribute.name;
+                attributeData["value"] = attribute.value;
+
+                // Set the character max health and mana
+                if (attribute.slug == "max_health")
+                {
+                    characterData.characterMaxHealth = attribute.value;
+                }
+                if (attribute.slug == "max_mana")
+                {
+                    characterData.characterMaxHealth = attribute.value;
+                }
+
                 attributes.push_back(attributeData);
             }
 
             // Add the message to the response
             response = builder
-                           .setHeader("message", "Authentication success for user!")
+                           .setHeader("message", "Join Game Character success for Client!")
                            .setHeader("hash", currentClientData.hash)
                            .setHeader("clientId", currentClientData.clientId)
-                           .setHeader("eventType", "joinGame")
-                           .setBody("characterId", currentClientData.characterId)
-                           .setBody("characterClass", characterData.characterClass)
-                           .setBody("characterLevel", characterData.characterLevel)
-                           .setBody("characterExpForNextLevel", characterData.expForNextLevel)
-                           .setBody("characterName", characterData.characterName)
-                           .setBody("characterRace", characterData.characterRace)
-                           .setBody("characterExp", characterData.characterExperiencePoints)
-                           .setBody("characterCurrentHealth", characterData.characterCurrentHealth)
-                           .setBody("characterCurrentMana", characterData.characterCurrentMana)
+                           .setHeader("eventType", "setCharacterData")
+                           .setBody("id", currentClientData.characterId)
+                           .setBody("class", characterData.characterClass)
+                           .setBody("level", characterData.characterLevel)
+                           .setBody("expForNextLevel", characterData.expForNextLevel)
+                           .setBody("name", characterData.characterName)
+                           .setBody("race", characterData.characterRace)
+                           .setBody("currentExp", characterData.characterExperiencePoints)
+                           .setBody("currentHealth", characterData.characterCurrentHealth)
+                           .setBody("currentMana", characterData.characterCurrentMana)
+                           .setBody("maxHealth", characterData.characterMaxHealth)
+                           .setBody("maxMana", characterData.characterMaxMana)
                            .setBody("posX", characterData.characterPosition.positionX)
                            .setBody("posY", characterData.characterPosition.positionY)
                            .setBody("posZ", characterData.characterPosition.positionZ)
@@ -241,9 +254,9 @@ EventHandler::handleMoveCharacterChunkEvent(const Event &event)
             {
                 // Add response data
                 response = builder
-                               .setHeader("message", "Movement failed for character!")
+                               .setHeader("message", "Movement update failed for the Character!")
                                .setHeader("clientId", clientID)
-                               .setHeader("eventType", "moveCharacter")
+                               .setHeader("eventType", "updateCharacterMovement")
                                .setBody("", "")
                                .build();
                 // Prepare a response message
@@ -265,9 +278,9 @@ EventHandler::handleMoveCharacterChunkEvent(const Event &event)
 
             // Add the message to the response
             response = builder
-                           .setHeader("message", "Movement saved for character!")
+                           .setHeader("message", "Movement success updated for the Character!")
                            .setHeader("clientId", passedCharacterData.clientId)
-                           .setHeader("eventType", "moveCharacter")
+                           .setHeader("eventType", "updateCharacterMovement")
                            .setBody("characterId", passedCharacterData.characterId)
                            .setBody("posX", passedCharacterData.characterPosition.positionX)
                            .setBody("posY", passedCharacterData.characterPosition.positionY)
@@ -352,6 +365,9 @@ EventHandler::handleJoinChunkServerEvent(const Event &event)
     // get socket from the event
     std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
 
+    // prepare the chunk server data
+    nlohmann::json chunkServerDataJson;
+
     try
     {
         // Prepare the response message
@@ -366,8 +382,8 @@ EventHandler::handleJoinChunkServerEvent(const Event &event)
                            .setHeader("message", "Joining chunk server failed!")
                            .setHeader("hash", "")
                            .setHeader("clientId", clientID)
-                           .setHeader("eventType", "joinChunkServer")
-                           .setBody("", "")
+                           .setHeader("eventType", "setChunkData")
+                           .setBody("chunkServerData", chunkServerDataJson)
                            .build();
             // Prepare a response message
             std::string responseData = networkManager_.generateResponseMessage("error", response);
@@ -387,6 +403,16 @@ EventHandler::handleJoinChunkServerEvent(const Event &event)
             // Save the chunk data to memory
             gameServices_.getChunkManager().addChunkInfo(chunkData);
 
+            chunkServerDataJson["id"] = chunkData.id;
+            chunkServerDataJson["ip"] = chunkData.ip;
+            chunkServerDataJson["port"] = chunkData.port;
+            chunkServerDataJson["posX"] = chunkData.posX;
+            chunkServerDataJson["posY"] = chunkData.posY;
+            chunkServerDataJson["posZ"] = chunkData.posZ;
+            chunkServerDataJson["sizeX"] = chunkData.sizeX;
+            chunkServerDataJson["sizeY"] = chunkData.sizeY;
+            chunkServerDataJson["sizeZ"] = chunkData.sizeZ;
+
             // load spawn zones
             Event spawnZonesEvent(Event::GET_SPAWN_ZONES, clientID, SpawnZoneStruct(), clientSocket);
             dispatchEvent(spawnZonesEvent);
@@ -405,8 +431,16 @@ EventHandler::handleJoinChunkServerEvent(const Event &event)
                        .setHeader("message", "Joining chunk server success!")
                        .setHeader("hash", "")
                        .setHeader("clientId", clientID)
-                       .setHeader("eventType", "joinChunkServer")
-                       .setBody("", "")
+                       .setHeader("eventType", "setChunkData")
+                       .setBody("id", chunkServerDataJson["id"])
+                       .setBody("ip", chunkServerDataJson["ip"])
+                       .setBody("port", chunkServerDataJson["port"])
+                       .setBody("posX", chunkServerDataJson["posX"])
+                       .setBody("posY", chunkServerDataJson["posY"])
+                       .setBody("posZ", chunkServerDataJson["posZ"])
+                       .setBody("sizeX", chunkServerDataJson["sizeX"])
+                       .setBody("sizeY", chunkServerDataJson["sizeY"])
+                       .setBody("sizeZ", chunkServerDataJson["sizeZ"])
                        .build();
         // Prepare a response message
         std::string responseData = networkManager_.generateResponseMessage("success", response);
