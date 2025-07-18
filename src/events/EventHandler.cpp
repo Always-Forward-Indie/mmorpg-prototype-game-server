@@ -512,25 +512,26 @@ EventHandler::handleGetMobsAttributesEvent(const Event &event)
 
     try
     {
-        // load the mobs list from the database
-        gameServices_.getMobManager().loadMobs();
-
         // Get the mobs list from the database as map
-        auto mobsAttributesListMap = gameServices_.getMobManager().getMobsAttributes();
+        auto mobsList = gameServices_.getMobManager().getMobs();
 
-        nlohmann::json mobsAttributesListJson;
+        nlohmann::json mobsAttributesListJson = nlohmann::json::array();
 
-        for (const auto &mobAttributeItem : mobsAttributesListMap)
+        for (const auto &mobItem : mobsList)
         {
-            const MobAttributeStruct &mobAttributeData = mobAttributeItem.second;
-            nlohmann::json mobAttributeJson;
-            mobAttributeJson["mob_id"] = mobAttributeData.mob_id;
-            mobAttributeJson["id"] = mobAttributeData.id;
-            mobAttributeJson["name"] = mobAttributeData.name;
-            mobAttributeJson["slug"] = mobAttributeData.slug;
-            mobAttributeJson["value"] = mobAttributeData.value;
-            // Add the current item to the mobs attributes list json
-            mobsAttributesListJson.push_back(mobAttributeJson);
+            const MobDataStruct &mobData = mobItem.second;
+
+            for (const auto &attribute : mobData.attributes)
+            {
+                nlohmann::json attributeJson;
+                attributeJson["id"] = attribute.id;
+                attributeJson["mob_id"] = mobData.id;
+                attributeJson["slug"] = attribute.slug;
+                attributeJson["name"] = attribute.name;
+                attributeJson["value"] = attribute.value;
+
+                mobsAttributesListJson.push_back(attributeJson);
+            }
         }
 
         // If the mobs attributes list is empty, log a message
@@ -592,6 +593,7 @@ EventHandler::handleGetMobsListEvent(const Event &event)
             mobJson["UID"] = mobData.uid;
             mobJson["zoneId"] = mobData.zoneId;
             mobJson["name"] = mobData.name;
+            mobJson["slug"] = mobData.slug;
             mobJson["race"] = mobData.raceName;
             mobJson["level"] = mobData.level;
             mobJson["currentHealth"] = mobData.currentHealth;
@@ -671,6 +673,7 @@ EventHandler::handleGetMobDataEvent(const Event &event)
                 mobJson["UID"] = mobData.uid;
                 mobJson["zoneId"] = mobData.zoneId;
                 mobJson["name"] = mobData.name;
+                mobJson["slug"] = mobData.slug;
                 mobJson["race"] = mobData.raceName;
                 mobJson["level"] = mobData.level;
                 mobJson["currentHealth"] = mobData.currentHealth;

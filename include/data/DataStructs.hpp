@@ -80,6 +80,7 @@ struct MobDataStruct
     std::string uid = "";
     int zoneId = 0;
     std::string name = "";
+    std::string slug = "";
     std::string raceName = "";
     int level = 0;
     int currentHealth = 0;
