@@ -30,6 +30,8 @@ class EventHandler
     void handleDisconnectChunkServerEvent(const Event &event);
 
     void handleGetMobsAttributesEvent(const Event &event);
+    void handleGetItemsListEvent(const Event &event);
+    void handleGetMobLootInfoEvent(const Event &event);
 
     NetworkManager &networkManager_;
     GameServices &gameServices_;

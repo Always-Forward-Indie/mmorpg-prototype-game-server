@@ -24,6 +24,7 @@ set(SOURCE_FILES
     src/services/SpawnZoneManager.cpp
     src/services/SpawnManager.cpp
     src/services/MobManager.cpp
+    src/services/ItemManager.cpp
     src/network/NetworkManager.cpp
     src/network/ClientSession.cpp
     src/events/Event.cpp
@@ -55,6 +56,7 @@ set(HEADER_FILES
     include/services/SpawnZoneManager.hpp
     include/services/SpawnManager.hpp
     include/services/MobManager.hpp
+    include/services/ItemManager.hpp
     include/network/NetworkManager.hpp
     include/network/ClientSession.hpp
     include/events/Event.hpp

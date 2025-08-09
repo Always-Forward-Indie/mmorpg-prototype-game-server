@@ -424,6 +424,14 @@ EventHandler::handleJoinChunkServerEvent(const Event &event)
             // load mobs attributes
             Event mobAttributesEvent(Event::GET_MOBS_ATTRIBUTES, clientID, MobAttributeStruct(), clientSocket);
             dispatchEvent(mobAttributesEvent);
+
+            // load items
+            Event itemsEvent(Event::GET_ITEMS_LIST, clientID, ItemDataStruct(), clientSocket);
+            dispatchEvent(itemsEvent);
+
+            // load mob loot info
+            Event mobLootEvent(Event::GET_MOB_LOOT_INFO, clientID, MobLootInfoStruct(), clientSocket);
+            dispatchEvent(mobLootEvent);
         }
 
         // Add the message to the response
@@ -868,6 +876,14 @@ EventHandler::dispatchEvent(const Event &event)
         handleGetMobDataEvent(event);
         break;
 
+    // items events
+    case Event::GET_ITEMS_LIST:
+        handleGetItemsListEvent(event);
+        break;
+    case Event::GET_MOB_LOOT_INFO:
+        handleGetMobLootInfoEvent(event);
+        break;
+
     // chunk server events
     case Event::JOIN_CHUNK_SERVER:
         handleJoinChunkServerEvent(event);
@@ -875,5 +891,121 @@ EventHandler::dispatchEvent(const Event &event)
     case Event::DISCONNECT_CHUNK_SERVER:
         handleDisconnectChunkServerEvent(event);
         break;
+    }
+}
+
+// handle get items list event
+void
+EventHandler::handleGetItemsListEvent(const Event &event)
+{
+    // Retrieve the data from the event
+    const auto &data = event.getData();
+    int clientID = event.getClientID();
+    // get socket from the event
+    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
+
+    try
+    {
+        // Get the items list from the database as map
+        auto itemsList = gameServices_.getItemManager().getItems();
+
+        nlohmann::json itemsListJson = nlohmann::json::array();
+
+        for (const auto &itemItem : itemsList)
+        {
+            const ItemDataStruct &itemData = itemItem.second;
+
+            nlohmann::json itemJson;
+            itemJson["id"] = itemData.id;
+            itemJson["name"] = itemData.name;
+            itemJson["slug"] = itemData.slug;
+            itemJson["description"] = itemData.description;
+            itemJson["isQuestItem"] = itemData.isQuestItem;
+            itemJson["itemType"] = itemData.itemType;
+            itemJson["itemTypeName"] = itemData.itemTypeName;
+            itemJson["itemTypeSlug"] = itemData.itemTypeSlug;
+
+            // Add attributes
+            nlohmann::json attributesArray = nlohmann::json::array();
+            for (const auto &attribute : itemData.attributes)
+            {
+                nlohmann::json attributeJson;
+                attributeJson["id"] = attribute.id;
+                attributeJson["item_id"] = attribute.item_id;
+                attributeJson["name"] = attribute.name;
+                attributeJson["slug"] = attribute.slug;
+                attributeJson["value"] = attribute.value;
+                attributesArray.push_back(attributeJson);
+            }
+            itemJson["attributes"] = attributesArray;
+
+            // Add the current item to the items list json
+            itemsListJson.push_back(itemJson);
+        }
+
+        // Build response
+        nlohmann::json response = ResponseBuilder()
+                                      .setHeader("message", "Items list success!")
+                                      .setHeader("hash", "")
+                                      .setHeader("clientId", clientID)
+                                      .setHeader("eventType", "getItemsList")
+                                      .setBody("itemsList", itemsListJson)
+                                      .build();
+
+        std::string responseData = networkManager_.generateResponseMessage("success", response);
+        networkManager_.sendResponse(clientSocket, responseData);
+    }
+    catch (const std::exception &e)
+    {
+        gameServices_.getLogger().logError("Error getting items list: " + std::string(e.what()));
+    }
+}
+
+// handle get mob loot info event
+void
+EventHandler::handleGetMobLootInfoEvent(const Event &event)
+{
+    // Retrieve the data from the event
+    const auto &data = event.getData();
+    int clientID = event.getClientID();
+    // get socket from the event
+    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
+
+    try
+    {
+        // Get the mob loot info from the database
+        auto mobLootInfo = gameServices_.getItemManager().getMobLootInfo();
+
+        nlohmann::json mobLootListJson = nlohmann::json::array();
+
+        for (const auto &mobLootEntry : mobLootInfo)
+        {
+            for (const auto &lootInfo : mobLootEntry.second)
+            {
+                nlohmann::json lootJson;
+                lootJson["id"] = lootInfo.id;
+                lootJson["mobId"] = lootInfo.mobId;
+                lootJson["itemId"] = lootInfo.itemId;
+                lootJson["dropChance"] = lootInfo.dropChance;
+
+                mobLootListJson.push_back(lootJson);
+            }
+        }
+
+        // Build response
+        nlohmann::json response = ResponseBuilder()
+                                      .setHeader("message", "Mob loot info success!")
+                                      .setHeader("hash", "")
+                                      .setHeader("clientId", clientID)
+                                      .setHeader("eventType", "getMobLootInfo")
+                                      .setBody("mobLootInfo", mobLootListJson)
+                                      .build();
+
+        std::string responseData = networkManager_.generateResponseMessage("success", response);
+        networkManager_.sendResponse(clientSocket, responseData);
+    }
+    catch (const std::exception &e)
+    {
+        gameServices_.getLogger().logError("Error getting mob loot info: " + std::string(e.what()));
     }
 }

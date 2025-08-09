@@ -98,6 +98,19 @@ Database::prepareDefaultQueries()
         connection_->prepare("get_mob_attributes", "SELECT mob_attributes.*, mob_attributes_mapping.value FROM mob_attributes_mapping "
                                                    "JOIN mob_attributes ON mob_attributes_mapping.attribute_id = mob_attributes.id "
                                                    "WHERE mob_attributes_mapping.mob_id = $1;");
+
+        // get items list
+        connection_->prepare("get_items", "SELECT items.*, item_types.name as item_type_name, item_types.slug as item_type_slug FROM items "
+                                          "JOIN item_types ON items.item_type = item_types.id "
+                                          ";");
+
+        // get items attributes
+        connection_->prepare("get_item_attributes", "SELECT item_attributes.*, item_attributes_mapping.value FROM item_attributes_mapping "
+                                                    "JOIN item_attributes ON item_attributes_mapping.attribute_id = item_attributes.id "
+                                                    "WHERE item_attributes_mapping.item_id = $1;");
+
+        // get mobs loot info
+        connection_->prepare("get_mobs_loot", "SELECT mob_loot_info.* FROM mob_loot_info; ");
     }
     else
     {
