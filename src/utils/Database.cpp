@@ -100,7 +100,10 @@ Database::prepareDefaultQueries()
                                                    "WHERE mob_attributes_mapping.mob_id = $1;");
 
         // get items list
-        connection_->prepare("get_items", "SELECT items.*, item_types.name as item_type_name, item_types.slug as item_type_slug FROM items "
+        connection_->prepare("get_items", "SELECT items.*, item_types.name as item_type_name, item_types.slug as item_type_slug, ir.name as rarity_name, ir.slug as rarity_slug,  COALESCE(es.name, '') as equip_slot_name, COALESCE(es.slug, '') as equip_slot_slug "
+                                          "FROM items "
+                                          "join items_rarity ir on ir.id = items.rarity_id "
+                                          "left join equip_slot es on es.id = items.equip_slot "
                                           "JOIN item_types ON items.item_type = item_types.id "
                                           ";");
 

@@ -924,6 +924,22 @@ EventHandler::handleGetItemsListEvent(const Event &event)
             itemJson["itemType"] = itemData.itemType;
             itemJson["itemTypeName"] = itemData.itemTypeName;
             itemJson["itemTypeSlug"] = itemData.itemTypeSlug;
+            itemJson["isContainer"] = itemData.isContainer;
+            itemJson["isDurable"] = itemData.isDurable;
+            itemJson["isTradable"] = itemData.isTradable;
+            itemJson["isEquippable"] = itemData.isEquippable;
+            itemJson["weight"] = itemData.weight;
+            itemJson["rarityId"] = itemData.rarityId;
+            itemJson["rarityName"] = itemData.rarityName;
+            itemJson["raritySlug"] = itemData.raritySlug;
+            itemJson["stackMax"] = itemData.stackMax;
+            itemJson["durabilityMax"] = itemData.durabilityMax;
+            itemJson["vendorPriceBuy"] = itemData.vendorPriceBuy;
+            itemJson["vendorPriceSell"] = itemData.vendorPriceSell;
+            itemJson["equipSlot"] = itemData.equipSlot;
+            itemJson["equipSlotName"] = itemData.equipSlotName;
+            itemJson["equipSlotSlug"] = itemData.equipSlotSlug;
+            itemJson["levelRequirement"] = itemData.levelRequirement;
 
             // Add attributes
             nlohmann::json attributesArray = nlohmann::json::array();

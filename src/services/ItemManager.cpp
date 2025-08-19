@@ -35,9 +35,25 @@ ItemManager::loadItems()
             itemData.slug = row["slug"].as<std::string>();
             itemData.description = row["description"].as<std::string>();
             itemData.isQuestItem = row["is_quest_item"].as<bool>();
+            itemData.isContainer = row["is_container"].as<bool>();
+            itemData.isDurable = row["is_durable"].as<bool>();
+            itemData.isTradable = row["is_tradable"].as<bool>();
+            itemData.isEquippable = row["is_equippable"].as<bool>();
             itemData.itemType = row["item_type"].as<int>();
             itemData.itemTypeName = row["item_type_name"].as<std::string>();
             itemData.itemTypeSlug = row["item_type_slug"].as<std::string>();
+            itemData.weight = row["weight"].as<float>();
+            itemData.rarityId = row["rarity_id"].as<int>();
+            itemData.rarityName = row["rarity_name"].as<std::string>();
+            itemData.raritySlug = row["rarity_slug"].as<std::string>();
+            itemData.stackMax = row["stack_max"].as<int>();
+            itemData.durabilityMax = row["durability_max"].as<int>();
+            itemData.vendorPriceBuy = row["vendor_price_buy"].as<int>();
+            itemData.vendorPriceSell = row["vendor_price_sell"].as<int>();
+            itemData.equipSlot = row["equip_slot"].as<int>();
+            itemData.equipSlotName = row["equip_slot_name"].as<std::string>();
+            itemData.equipSlotSlug = row["equip_slot_slug"].as<std::string>();
+            itemData.levelRequirement = row["level_requirement"].as<int>();
 
             // Load item attributes
             pqxx::result selectItemAttributes = database_.executeQueryWithTransaction(

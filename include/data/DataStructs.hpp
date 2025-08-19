@@ -69,6 +69,22 @@ struct ItemDataStruct
     int itemType = 0;
     std::string itemTypeName = "";
     std::string itemTypeSlug = "";
+    bool isContainer = false;
+    bool isDurable = false;
+    bool isTradable = true;
+    bool isEquippable = false;
+    float weight = 0.0f;
+    int rarityId = 1;
+    std::string rarityName = "";
+    std::string raritySlug = "";
+    int stackMax = 64;
+    int durabilityMax = 100;
+    int vendorPriceBuy = 1;
+    int vendorPriceSell = 1;
+    int equipSlot = 0;
+    std::string equipSlotName = "";
+    std::string equipSlotSlug = "";
+    int levelRequirement = 0;
     std::vector<ItemAttributeStruct> attributes;
 };
 
