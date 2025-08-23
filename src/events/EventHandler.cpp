@@ -928,6 +928,7 @@ EventHandler::handleGetItemsListEvent(const Event &event)
             itemJson["isDurable"] = itemData.isDurable;
             itemJson["isTradable"] = itemData.isTradable;
             itemJson["isEquippable"] = itemData.isEquippable;
+            itemJson["isHarvest"] = itemData.isHarvest;
             itemJson["weight"] = itemData.weight;
             itemJson["rarityId"] = itemData.rarityId;
             itemJson["rarityName"] = itemData.rarityName;

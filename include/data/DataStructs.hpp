@@ -73,6 +73,7 @@ struct ItemDataStruct
     bool isDurable = false;
     bool isTradable = true;
     bool isEquippable = false;
+    bool isHarvest = false; // New field for harvestable items
     float weight = 0.0f;
     int rarityId = 1;
     std::string rarityName = "";

@@ -39,6 +39,7 @@ ItemManager::loadItems()
             itemData.isDurable = row["is_durable"].as<bool>();
             itemData.isTradable = row["is_tradable"].as<bool>();
             itemData.isEquippable = row["is_equippable"].as<bool>();
+            itemData.isHarvest = row["is_harvest"].as<bool>();
             itemData.itemType = row["item_type"].as<int>();
             itemData.itemTypeName = row["item_type_name"].as<std::string>();
             itemData.itemTypeSlug = row["item_type_slug"].as<std::string>();
