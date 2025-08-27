@@ -61,9 +61,46 @@ Database::prepareDefaultQueries()
                                               "WHERE characters.owner_id = $1 AND characters.id = $2 LIMIT 1;");
 
         // get character attributes
-        connection_->prepare("get_character_attributes", "SELECT character_attributes.*, character_attributes_mapping.value FROM character_attributes_mapping "
-                                                         "JOIN character_attributes ON character_attributes_mapping.attribute_id = character_attributes.id "
-                                                         "WHERE character_attributes_mapping.character_id = $1;");
+        connection_->prepare("get_character_attributes", "SELECT entity_attributes.*, character_attributes.value FROM character_attributes "
+                                                         "JOIN entity_attributes ON character_attributes.attribute_id = entity_attributes.id "
+                                                         "WHERE character_attributes.character_id = $1;");
+
+        // get character skills
+        connection_->prepare("get_character_skills", "WITH cs as ( "
+                                                     "SELECT skill_id, current_level "
+                                                     "FROM character_skills "
+                                                     "WHERE character_id = $1 "
+                                                     ")"
+
+                                                     "SELECT "
+                                                     "s.name as skill_name, "
+                                                     "s.slug as skill_slug, "
+                                                     "sst.slug as scale_stat, "
+                                                     "ss.slug  as school,"
+                                                     "seft.slug as skill_effect_type, "
+                                                     "spm.skill_level, "
+
+                                                     "coalesce(MAX(CASE WHEN se.slug='coeff'     THEN sem.value END),0) AS coeff, "
+                                                     "coalesce(MAX(CASE WHEN se.slug='flat_add'  THEN sem.value END),0) AS flat_add, "
+
+                                                     "coalesce(MAX(CASE WHEN sp.slug='cooldown_ms' THEN spm.property_value END),0) AS cooldown_ms, "
+                                                     "coalesce(MAX(CASE WHEN sp.slug='gcd_ms'      THEN spm.property_value END),0) AS gcd_ms, "
+                                                     "coalesce(MAX(CASE WHEN sp.slug='cast_ms'     THEN spm.property_value END),0) AS cast_ms, "
+                                                     "coalesce(MAX(CASE WHEN sp.slug='cost_mp'     THEN spm.property_value END),0) AS cost_mp, "
+                                                     "coalesce(MAX(CASE WHEN sp.slug='max_range'   THEN spm.property_value END),0) AS max_range "
+
+                                                     "FROM cs "
+                                                     "join "
+                                                     "skills s ON s.id=cs.skill_id "
+                                                     "JOIN skill_scale_type sst ON sst.id = s.scale_stat_id "
+                                                     "JOIN skill_school ss ON ss.id = s.school_id "
+                                                     "JOIN skill_effect_instances sei ON sei.skill_id = s.id "
+                                                     "JOIN skill_effects_mapping sem ON sem.effect_instance_id = sei.id AND sem.level=cs.current_level "
+                                                     "JOIN skill_effects se ON se.id = sem.effect_id "
+                                                     "JOIN skill_effects_type seft ON seft.id = se.effect_type_id "
+                                                     "LEFT JOIN skill_properties_mapping spm ON spm.skill_id = s.id AND spm.skill_level=cs.current_level "
+                                                     "LEFT JOIN skill_properties sp ON sp.id = spm.property_id "
+                                                     "GROUP BY s.id, s.name, s.slug, sst.slug, ss.slug, seft.slug, spm.skill_level;");
 
         // get character exp for level
         connection_->prepare("get_character_exp_for_next_level", "SELECT experience_points FROM exp_for_level WHERE level = $1 + 1;");
@@ -95,9 +132,46 @@ Database::prepareDefaultQueries()
                                          ";");
 
         // get mob attributes
-        connection_->prepare("get_mob_attributes", "SELECT mob_attributes.*, mob_attributes_mapping.value FROM mob_attributes_mapping "
-                                                   "JOIN mob_attributes ON mob_attributes_mapping.attribute_id = mob_attributes.id "
-                                                   "WHERE mob_attributes_mapping.mob_id = $1;");
+        connection_->prepare("get_mob_attributes", "SELECT entity_attributes.*, mob_attributes.value FROM mob_attributes "
+                                                   "JOIN entity_attributes ON mob_attributes.attribute_id = entity_attributes.id "
+                                                   "WHERE mob_attributes.mob_id = $1;");
+
+        // get mob skills
+        connection_->prepare("get_mob_skills", "WITH cs as ( "
+                                               "SELECT skill_id, current_level "
+                                               "FROM mob_skills "
+                                               "WHERE mob_id = $1 "
+                                               ")"
+
+                                               "SELECT "
+                                               "s.name as skill_name, "
+                                               "s.slug as skill_slug, "
+                                               "sst.slug as scale_stat, "
+                                               "ss.slug  as school,"
+                                               "seft.slug as skill_effect_type, "
+                                               "spm.skill_level, "
+
+                                               "coalesce(MAX(CASE WHEN se.slug='coeff'     THEN sem.value END),0) AS coeff, "
+                                               "coalesce(MAX(CASE WHEN se.slug='flat_add'  THEN sem.value END),0) AS flat_add, "
+
+                                               "coalesce(MAX(CASE WHEN sp.slug='cooldown_ms' THEN spm.property_value END),0) AS cooldown_ms, "
+                                               "coalesce(MAX(CASE WHEN sp.slug='gcd_ms'      THEN spm.property_value END),0) AS gcd_ms, "
+                                               "coalesce(MAX(CASE WHEN sp.slug='cast_ms'     THEN spm.property_value END),0) AS cast_ms, "
+                                               "coalesce(MAX(CASE WHEN sp.slug='cost_mp'     THEN spm.property_value END),0) AS cost_mp, "
+                                               "coalesce(MAX(CASE WHEN sp.slug='max_range'   THEN spm.property_value END),0) AS max_range "
+
+                                               "FROM cs "
+                                               "join "
+                                               "skills s ON s.id=cs.skill_id "
+                                               "JOIN skill_scale_type sst ON sst.id = s.scale_stat_id "
+                                               "JOIN skill_school ss ON ss.id = s.school_id "
+                                               "JOIN skill_effect_instances sei ON sei.skill_id = s.id "
+                                               "JOIN skill_effects_mapping sem ON sem.effect_instance_id = sei.id AND sem.level=cs.current_level "
+                                               "JOIN skill_effects se ON se.id = sem.effect_id "
+                                               "JOIN skill_effects_type seft ON seft.id = se.effect_type_id "
+                                               "LEFT JOIN skill_properties_mapping spm ON spm.skill_id = s.id AND spm.skill_level=cs.current_level "
+                                               "LEFT JOIN skill_properties sp ON sp.id = spm.property_id "
+                                               "GROUP BY s.id, s.name, s.slug, sst.slug, ss.slug, seft.slug, spm.skill_level;");
 
         // get items list
         connection_->prepare("get_items", "SELECT items.*, item_types.name as item_type_name, item_types.slug as item_type_slug, ir.name as rarity_name, ir.slug as rarity_slug,  COALESCE(es.name, '') as equip_slot_name, COALESCE(es.slug, '') as equip_slot_slug "

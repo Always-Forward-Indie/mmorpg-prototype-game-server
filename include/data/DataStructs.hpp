@@ -1,4 +1,5 @@
 #pragma once
+#include "SkillStructs.hpp"
 #include <boost/asio.hpp>
 #include <chrono>
 #include <string>
@@ -132,6 +133,7 @@ struct CharacterDataStruct
     std::string characterRace = "";
     PositionStruct characterPosition;
     std::vector<CharacterAttributeStruct> attributes;
+    std::vector<SkillStruct> skills;
 };
 
 struct ClientDataStruct
@@ -145,7 +147,7 @@ struct ClientDataStruct
 struct MobDataStruct
 {
     int id = 0;
-    std::string uid = "";
+    int uid = 0;
     int zoneId = 0;
     std::string name = "";
     std::string slug = "";
@@ -156,6 +158,7 @@ struct MobDataStruct
     int maxHealth = 0;
     int maxMana = 0;
     std::vector<MobAttributeStruct> attributes;
+    std::vector<SkillStruct> skills;
     PositionStruct position;
     bool isAggressive = false;
     bool isDead = false;
@@ -189,7 +192,7 @@ struct SpawnZoneStruct
     int spawnMobId = 0;
     int spawnCount = 0;
     int spawnedMobsCount = 0;
-    std::vector<std::string> spawnedMobsUIDList;
+    std::vector<int> spawnedMobsUIDList;
     std::vector<MobDataStruct> spawnedMobsList;
     std::chrono::seconds respawnTime; // Represents respawn time in seconds
 };

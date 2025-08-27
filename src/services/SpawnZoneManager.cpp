@@ -87,34 +87,3 @@ SpawnZoneManager::getMobsInZone(int zoneId)
         return std::vector<MobDataStruct>();
     }
 }
-
-MobDataStruct
-SpawnZoneManager::getMobByUID(std::string mobUID)
-{
-    for (const auto &zone : mobSpawnZones_)
-    {
-        for (const auto &mob : zone.second.spawnedMobsList)
-        {
-            if (mob.uid == mobUID)
-            {
-                return mob;
-            }
-        }
-    }
-    return MobDataStruct();
-}
-
-void
-SpawnZoneManager::removeMobByUID(std::string mobUID)
-{
-    for (auto &zone : mobSpawnZones_)
-    {
-        auto it = std::find_if(zone.second.spawnedMobsList.begin(), zone.second.spawnedMobsList.end(), [&mobUID](const MobDataStruct &mob)
-            { return mob.uid == mobUID; });
-        if (it != zone.second.spawnedMobsList.end())
-        {
-            zone.second.spawnedMobsList.erase(it);
-            // Assuming mobUID is unique, no need to search for more instances
-        }
-    }
-}

@@ -21,10 +21,6 @@ class SpawnZoneManager
     MobDataStruct getMobByUID(std::string mobUID);
     void removeMobByUID(std::string mobUID);
 
-    void updateMobPosition(std::string mobUID, PositionStruct position);
-    void updateMobHealth(std::string mobUID, int health);
-    void updateMobMana(std::string mobUID, int mana);
-
   private:
     Database &database_;
     Logger &logger_;

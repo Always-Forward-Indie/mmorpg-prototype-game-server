@@ -186,6 +186,29 @@ EventHandler::handleGetCharacterDataEvent(const Event &event)
                 attributes.push_back(attributeData);
             }
 
+            // Create skills array
+            nlohmann::json skills = nlohmann::json::array();
+
+            for (const auto &skill : characterData.skills)
+            {
+                nlohmann::json skillData;
+                skillData["skillName"] = skill.skillName;
+                skillData["skillSlug"] = skill.skillSlug;
+                skillData["scaleStat"] = skill.scaleStat;
+                skillData["school"] = skill.school;
+                skillData["skillEffectType"] = skill.skillEffectType;
+                skillData["skillLevel"] = skill.skillLevel;
+                skillData["coeff"] = skill.coeff;
+                skillData["flatAdd"] = skill.flatAdd;
+                skillData["cooldownMs"] = skill.cooldownMs;
+                skillData["gcdMs"] = skill.gcdMs;
+                skillData["castMs"] = skill.castMs;
+                skillData["costMp"] = skill.costMp;
+                skillData["maxRange"] = skill.maxRange;
+
+                skills.push_back(skillData);
+            }
+
             // Add the message to the response
             response = builder
                            .setHeader("message", "Join Game Character success for Client!")
@@ -208,6 +231,7 @@ EventHandler::handleGetCharacterDataEvent(const Event &event)
                            .setBody("posZ", characterData.characterPosition.positionZ)
                            .setBody("rotZ", characterData.characterPosition.rotationZ)
                            .setBody("attributesData", attributes)
+                           .setBody("skillsData", skills)
                            .build();
             // Prepare a response message
             std::string responseData = networkManager_.generateResponseMessage("success", response);
@@ -642,6 +666,70 @@ EventHandler::handleGetMobsListEvent(const Event &event)
 
         // Send the response to the client
         networkManager_.sendResponse(clientSocket, responseData);
+
+        // After sending mobs list, send mobs skills
+        nlohmann::json mobsSkillsJson;
+        for (const auto &mobItem : mobsListMap)
+        {
+            const MobDataStruct &mobData = mobItem.second;
+
+            // Get skills for this mob from database
+            auto mobSkills = gameServices_.getCharacterManager().getMobSkillsFromDatabase(
+                gameServices_.getDatabase(), mobData.id);
+
+            if (!mobSkills.empty())
+            {
+                nlohmann::json mobSkillsEntry;
+                mobSkillsEntry["mobId"] = mobData.id;
+
+                nlohmann::json skillsArray;
+                for (const auto &skill : mobSkills)
+                {
+                    nlohmann::json skillJson;
+                    skillJson["skillName"] = skill.skillName;
+                    skillJson["skillSlug"] = skill.skillSlug;
+                    skillJson["scaleStat"] = skill.scaleStat;
+                    skillJson["school"] = skill.school;
+                    skillJson["skillEffectType"] = skill.skillEffectType;
+                    skillJson["skillLevel"] = skill.skillLevel;
+                    skillJson["coeff"] = skill.coeff;
+                    skillJson["flatAdd"] = skill.flatAdd;
+                    skillJson["cooldownMs"] = skill.cooldownMs;
+                    skillJson["gcdMs"] = skill.gcdMs;
+                    skillJson["castMs"] = skill.castMs;
+                    skillJson["costMp"] = skill.costMp;
+                    skillJson["maxRange"] = skill.maxRange;
+                    skillsArray.push_back(skillJson);
+                }
+
+                mobSkillsEntry["skills"] = skillsArray;
+                mobsSkillsJson.push_back(mobSkillsEntry);
+            }
+        }
+
+        // Send mobs skills if any exist
+        if (!mobsSkillsJson.empty())
+        {
+            nlohmann::json skillsResponse;
+            ResponseBuilder skillsBuilder;
+
+            skillsResponse = skillsBuilder
+                                 .setHeader("message", "Getting mobs skills success!")
+                                 .setHeader("hash", "")
+                                 .setHeader("clientId", clientID)
+                                 .setHeader("eventType", "setMobsSkills")
+                                 .setBody("mobsSkills", mobsSkillsJson)
+                                 .build();
+
+            std::string skillsResponseData = networkManager_.generateResponseMessage("success", skillsResponse);
+            networkManager_.sendResponse(clientSocket, skillsResponseData);
+
+            gameServices_.getLogger().log("Sent skills for " + std::to_string(mobsSkillsJson.size()) + " mobs", GREEN);
+        }
+        else
+        {
+            gameServices_.getLogger().log("No mob skills found to send", YELLOW);
+        }
     }
     catch (const std::bad_variant_access &ex)
     {

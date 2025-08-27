@@ -64,6 +64,7 @@ set(HEADER_FILES
     include/events/EventHandler.hpp
     include/events/EventDispatcher.hpp
     include/data/DataStructs.hpp
+    include/data/SkillStructs.hpp
     include/data/SpecialStructs.hpp
     include/utils/Scheduler.hpp
     include/utils/ThreadPool.hpp
