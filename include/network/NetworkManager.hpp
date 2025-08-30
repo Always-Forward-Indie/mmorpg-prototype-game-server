@@ -15,30 +15,31 @@
 #include "utils/Logger.hpp"
 
 class GameServer;
-class EventDispatcher;  // ✅ Forward declare EventDispatcher
-class MessageHandler;   // ✅ Forward declare MessageHandler
+class EventDispatcher; // ✅ Forward declare EventDispatcher
+class MessageHandler;  // ✅ Forward declare MessageHandler
 
 class NetworkManager
 {
-   public:
-    NetworkManager(EventQueue& eventQueue, EventQueue& eventQueuePing, std::tuple<DatabaseConfig, GameServerConfig>& configs, Logger& logger);
+  public:
+    NetworkManager(EventQueue &eventQueue, EventQueue &eventQueuePing, std::tuple<DatabaseConfig, GameServerConfig> &configs, Logger &logger);
     ~NetworkManager();
     void startAccept();
     void startIOEventLoop();
-    void sendResponse(std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket, const std::string& responseString);
-    std::string generateResponseMessage(const std::string& status, const nlohmann::json& message);
-    void setGameServer(GameServer* GameServer);
+    void sendResponse(std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket, const std::string &responseString);
+    std::string generateResponseMessage(const std::string &status, const nlohmann::json &message);
+    std::string generateResponseMessage(const std::string &status, const nlohmann::json &message, const TimestampStruct &timestamps);
+    void setGameServer(GameServer *GameServer);
 
-   private:
+  private:
     static constexpr size_t max_length = 1024;
     boost::asio::io_context io_context_;
     boost::asio::ip::tcp::acceptor acceptor_;
     std::vector<std::thread> threadPool_;
-    std::tuple<DatabaseConfig, GameServerConfig>& configs_;
-    GameServer* gameServer_;
-    EventQueue& eventQueue_;
-    EventQueue& eventQueuePing_;
-    Logger& logger_;
+    std::tuple<DatabaseConfig, GameServerConfig> &configs_;
+    GameServer *gameServer_;
+    EventQueue &eventQueue_;
+    EventQueue &eventQueuePing_;
+    Logger &logger_;
     JSONParser jsonParser_;
 
     // These are declared but NOT initialized here!

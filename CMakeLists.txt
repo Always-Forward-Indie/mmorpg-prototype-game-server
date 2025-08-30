@@ -40,13 +40,13 @@ set(SOURCE_FILES
     src/utils/Database.cpp
     src/utils/Config.cpp
     src/utils/TimeUtils.cpp
+    src/utils/TimestampUtils.cpp
     src/handlers/MessageHandler.cpp
     # ... other source files
 )
 
 # Define your project's header files
 set(HEADER_FILES
-
     include/game_server/GameServer.hpp
     include/services/Authenticator.hpp
     include/services/ClientManager.hpp
@@ -77,6 +77,7 @@ set(HEADER_FILES
     include/utils/Database.hpp
     include/utils/Config.hpp
     include/utils/TimeUtils.hpp
+    include/utils/TimestampUtils.hpp
     include/handlers/MessageHandler.hpp
     # ... other header files
 )

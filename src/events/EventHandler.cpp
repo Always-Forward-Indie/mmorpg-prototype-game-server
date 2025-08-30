@@ -1,4 +1,5 @@
 #include "events/EventHandler.hpp"
+#include "utils/TimestampUtils.hpp"
 
 #include "events/Event.hpp"
 
@@ -934,6 +935,9 @@ EventHandler::dispatchEvent(const Event &event)
     switch (event.getType())
     {
     // character/client events
+    case Event::PING_CLIENT:
+        handlePingClientEvent(event);
+        break;
     case Event::JOIN_PLAYER_CLIENT:
         handleJoinPlayerClientEvent(event);
         break;
@@ -1112,5 +1116,79 @@ EventHandler::handleGetMobLootInfoEvent(const Event &event)
     catch (const std::exception &e)
     {
         gameServices_.getLogger().logError("Error getting mob loot info: " + std::string(e.what()));
+    }
+}
+
+// handle ping client event
+void
+EventHandler::handlePingClientEvent(const Event &event)
+{
+    // Retrieve the data from the event
+    const auto &data = event.getData();
+    int clientID = event.getClientID();
+
+    // get socket from the event
+    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
+
+    gameServices_.getLogger().log("Handling PING event for client ID: " + std::to_string(clientID), GREEN);
+
+    if (!clientSocket || !clientSocket->is_open())
+    {
+        gameServices_.getLogger().log("Skipping ping - socket is closed for client ID: " + std::to_string(clientID), GREEN);
+        return;
+    }
+
+    try
+    {
+        // Try to extract the data
+        if (std::holds_alternative<ClientDataStruct>(data))
+        {
+            ClientDataStruct passedClientData = std::get<ClientDataStruct>(data);
+
+            // Check if we have timestamps (for request-response lag compensation)
+            TimestampStruct timestamps;
+            bool hasTimestamps = false;
+
+            try
+            {
+                timestamps = event.getTimestamps();
+                hasTimestamps = true;
+            }
+            catch (const std::exception &)
+            {
+                // Event doesn't have timestamps, create new ones
+                timestamps = TimestampUtils::createTimestamp();
+                hasTimestamps = true;
+            }
+
+            // Prepare a response message
+            nlohmann::json response;
+            ResponseBuilder builder;
+
+            response = builder
+                           .setHeader("message", "Pong!")
+                           .setHeader("hash", passedClientData.hash)
+                           .setHeader("clientId", passedClientData.clientId)
+                           .setHeader("eventType", "pingClient")
+                           .setTimestamps(timestamps)
+                           .setBody("", "")
+                           .build();
+
+            // Prepare a response message with timestamps
+            std::string responseData = networkManager_.generateResponseMessage("success", response, timestamps);
+
+            // Send the response to the client
+            networkManager_.sendResponse(clientSocket, responseData);
+
+            gameServices_.getLogger().log("Sending PING response with timestamps to Client ID: " + std::to_string(clientID), GREEN);
+        }
+        else
+        {
+            gameServices_.getLogger().logError("Error extracting data from ping event for client ID: " + std::to_string(clientID));
+        }
+    }
+    catch (const std::bad_variant_access &ex)
+    {
+        gameServices_.getLogger().logError("Variant access error in ping event for client ID " + std::to_string(clientID) + ": " + std::string(ex.what()));
     }
 }

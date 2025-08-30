@@ -5,6 +5,18 @@
 #include <string>
 #include <vector>
 
+/**
+ * @brief Timestamp structure for lag compensation
+ * Contains timing information for client-server communication and request synchronization
+ */
+struct TimestampStruct
+{
+    long long serverRecvMs = 0;     // When server received the packet (milliseconds since epoch)
+    long long serverSendMs = 0;     // When server sends the response (milliseconds since epoch)
+    long long clientSendMsEcho = 0; // Echo of client timestamp from original request (milliseconds since epoch)
+    std::string requestId = "";     // Echo of client requestId for packet synchronization (format: sync_timestamp_session_sequence_hash)
+};
+
 struct PositionStruct
 {
     float positionX = 0;

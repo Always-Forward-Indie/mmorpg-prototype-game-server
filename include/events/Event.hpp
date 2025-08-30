@@ -53,6 +53,8 @@ class Event
     }; // Define more event types as needed
     Event() = default; // Default constructor
     Event(EventType type, int clientID, const EventData data, std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket);
+    Event(EventType type, int clientID, const EventData data, const TimestampStruct &timestamps);
+    Event(EventType type, int clientID, const EventData data, std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket, const TimestampStruct &timestamps);
     // Event(EventType type, int clientID, const EventData data);
 
     // Get Event Data
@@ -63,10 +65,16 @@ class Event
     std::shared_ptr<boost::asio::ip::tcp::socket> getClientSocket() const;
     // Get Event Type
     EventType getType() const;
+    // Get Timestamps
+    const TimestampStruct &getTimestamps() const;
+    // Check if event has timestamps
+    bool hasTimestamps() const;
 
   private:
     int clientID;
     EventType type;
     EventData eventData;
     std::shared_ptr<boost::asio::ip::tcp::socket> currentClientSocket;
+    TimestampStruct timestamps_;
+    bool hasTimestamps_ = false;
 };

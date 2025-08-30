@@ -10,12 +10,13 @@ class EventDispatcher
     EventDispatcher(EventQueue &eventQueue, EventQueue &eventQueuePing, GameServer *gameServer, Logger &logger);
 
     void dispatch(const std::string &eventType, const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
+    void handlePing(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
+    void dispatchPingDirectly(const Event &pingEvent);
 
   private:
     void handleJoinGame(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
     void handleMoveCharacter(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
     void handleDisconnect(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
-    void handlePing(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
     void handleGetSpawnZones(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
     void handleGetConnectedClients(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
     void handleChunkServerConnection(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);

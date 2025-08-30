@@ -74,8 +74,8 @@ ClientSession::processMessage(const std::string &message)
 {
     try
     {
-        // Parse message using MessageHandler
-        auto [eventType, clientData, chunkData, characterData, positionData, messageStruct] = messageHandler_.parseMessage(message);
+        // Parse message using MessageHandler with timestamps for all request-response packets
+        auto [eventType, clientData, chunkData, characterData, positionData, messageStruct, timestamps] = messageHandler_.parseMessageWithTimestamps(message);
 
         // Set additional client data
         clientData.socket = socket_;
@@ -89,8 +89,18 @@ ClientSession::processMessage(const std::string &message)
             .messageStruct = messageStruct,
         };
 
-        // Dispatch event
-        eventDispatcher_.dispatch(eventType, payload, socket_);
+        // For ping events, use special handling with timestamps
+        if (eventType == "pingClient")
+        {
+            // Create event with timestamps and socket for ping and push directly to ping queue
+            Event pingEvent(Event::PING_CLIENT, clientData.clientId, clientData, socket_, timestamps);
+            eventDispatcher_.dispatchPingDirectly(pingEvent);
+        }
+        else
+        {
+            // Dispatch other events normally
+            eventDispatcher_.dispatch(eventType, payload, socket_);
+        }
     }
     catch (const nlohmann::json::parse_error &e)
     {

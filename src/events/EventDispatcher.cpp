@@ -33,6 +33,10 @@ EventDispatcher::dispatch(const std::string &eventType,
     {
         handleDisconnect(payload, socket);
     }
+    else if (eventType == "pingClient")
+    {
+        handlePing(payload, socket);
+    }
     else if (eventType == "getSpawnZones")
     {
         handleGetSpawnZones(payload, socket);
@@ -144,4 +148,23 @@ EventDispatcher::handleGetMobData(
     eventQueue_.pushBatch(eventsBatch_);
     eventsBatch_.clear();
     //}
+}
+
+void
+EventDispatcher::handlePing(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    Event pingEvent(Event::PING_CLIENT, payload.clientData.clientId, payload.clientData, socket);
+    eventQueuePing_.push(pingEvent);
+
+    logger_.log("Ping event dispatched for client " + std::to_string(payload.clientData.clientId), GREEN);
+}
+
+void
+EventDispatcher::dispatchPingDirectly(const Event &pingEvent)
+{
+    eventQueuePing_.push(pingEvent);
+
+    logger_.log("Ping event with timestamps dispatched for client " + std::to_string(pingEvent.getClientID()), GREEN);
 }
