@@ -1,4 +1,6 @@
 #include "events/EventHandler.hpp"
+#include "data/DataStructs.hpp"
+#include "utils/TerminalColors.hpp"
 #include "utils/TimestampUtils.hpp"
 
 #include "events/Event.hpp"
@@ -457,6 +459,10 @@ EventHandler::handleJoinChunkServerEvent(const Event &event)
             // load mob loot info
             Event mobLootEvent(Event::GET_MOB_LOOT_INFO, clientID, MobLootInfoStruct(), clientSocket);
             dispatchEvent(mobLootEvent);
+
+            // load experience level table
+            Event expLevelTableEvent(Event::GET_EXP_LEVEL_TABLE, clientID, ClientDataStruct(), clientSocket);
+            dispatchEvent(expLevelTableEvent);
         }
 
         // Add the message to the response
@@ -629,6 +635,8 @@ EventHandler::handleGetMobsListEvent(const Event &event)
             mobJson["slug"] = mobData.slug;
             mobJson["race"] = mobData.raceName;
             mobJson["level"] = mobData.level;
+            mobJson["baseExperience"] = mobData.baseExperience;
+            mobJson["radius"] = mobData.radius;
             mobJson["currentHealth"] = mobData.currentHealth;
             mobJson["currentMana"] = mobData.currentMana;
             mobJson["maxMana"] = mobData.maxMana;
@@ -773,6 +781,8 @@ EventHandler::handleGetMobDataEvent(const Event &event)
                 mobJson["slug"] = mobData.slug;
                 mobJson["race"] = mobData.raceName;
                 mobJson["level"] = mobData.level;
+                mobJson["baseExperience"] = mobData.baseExperience;
+                mobJson["radius"] = mobData.radius;
                 mobJson["currentHealth"] = mobData.currentHealth;
                 mobJson["currentMana"] = mobData.currentMana;
                 mobJson["maxMana"] = mobData.maxMana;
@@ -966,6 +976,12 @@ EventHandler::dispatchEvent(const Event &event)
         break;
     case Event::GET_MOB_DATA:
         handleGetMobDataEvent(event);
+        break;
+    case Event::GET_CHARACTER_EXP_FOR_LEVEL:
+        handleGetCharacterExpForLevelEvent(event);
+        break;
+    case Event::GET_EXP_LEVEL_TABLE:
+        handleGetExpLevelTableEvent(event);
         break;
 
     // items events
@@ -1190,5 +1206,202 @@ EventHandler::handlePingClientEvent(const Event &event)
     catch (const std::bad_variant_access &ex)
     {
         gameServices_.getLogger().logError("Variant access error in ping event for client ID " + std::to_string(clientID) + ": " + std::string(ex.what()));
+    }
+}
+
+void
+EventHandler::handleGetCharacterExpForLevelEvent(const Event &event)
+{
+    const auto &data = event.getData();
+    int clientID = event.getClientID();
+    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
+
+    try
+    {
+        gameServices_.getLogger().log("Processing getCharacterExpForLevel request from chunk server", BLUE);
+
+        // Извлекаем данные клиента из события
+        if (std::holds_alternative<ClientDataStruct>(data))
+        {
+            ClientDataStruct clientData = std::get<ClientDataStruct>(data);
+
+            // Парсим JSON данные из запроса, чтобы получить уровень
+            std::string requestData = clientData.hash; // Используем hash поле для передачи JSON данных
+            nlohmann::json requestJson = nlohmann::json::parse(requestData);
+
+            int level = requestJson["body"]["level"].get<int>();
+
+            gameServices_.getLogger().log("Requesting experience points for level: " + std::to_string(level), BLUE);
+
+            // Получаем опыт для указанного уровня из базы данных
+            int experiencePoints = 0;
+            try
+            {
+                pqxx::work txn(gameServices_.getDatabase().getConnection());
+                auto result = gameServices_.getDatabase().executeQueryWithTransaction(txn, "get_character_exp_for_next_level", {level});
+
+                if (!result.empty())
+                {
+                    experiencePoints = result[0][0].as<int>();
+                    gameServices_.getLogger().log("Found experience points for level " + std::to_string(level) + ": " +
+                                                      std::to_string(experiencePoints),
+                        GREEN);
+                }
+                else
+                {
+                    gameServices_.getLogger().logError("No experience data found for level " + std::to_string(level));
+                    experiencePoints = 0;
+                }
+
+                txn.commit();
+            }
+            catch (const std::exception &e)
+            {
+                gameServices_.getLogger().logError("Database error getting experience for level " +
+                                                   std::to_string(level) + ": " + std::string(e.what()));
+                experiencePoints = 0;
+            }
+
+            // Подготавливаем ответ
+            ResponseBuilder builder;
+            nlohmann::json response = builder
+                                          .setHeader("message", "Experience for level retrieved successfully!")
+                                          .setHeader("hash", clientData.hash)
+                                          .setHeader("clientId", clientData.clientId)
+                                          .setHeader("eventType", "getCharacterExpForLevel")
+                                          .setBody("level", level)
+                                          .setBody("experiencePoints", experiencePoints)
+                                          .build();
+
+            // Отправляем ответ чанк-серверу
+            std::string responseData = networkManager_.generateResponseMessage("success", response);
+            networkManager_.sendResponse(clientSocket, responseData);
+
+            gameServices_.getLogger().log("Sent experience data for level " + std::to_string(level) +
+                                              " to chunk server",
+                GREEN);
+        }
+        else
+        {
+            gameServices_.getLogger().logError("Error extracting client data from getCharacterExpForLevel event");
+
+            // Отправляем ошибку
+            ResponseBuilder builder;
+            nlohmann::json errorResponse = builder
+                                               .setHeader("message", "Error processing getCharacterExpForLevel request!")
+                                               .setHeader("eventType", "getCharacterExpForLevel")
+                                               .build();
+
+            std::string responseData = networkManager_.generateResponseMessage("error", errorResponse);
+            networkManager_.sendResponse(clientSocket, responseData);
+        }
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("Exception in handleGetCharacterExpForLevelEvent: " + std::string(ex.what()));
+
+        // Отправляем ошибку
+        ResponseBuilder builder;
+        nlohmann::json errorResponse = builder
+                                           .setHeader("message", "Server error processing getCharacterExpForLevel request!")
+                                           .setHeader("eventType", "getCharacterExpForLevel")
+                                           .build();
+
+        std::string responseData = networkManager_.generateResponseMessage("error", errorResponse);
+        networkManager_.sendResponse(clientSocket, responseData);
+    }
+}
+
+void
+EventHandler::handleGetExpLevelTableEvent(const Event &event)
+{
+    const auto &data = event.getData();
+    int clientID = event.getClientID();
+    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
+
+    try
+    {
+        gameServices_.getLogger().log("Processing getExpLevelTable request from chunk server", BLUE);
+
+        // Извлекаем данные клиента из события
+        if (std::holds_alternative<ClientDataStruct>(data))
+        {
+            ClientDataStruct clientData = std::get<ClientDataStruct>(data);
+
+            gameServices_.getLogger().log("Requesting experience level table from database", BLUE);
+
+            // Получаем всю таблицу опыта из базы данных
+            nlohmann::json expLevelTable = nlohmann::json::array();
+            try
+            {
+                pqxx::work txn(gameServices_.getDatabase().getConnection());
+                auto result = gameServices_.getDatabase().executeQueryWithTransaction(txn, "get_exp_level_table", {});
+
+                for (const auto &row : result)
+                {
+                    nlohmann::json levelEntry;
+                    levelEntry["level"] = row["level"].as<int>();
+                    levelEntry["experiencePoints"] = row["experience_points"].as<int>();
+                    expLevelTable.push_back(levelEntry);
+                }
+
+                txn.commit();
+
+                gameServices_.getLogger().log("Retrieved " + std::to_string(expLevelTable.size()) +
+                                                  " experience level entries from database",
+                    GREEN);
+            }
+            catch (const std::exception &e)
+            {
+                gameServices_.getLogger().logError("Database error getting experience level table: " + std::string(e.what()));
+                expLevelTable = nlohmann::json::array(); // Пустой массив в случае ошибки
+            }
+
+            // Подготавливаем ответ
+            ResponseBuilder builder;
+            nlohmann::json response = builder
+                                          .setHeader("message", "Experience level table retrieved successfully!")
+                                          .setHeader("hash", clientData.hash)
+                                          .setHeader("clientId", clientData.clientId)
+                                          .setHeader("eventType", "getExpLevelTable")
+                                          .setBody("expLevelTable", expLevelTable)
+                                          .build();
+
+            // Отправляем ответ чанк-серверу
+            std::string responseData = networkManager_.generateResponseMessage("success", response);
+            networkManager_.sendResponse(clientSocket, responseData);
+
+            gameServices_.getLogger().log("Sent experience level table (" + std::to_string(expLevelTable.size()) +
+                                              " entries) to chunk server",
+                GREEN);
+        }
+        else
+        {
+            gameServices_.getLogger().logError("Error extracting client data from getExpLevelTable event");
+
+            // Отправляем ошибку
+            ResponseBuilder builder;
+            nlohmann::json errorResponse = builder
+                                               .setHeader("message", "Error processing getExpLevelTable request!")
+                                               .setHeader("eventType", "getExpLevelTable")
+                                               .build();
+
+            std::string responseData = networkManager_.generateResponseMessage("error", errorResponse);
+            networkManager_.sendResponse(clientSocket, responseData);
+        }
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("Exception in handleGetExpLevelTableEvent: " + std::string(ex.what()));
+
+        // Отправляем ошибку
+        ResponseBuilder builder;
+        nlohmann::json errorResponse = builder
+                                           .setHeader("message", "Server error processing getExpLevelTable request!")
+                                           .setHeader("eventType", "getExpLevelTable")
+                                           .build();
+
+        std::string responseData = networkManager_.generateResponseMessage("error", errorResponse);
+        networkManager_.sendResponse(clientSocket, responseData);
     }
 }

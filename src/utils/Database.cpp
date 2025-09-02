@@ -105,6 +105,9 @@ Database::prepareDefaultQueries()
         // get character exp for level
         connection_->prepare("get_character_exp_for_next_level", "SELECT experience_points FROM exp_for_level WHERE level = $1 + 1;");
 
+        // get experience for level data
+        connection_->prepare("get_exp_level_table", "SELECT experience_points, level FROM exp_for_level;");
+
         connection_->prepare("set_basic_character_data", "UPDATE characters "
                                                          "SET level = $2, experience_points = $3, current_health = $4, current_mana = $5 "
                                                          "WHERE id = $1;");

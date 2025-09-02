@@ -45,6 +45,14 @@ EventDispatcher::dispatch(const std::string &eventType,
     {
         handleGetMobData(payload, socket);
     }
+    else if (eventType == "getCharacterExpForLevel")
+    {
+        handleGetCharacterExpForLevel(payload, socket);
+    }
+    else if (eventType == "getExpLevelTable")
+    {
+        handleGetExpLevelTable(payload, socket);
+    }
     else
     {
         logger_.logError("Unknown event type: " + eventType, RED);
@@ -148,6 +156,30 @@ EventDispatcher::handleGetMobData(
     eventQueue_.pushBatch(eventsBatch_);
     eventsBatch_.clear();
     //}
+}
+
+void
+EventDispatcher::handleGetCharacterExpForLevel(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    Event getCharacterExpForLevelEvent(Event::GET_CHARACTER_EXP_FOR_LEVEL, payload.clientData.clientId, payload.clientData, socket);
+    eventsBatch_.push_back(getCharacterExpForLevelEvent);
+
+    eventQueue_.pushBatch(eventsBatch_);
+    eventsBatch_.clear();
+}
+
+void
+EventDispatcher::handleGetExpLevelTable(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    Event getExpLevelTableEvent(Event::GET_EXP_LEVEL_TABLE, payload.clientData.clientId, payload.clientData, socket);
+    eventsBatch_.push_back(getExpLevelTableEvent);
+
+    eventQueue_.pushBatch(eventsBatch_);
+    eventsBatch_.clear();
 }
 
 void

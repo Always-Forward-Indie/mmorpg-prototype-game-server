@@ -22,6 +22,8 @@ class EventDispatcher
     void handleChunkServerConnection(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
 
     void handleGetMobData(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
+    void handleGetCharacterExpForLevel(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
+    void handleGetExpLevelTable(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
 
     EventQueue &eventQueue_;
     EventQueue &eventQueuePing_;

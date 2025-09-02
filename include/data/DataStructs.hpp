@@ -172,6 +172,8 @@ struct MobDataStruct
     std::vector<MobAttributeStruct> attributes;
     std::vector<SkillStruct> skills;
     PositionStruct position;
+    int baseExperience = 0;
+    int radius = 0;
     bool isAggressive = false;
     bool isDead = false;
 
@@ -207,4 +209,14 @@ struct SpawnZoneStruct
     std::vector<int> spawnedMobsUIDList;
     std::vector<MobDataStruct> spawnedMobsList;
     std::chrono::seconds respawnTime; // Represents respawn time in seconds
+};
+
+/**
+ * @brief Experience level entry structure
+ * Contains experience points required for a specific level
+ */
+struct ExperienceLevelEntry
+{
+    int level = 0;
+    int experiencePoints = 0;
 };

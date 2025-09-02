@@ -24,6 +24,8 @@ class EventHandler
     void handleMoveCharacterChunkEvent(const Event &event);
     void handleGetSpawnZonesEvent(const Event &event);
     void handleGetMobDataEvent(const Event &event);
+    void handleGetCharacterExpForLevelEvent(const Event &event);
+    void handleGetExpLevelTableEvent(const Event &event);
     void handleGetMobsListEvent(const Event &event);
     void handleDisconnectChunkEvent(const Event &event);
     void handleJoinChunkServerEvent(const Event &event);

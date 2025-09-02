@@ -33,6 +33,8 @@ MobManager::loadMobs()
             mobData.name = row["name"].as<std::string>();
             mobData.slug = row["slug"].as<std::string>();
             mobData.level = row["level"].as<int>();
+            mobData.baseExperience = row["base_xp"].as<int>();
+            mobData.radius = row["radius"].as<int>();
             mobData.raceName = row["race"].as<std::string>();
             mobData.currentHealth = row["current_health"].as<int>();
             mobData.currentMana = row["current_mana"].as<int>();

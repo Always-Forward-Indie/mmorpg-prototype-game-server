@@ -25,7 +25,8 @@ using EventData = std::variant<
     std::vector<ItemDataStruct>,
     ItemDataStruct,
     std::vector<MobLootInfoStruct>,
-    MobLootInfoStruct
+    MobLootInfoStruct,
+    ExperienceLevelEntry
     /* other types */>;
 
 class Event
@@ -45,6 +46,8 @@ class Event
         GET_MOBS_LIST,
         GET_MOBS_ATTRIBUTES,
         GET_MOB_DATA,
+        GET_CHARACTER_EXP_FOR_LEVEL,
+        GET_EXP_LEVEL_TABLE,
         GET_ITEMS_LIST,
         GET_MOB_LOOT_INFO,
         SPAWN_MOBS_IN_ZONE,
