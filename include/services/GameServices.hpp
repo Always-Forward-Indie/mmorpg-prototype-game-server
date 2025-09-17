@@ -4,6 +4,7 @@
 #include "services/ClientManager.hpp"
 #include "services/ItemManager.hpp"
 #include "services/MobManager.hpp"
+#include "services/NPCManager.hpp"
 #include "services/SpawnZoneManager.hpp"
 #include "utils/Database.hpp"
 #include "utils/Logger.hpp"
@@ -17,6 +18,7 @@ class GameServices
           database_(database),
           mobManager_(database_, logger_),
           itemManager_(database_, logger_),
+          npcManager_(database_, logger_),
           spawnZoneManager_(mobManager_, database_, logger_),
           characterManager_(logger_),
           clientManager_(logger_),
@@ -40,6 +42,10 @@ class GameServices
     {
         return itemManager_;
     }
+    NPCManager &getNPCManager()
+    {
+        return npcManager_;
+    }
     SpawnZoneManager &getSpawnZoneManager()
     {
         return spawnZoneManager_;
@@ -62,6 +68,7 @@ class GameServices
     Database &database_;
     MobManager mobManager_;
     ItemManager itemManager_;
+    NPCManager npcManager_;
     SpawnZoneManager spawnZoneManager_;
     CharacterManager characterManager_;
     ClientManager clientManager_;

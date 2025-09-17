@@ -452,6 +452,14 @@ EventHandler::handleJoinChunkServerEvent(const Event &event)
             Event mobAttributesEvent(Event::GET_MOBS_ATTRIBUTES, clientID, MobAttributeStruct(), clientSocket);
             dispatchEvent(mobAttributesEvent);
 
+            // load NPCs
+            Event npcDataEvent(Event::GET_NPCS_LIST, clientID, NPCDataStruct(), clientSocket);
+            dispatchEvent(npcDataEvent);
+
+            // load NPCs attributes
+            Event npcAttributesEvent(Event::GET_NPCS_ATTRIBUTES, clientID, NPCAttributeStruct(), clientSocket);
+            dispatchEvent(npcAttributesEvent);
+
             // load items
             Event itemsEvent(Event::GET_ITEMS_LIST, clientID, ItemDataStruct(), clientSocket);
             dispatchEvent(itemsEvent);
@@ -992,6 +1000,14 @@ EventHandler::dispatchEvent(const Event &event)
         handleGetMobLootInfoEvent(event);
         break;
 
+    // NPC events
+    case Event::GET_NPCS_LIST:
+        handleGetNPCsListEvent(event);
+        break;
+    case Event::GET_NPCS_ATTRIBUTES:
+        handleGetNPCsAttributesEvent(event);
+        break;
+
     // chunk server events
     case Event::JOIN_CHUNK_SERVER:
         handleJoinChunkServerEvent(event);
@@ -1403,5 +1419,201 @@ EventHandler::handleGetExpLevelTableEvent(const Event &event)
 
         std::string responseData = networkManager_.generateResponseMessage("error", errorResponse);
         networkManager_.sendResponse(clientSocket, responseData);
+    }
+}
+
+// handle get NPCs list event
+void
+EventHandler::handleGetNPCsListEvent(const Event &event)
+{
+    // Retrieve the data from the event
+    const auto &data = event.getData();
+    int clientID = event.getClientID();
+    // get socket from the event
+    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
+
+    try
+    {
+        // load the NPCs list from the database
+        gameServices_.getNPCManager().loadNPCs();
+
+        // Get the NPCs list from the database as map
+        auto npcsListMap = gameServices_.getNPCManager().getNPCs();
+
+        nlohmann::json npcsListJson;
+        for (const auto &npcItem : npcsListMap)
+        {
+            const NPCDataStruct &npcData = npcItem.second;
+
+            // Create a JSON object for the current NPC
+            nlohmann::json npcJson;
+            npcJson["id"] = npcData.id;
+            npcJson["name"] = npcData.name;
+            npcJson["slug"] = npcData.slug;
+            npcJson["race"] = npcData.raceName;
+            npcJson["level"] = npcData.level;
+            npcJson["currentHealth"] = npcData.currentHealth;
+            npcJson["currentMana"] = npcData.currentMana;
+            npcJson["maxMana"] = npcData.maxMana;
+            npcJson["maxHealth"] = npcData.maxHealth;
+            npcJson["npcType"] = npcData.npcType;
+            npcJson["isInteractable"] = npcData.isInteractable;
+            npcJson["dialogueId"] = npcData.dialogueId;
+            npcJson["questId"] = npcData.questId;
+            npcJson["posX"] = npcData.position.positionX;
+            npcJson["posY"] = npcData.position.positionY;
+            npcJson["posZ"] = npcData.position.positionZ;
+            npcJson["rotZ"] = npcData.position.rotationZ;
+
+            // Add the current item to the NPCs list json
+            npcsListJson.push_back(npcJson);
+        }
+
+        // If the NPCs list is empty, log a message
+        if (npcsListJson.empty())
+        {
+            gameServices_.getLogger().log("NPCs list is empty!", YELLOW);
+        }
+
+        // Prepare the response message
+        nlohmann::json response;
+        ResponseBuilder builder;
+
+        // Add the message to the response
+        response = builder
+                       .setHeader("message", "Getting NPCs list success!")
+                       .setHeader("hash", "")
+                       .setHeader("clientId", clientID)
+                       .setHeader("eventType", "setNPCsList")
+                       .setBody("npcsList", npcsListJson)
+                       .build();
+        // Prepare a response message
+        std::string responseData = networkManager_.generateResponseMessage("success", response);
+
+        // Send the response to the client
+        networkManager_.sendResponse(clientSocket, responseData);
+
+        // After sending NPCs list, send NPCs skills
+        nlohmann::json npcsSkillsJson;
+        for (const auto &npcItem : npcsListMap)
+        {
+            const NPCDataStruct &npcData = npcItem.second;
+
+            for (const auto &skill : npcData.skills)
+            {
+                nlohmann::json skillJson;
+                skillJson["npc_id"] = npcData.id;
+                skillJson["skillName"] = skill.skillName;
+                skillJson["skillSlug"] = skill.skillSlug;
+                skillJson["scaleStat"] = skill.scaleStat;
+                skillJson["school"] = skill.school;
+                skillJson["skillEffectType"] = skill.skillEffectType;
+                skillJson["skillLevel"] = skill.skillLevel;
+                skillJson["coeff"] = skill.coeff;
+                skillJson["flatAdd"] = skill.flatAdd;
+                skillJson["cooldownMs"] = skill.cooldownMs;
+                skillJson["gcdMs"] = skill.gcdMs;
+                skillJson["castMs"] = skill.castMs;
+                skillJson["costMp"] = skill.costMp;
+                skillJson["maxRange"] = skill.maxRange;
+
+                npcsSkillsJson.push_back(skillJson);
+            }
+        }
+
+        // If the NPCs skills list is empty, log a message
+        if (npcsSkillsJson.empty())
+        {
+            gameServices_.getLogger().log("NPCs skills list is empty!", YELLOW);
+        }
+
+        // Add the message to the response
+        response = builder
+                       .setHeader("message", "Getting NPCs skills list success!")
+                       .setHeader("hash", "")
+                       .setHeader("clientId", clientID)
+                       .setHeader("eventType", "setNPCsSkills")
+                       .setBody("npcsSkillsList", npcsSkillsJson)
+                       .build();
+        responseData = networkManager_.generateResponseMessage("success", response);
+
+        // Send the response to the client
+        networkManager_.sendResponse(clientSocket, responseData);
+    }
+    catch (const std::bad_variant_access &ex)
+    {
+        gameServices_.getLogger().log("Error here: " + std::string(ex.what()));
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("Error in handleGetNPCsListEvent: " + std::string(ex.what()));
+    }
+}
+
+// handle get NPCs attributes event
+void
+EventHandler::handleGetNPCsAttributesEvent(const Event &event)
+{
+    // Retrieve the data from the event
+    const auto &data = event.getData();
+    int clientID = event.getClientID();
+    // get socket from the event
+    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
+
+    try
+    {
+        // Get the NPCs list from the database as map
+        auto npcsList = gameServices_.getNPCManager().getNPCs();
+
+        nlohmann::json npcsAttributesListJson = nlohmann::json::array();
+
+        for (const auto &npcItem : npcsList)
+        {
+            const NPCDataStruct &npcData = npcItem.second;
+
+            for (const auto &attribute : npcData.attributes)
+            {
+                nlohmann::json attributeJson;
+                attributeJson["id"] = attribute.id;
+                attributeJson["npc_id"] = npcData.id;
+                attributeJson["slug"] = attribute.slug;
+                attributeJson["name"] = attribute.name;
+                attributeJson["value"] = attribute.value;
+
+                npcsAttributesListJson.push_back(attributeJson);
+            }
+        }
+
+        // If the NPCs attributes list is empty, log a message
+        if (npcsAttributesListJson.empty())
+        {
+            gameServices_.getLogger().log("NPCs attributes list is empty!", YELLOW);
+        }
+
+        // Prepare the response message
+        nlohmann::json response;
+        ResponseBuilder builder;
+
+        // Add the message to the response
+        response = builder
+                       .setHeader("message", "Getting NPCs attributes list success!")
+                       .setHeader("hash", "")
+                       .setHeader("clientId", clientID)
+                       .setHeader("eventType", "setNPCsAttributes")
+                       .setBody("npcsAttributesList", npcsAttributesListJson)
+                       .build();
+        // Prepare a response message
+        std::string responseData = networkManager_.generateResponseMessage("success", response);
+
+        // Send the response to the client
+        networkManager_.sendResponse(clientSocket, responseData);
+    }
+    catch (const std::bad_variant_access &ex)
+    {
+        gameServices_.getLogger().log("Error here: " + std::string(ex.what()));
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("Error in handleGetNPCsAttributesEvent: " + std::string(ex.what()));
     }
 }

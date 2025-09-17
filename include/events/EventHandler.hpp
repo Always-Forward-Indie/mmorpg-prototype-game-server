@@ -35,6 +35,9 @@ class EventHandler
     void handleGetItemsListEvent(const Event &event);
     void handleGetMobLootInfoEvent(const Event &event);
 
+    void handleGetNPCsListEvent(const Event &event);
+    void handleGetNPCsAttributesEvent(const Event &event);
+
     NetworkManager &networkManager_;
     GameServices &gameServices_;
 };

@@ -25,6 +25,8 @@ class EventDispatcher
     void handleGetCharacterExpForLevel(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
     void handleGetExpLevelTable(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
 
+    void handleGetNPCsData(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
+
     EventQueue &eventQueue_;
     EventQueue &eventQueuePing_;
     GameServer *gameServer_;

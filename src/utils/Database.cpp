@@ -191,6 +191,57 @@ Database::prepareDefaultQueries()
 
         // get mobs loot info
         connection_->prepare("get_mobs_loot", "SELECT mob_loot_info.* FROM mob_loot_info; ");
+
+        // get npc position
+        connection_->prepare("get_npc_position", "SELECT x, y, z FROM npc_position WHERE npc_id = $1 LIMIT 1;");
+
+        // get npc list
+        connection_->prepare("get_npcs", "SELECT npc.*, race.slug as race, nt.slug as npc_type FROM npc "
+                                         "JOIN race ON npc.race_id = race.id "
+                                         "JOIN npc_type nt ON npc.npc_type = nt.id "
+                                         ";");
+
+        // get npc attributes
+        connection_->prepare("get_npc_attributes", "SELECT entity_attributes.*, npc_attributes.value FROM npc_attributes "
+                                                   "JOIN entity_attributes ON npc_attributes.attribute_id = entity_attributes.id "
+                                                   "WHERE npc_attributes.npc_id = $1;");
+
+        // get npc skills
+        connection_->prepare("get_npc_skills", "WITH cs as ( "
+                                               "SELECT skill_id, current_level "
+                                               "FROM npc_skills "
+                                               "WHERE npc_id = $1 "
+                                               ")"
+
+                                               "SELECT "
+                                               "s.name as skill_name, "
+                                               "s.slug as skill_slug, "
+                                               "sst.slug as scale_stat, "
+                                               "ss.slug  as school,"
+                                               "seft.slug as skill_effect_type, "
+                                               "spm.skill_level, "
+
+                                               "coalesce(MAX(CASE WHEN se.slug='coeff'     THEN sem.value END),0) AS coeff, "
+                                               "coalesce(MAX(CASE WHEN se.slug='flat_add'  THEN sem.value END),0) AS flat_add, "
+
+                                               "coalesce(MAX(CASE WHEN sp.slug='cooldown_ms' THEN spm.property_value END),0) AS cooldown_ms, "
+                                               "coalesce(MAX(CASE WHEN sp.slug='gcd_ms'      THEN spm.property_value END),0) AS gcd_ms, "
+                                               "coalesce(MAX(CASE WHEN sp.slug='cast_ms'     THEN spm.property_value END),0) AS cast_ms, "
+                                               "coalesce(MAX(CASE WHEN sp.slug='cost_mp'     THEN spm.property_value END),0) AS cost_mp, "
+                                               "coalesce(MAX(CASE WHEN sp.slug='max_range'   THEN spm.property_value END),0) AS max_range "
+
+                                               "FROM cs "
+                                               "join "
+                                               "skills s ON s.id=cs.skill_id "
+                                               "JOIN skill_scale_type sst ON sst.id = s.scale_stat_id "
+                                               "JOIN skill_school ss ON ss.id = s.school_id "
+                                               "JOIN skill_effect_instances sei ON sei.skill_id = s.id "
+                                               "JOIN skill_effects_mapping sem ON sem.effect_instance_id = sei.id AND sem.level=cs.current_level "
+                                               "JOIN skill_effects se ON se.id = sem.effect_id "
+                                               "JOIN skill_effects_type seft ON seft.id = se.effect_type_id "
+                                               "LEFT JOIN skill_properties_mapping spm ON spm.skill_id = s.id AND spm.skill_level=cs.current_level "
+                                               "LEFT JOIN skill_properties sp ON sp.id = spm.property_id "
+                                               "GROUP BY s.id, s.name, s.slug, sst.slug, ss.slug, seft.slug, spm.skill_level;");
     }
     else
     {

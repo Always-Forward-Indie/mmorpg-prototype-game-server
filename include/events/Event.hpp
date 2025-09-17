@@ -26,7 +26,11 @@ using EventData = std::variant<
     ItemDataStruct,
     std::vector<MobLootInfoStruct>,
     MobLootInfoStruct,
-    ExperienceLevelEntry
+    ExperienceLevelEntry,
+    NPCDataStruct,
+    std::vector<NPCDataStruct>,
+    NPCAttributeStruct,
+    std::vector<NPCAttributeStruct>
     /* other types */>;
 
 class Event
@@ -52,7 +56,9 @@ class Event
         GET_MOB_LOOT_INFO,
         SPAWN_MOBS_IN_ZONE,
         ZONE_MOVE_MOBS,
-        MOVE_MOB
+        MOVE_MOB,
+        GET_NPCS_LIST,
+        GET_NPCS_ATTRIBUTES
     }; // Define more event types as needed
     Event() = default; // Default constructor
     Event(EventType type, int clientID, const EventData data, std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket);

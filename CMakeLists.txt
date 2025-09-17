@@ -23,6 +23,7 @@ set(SOURCE_FILES
     src/services/CharacterManager.cpp
     src/services/SpawnZoneManager.cpp
     src/services/SpawnManager.cpp
+    src/services/NPCManager.cpp
     src/services/MobManager.cpp
     src/services/ItemManager.cpp
     src/network/NetworkManager.cpp
@@ -57,6 +58,7 @@ set(HEADER_FILES
     include/services/SpawnManager.hpp
     include/services/MobManager.hpp
     include/services/ItemManager.hpp
+    include/services/NPCManager.hpp
     include/network/NetworkManager.hpp
     include/network/ClientSession.hpp
     include/events/Event.hpp

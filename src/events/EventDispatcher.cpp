@@ -53,6 +53,10 @@ EventDispatcher::dispatch(const std::string &eventType,
     {
         handleGetExpLevelTable(payload, socket);
     }
+    else if (eventType == "getNPCsData")
+    {
+        handleGetNPCsData(payload, socket);
+    }
     else
     {
         logger_.logError("Unknown event type: " + eventType, RED);
@@ -199,4 +203,13 @@ EventDispatcher::dispatchPingDirectly(const Event &pingEvent)
     eventQueuePing_.push(pingEvent);
 
     logger_.log("Ping event with timestamps dispatched for client " + std::to_string(pingEvent.getClientID()), GREEN);
+}
+
+void
+EventDispatcher::handleGetNPCsData(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    Event getNPCsDataEvent(Event::GET_NPCS_LIST, payload.clientData.clientId, payload.clientData, socket);
+    eventsBatch_.push_back(getNPCsDataEvent);
 }
