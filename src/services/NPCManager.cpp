@@ -275,7 +275,7 @@ NPCManager::loadNPCPosition(pqxx::work &transaction, int npcId)
             position.positionX = row["x"].as<float>();
             position.positionY = row["y"].as<float>();
             position.positionZ = row["z"].as<float>();
-            // rotationZ defaults to 0 if not in database
+            position.rotationZ = row["rot_z"].as<float>();
         }
     }
     catch (const std::exception &e)

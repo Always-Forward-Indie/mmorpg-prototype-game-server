@@ -193,7 +193,7 @@ Database::prepareDefaultQueries()
         connection_->prepare("get_mobs_loot", "SELECT mob_loot_info.* FROM mob_loot_info; ");
 
         // get npc position
-        connection_->prepare("get_npc_position", "SELECT x, y, z FROM npc_position WHERE npc_id = $1 LIMIT 1;");
+        connection_->prepare("get_npc_position", "SELECT x, y, z, rot_z FROM npc_position WHERE npc_id = $1 LIMIT 1;");
 
         // get npc list
         connection_->prepare("get_npcs", "SELECT npc.*, race.slug as race, nt.slug as npc_type FROM npc "
