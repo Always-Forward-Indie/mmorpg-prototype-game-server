@@ -7,29 +7,27 @@
 #include <string>
 
 #include "events/EventQueue.hpp"
-#include "utils/JSONParser.hpp"
 #include "utils/Logger.hpp"
 
 class GameServer;
-class EventDispatcher;  // ✅ Forward declare EventDispatcher
-class MessageHandler;   // ✅ Forward declare MessageHandler
+class EventDispatcher; // ✅ Forward declare EventDispatcher
+class MessageHandler;  // ✅ Forward declare MessageHandler
 
 class ClientSession : public std::enable_shared_from_this<ClientSession>
 {
-   public:
+  public:
     // Accept a shared_ptr to a tcp::socket instead of a raw socket.
     ClientSession(std::shared_ptr<boost::asio::ip::tcp::socket> socket,
         GameServer *gameServer,
         Logger &logger,
         EventQueue &eventQueue,
         EventQueue &eventQueuePing,
-        JSONParser &jsonParser,
         EventDispatcher &eventDispatcher,
         MessageHandler &messageHandler);
 
     void start();
 
-   private:
+  private:
     void doRead();
     void processMessage(const std::string &message);
     void handleClientDisconnect();
@@ -40,7 +38,6 @@ class ClientSession : public std::enable_shared_from_this<ClientSession>
     Logger &logger_;
     EventQueue &eventQueue_;
     EventQueue &eventQueuePing_;
-    JSONParser &jsonParser_;
     GameServer *gameServer_;
     EventDispatcher &eventDispatcher_;
     MessageHandler &messageHandler_;

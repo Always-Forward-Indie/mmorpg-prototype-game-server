@@ -51,7 +51,7 @@ ItemManager::loadItems()
             itemData.durabilityMax = row["durability_max"].as<int>();
             itemData.vendorPriceBuy = row["vendor_price_buy"].as<int>();
             itemData.vendorPriceSell = row["vendor_price_sell"].as<int>();
-            itemData.equipSlot = row["equip_slot"].as<int>();
+            itemData.equipSlot = row["equip_slot"].is_null() ? 0 : row["equip_slot"].as<int>();
             itemData.equipSlotName = row["equip_slot_name"].as<std::string>();
             itemData.equipSlotSlug = row["equip_slot_slug"].as<std::string>();
             itemData.levelRequirement = row["level_requirement"].as<int>();

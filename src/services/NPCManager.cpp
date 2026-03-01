@@ -70,16 +70,6 @@ NPCManager::loadNPCs()
                 npcData.isInteractable = true; // default value
             }
 
-            // Optional fields with null checks
-            if (!row["dialogue_id"].is_null())
-            {
-                npcData.dialogueId = row["dialogue_id"].as<int>();
-            }
-            if (!row["quest_id"].is_null())
-            {
-                npcData.questId = row["quest_id"].as<int>();
-            }
-
             // Load related data
             npcData.attributes = loadNPCAttributes(transaction, npcData.id);
             npcData.skills = loadNPCSkills(transaction, npcData.id);

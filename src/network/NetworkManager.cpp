@@ -51,7 +51,7 @@ NetworkManager::startAccept()
             std::string portNumber = std::to_string(remoteEndpoint.port());
             logger_.log("New Client with IP: " + clientIP + " Port: " + portNumber + " - connected!", GREEN);
             // Pass the shared pointer to the ClientSession
-            auto session = std::make_shared<ClientSession>(clientSocket, gameServer_, logger_, eventQueue_, eventQueuePing_, jsonParser_, *eventDispatcher_, *messageHandler_);
+            auto session = std::make_shared<ClientSession>(clientSocket, gameServer_, logger_, eventQueue_, eventQueuePing_, *eventDispatcher_, *messageHandler_);
             session->start();
         }
         else{
@@ -162,6 +162,6 @@ NetworkManager::setGameServer(GameServer *gameServer)
     }
     gameServer_ = gameServer;
 
-    eventDispatcher_ = std::make_unique<EventDispatcher>(eventQueue_, eventQueuePing_, gameServer_, logger_);
+    eventDispatcher_ = std::make_unique<EventDispatcher>(eventQueue_, eventQueuePing_, gameServer_, logger_, jsonParser_);
     messageHandler_ = std::make_unique<MessageHandler>(jsonParser_);
 }

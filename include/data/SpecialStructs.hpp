@@ -23,4 +23,5 @@ struct EventPayload
     CharacterDataStruct characterData;
     PositionStruct positionData;
     MessageStruct messageStruct;
+    std::string rawMessage; // raw message string, used by event-specific handlers (e.g. savePositions)
 };

@@ -3,11 +3,12 @@
 #include "events/Event.hpp"
 #include "events/EventQueue.hpp"
 #include "game_server/GameServer.hpp"
+#include "utils/JSONParser.hpp"
 
 class EventDispatcher
 {
   public:
-    EventDispatcher(EventQueue &eventQueue, EventQueue &eventQueuePing, GameServer *gameServer, Logger &logger);
+    EventDispatcher(EventQueue &eventQueue, EventQueue &eventQueuePing, GameServer *gameServer, Logger &logger, JSONParser &jsonParser);
 
     void dispatch(const std::string &eventType, const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
     void handlePing(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
@@ -26,11 +27,14 @@ class EventDispatcher
     void handleGetExpLevelTable(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
 
     void handleGetNPCsData(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
+    void handleSavePositions(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
+    void handleSaveCharacterProgress(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
 
     EventQueue &eventQueue_;
     EventQueue &eventQueuePing_;
     GameServer *gameServer_;
     Logger &logger_;
+    JSONParser &jsonParser_;
 
     std::vector<Event> eventsBatch_;
     constexpr static int BATCH_SIZE = 10;

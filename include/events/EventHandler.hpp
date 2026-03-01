@@ -37,6 +37,8 @@ class EventHandler
 
     void handleGetNPCsListEvent(const Event &event);
     void handleGetNPCsAttributesEvent(const Event &event);
+    void handleSavePositionsEvent(const Event &event);
+    void handleSaveCharacterProgressEvent(const Event &event);
 
     NetworkManager &networkManager_;
     GameServices &gameServices_;

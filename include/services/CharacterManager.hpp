@@ -34,6 +34,7 @@ class CharacterManager
 
     void updateCharacterPosition(Database &db, int accountId, int characterId, const PositionStruct &position);
     void updateBasicCharacterData(Database &db, int accountId, int characterId, const CharacterDataStruct &characterData);
+    void updateCharacterExperienceAndLevel(Database &db, int characterId, int experiencePoints, int level);
 
   private:
     Logger &logger_;

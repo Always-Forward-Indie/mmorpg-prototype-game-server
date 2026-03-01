@@ -30,7 +30,8 @@ using EventData = std::variant<
     NPCDataStruct,
     std::vector<NPCDataStruct>,
     NPCAttributeStruct,
-    std::vector<NPCAttributeStruct>
+    std::vector<NPCAttributeStruct>,
+    std::vector<CharacterDataStruct>
     /* other types */>;
 
 class Event
@@ -58,7 +59,9 @@ class Event
         ZONE_MOVE_MOBS,
         MOVE_MOB,
         GET_NPCS_LIST,
-        GET_NPCS_ATTRIBUTES
+        GET_NPCS_ATTRIBUTES,
+        SAVE_POSITIONS,         // Save player positions to database
+        SAVE_CHARACTER_PROGRESS // Save player exp/level to database
     }; // Define more event types as needed
     Event() = default; // Default constructor
     Event(EventType type, int clientID, const EventData data, std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket);

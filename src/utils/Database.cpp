@@ -119,6 +119,8 @@ Database::prepareDefaultQueries()
                                                    "SET current_mana = $2 WHERE id = $1;");
         connection_->prepare("set_character_exp", "UPDATE characters "
                                                   "SET experience_points = $2 WHERE id = $1;");
+        connection_->prepare("set_character_exp_level", "UPDATE characters "
+                                                        "SET experience_points = $2, level = $3 WHERE id = $1;");
 
         connection_->prepare("get_character_position", "SELECT x, y, z FROM character_position WHERE character_id = $1 LIMIT 1;");
         connection_->prepare("set_character_position", "UPDATE character_position SET x = $1, y = $2, z = $3 WHERE character_id = $4;");
@@ -196,7 +198,10 @@ Database::prepareDefaultQueries()
         connection_->prepare("get_npc_position", "SELECT x, y, z, rot_z FROM npc_position WHERE npc_id = $1 LIMIT 1;");
 
         // get npc list
-        connection_->prepare("get_npcs", "SELECT npc.*, race.slug as race, nt.slug as npc_type FROM npc "
+        connection_->prepare("get_npcs", "SELECT npc.id, npc.name, npc.slug, npc.level, npc.current_health, npc.current_mana, "
+                                         "npc.is_dead, npc.radius, npc.is_interactable, "
+                                         "race.slug as race, nt.slug as npc_type "
+                                         "FROM npc "
                                          "JOIN race ON npc.race_id = race.id "
                                          "JOIN npc_type nt ON npc.npc_type = nt.id "
                                          ";");

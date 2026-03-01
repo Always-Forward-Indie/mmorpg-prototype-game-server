@@ -4,11 +4,13 @@ EventDispatcher::EventDispatcher(
     EventQueue &eventQueue,
     EventQueue &eventQueuePing,
     GameServer *gameServer,
-    Logger &logger)
+    Logger &logger,
+    JSONParser &jsonParser)
     : eventQueue_(eventQueue),
       eventQueuePing_(eventQueuePing),
       gameServer_(gameServer),
-      logger_(logger)
+      logger_(logger),
+      jsonParser_(jsonParser)
 {
 }
 
@@ -57,6 +59,14 @@ EventDispatcher::dispatch(const std::string &eventType,
     {
         handleGetNPCsData(payload, socket);
     }
+    else if (eventType == "savePositions")
+    {
+        handleSavePositions(payload, socket);
+    }
+    else if (eventType == "saveCharacterProgress")
+    {
+        handleSaveCharacterProgress(payload, socket);
+    }
     else
     {
         logger_.logError("Unknown event type: " + eventType, RED);
@@ -103,15 +113,15 @@ EventDispatcher::handleDisconnect(
     const EventPayload &payload,
     std::shared_ptr<boost::asio::ip::tcp::socket> socket)
 {
-    Event disconnectEvent(Event::DISCONNECT_CLIENT, payload.clientData.clientId, payload.clientData, socket);
+    // Merge last known position into CharacterDataStruct so the game server can persist it
+    CharacterDataStruct charDataWithPos = payload.characterData;
+    charDataWithPos.characterPosition = payload.positionData;
+
+    Event disconnectEvent(Event::DISCONNECT_CLIENT, payload.clientData.clientId, charDataWithPos, socket);
 
     eventsBatch_.push_back(disconnectEvent);
-
-    // if (eventsBatch_.size() >= BATCH_SIZE)
-    //{
     eventQueue_.pushBatch(eventsBatch_);
     eventsBatch_.clear();
-    //}
 }
 
 void
@@ -212,4 +222,29 @@ EventDispatcher::handleGetNPCsData(
 {
     Event getNPCsDataEvent(Event::GET_NPCS_LIST, payload.clientData.clientId, payload.clientData, socket);
     eventsBatch_.push_back(getNPCsDataEvent);
+}
+
+void
+EventDispatcher::handleSavePositions(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    // Parse positions directly from the raw message — keeps EventPayload clean
+    auto positionsList = jsonParser_.parseSavePositionsData(payload.rawMessage.data(), payload.rawMessage.size());
+    Event saveEvent(Event::SAVE_POSITIONS, 0, positionsList, socket);
+    eventsBatch_.push_back(saveEvent);
+    eventQueue_.pushBatch(eventsBatch_);
+    eventsBatch_.clear();
+}
+
+void
+EventDispatcher::handleSaveCharacterProgress(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    auto progressList = jsonParser_.parseSaveCharacterProgressData(payload.rawMessage.data(), payload.rawMessage.size());
+    Event saveEvent(Event::SAVE_CHARACTER_PROGRESS, 0, progressList, socket);
+    eventsBatch_.push_back(saveEvent);
+    eventQueue_.pushBatch(eventsBatch_);
+    eventsBatch_.clear();
 }

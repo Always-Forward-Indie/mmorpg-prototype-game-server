@@ -228,7 +228,7 @@ CharacterManager::updateCharacterPosition(Database &db, int accountId, int chara
     try
     {
         pqxx::work txn(db.getConnection());
-        db.executeQueryWithTransaction(txn, "set_character_position", {characterId, position.positionX, position.positionY, position.positionZ});
+        db.executeQueryWithTransaction(txn, "set_character_position", {position.positionX, position.positionY, position.positionZ, characterId});
         txn.commit();
         logger_.log("Character position updated successfully", GREEN);
     }
@@ -247,6 +247,34 @@ CharacterManager::updateBasicCharacterData(Database &db, int accountId, int char
         db.executeQueryWithTransaction(txn, "set_basic_character_data", {characterId, characterData.characterLevel, characterData.characterExperiencePoints, characterData.characterCurrentHealth, characterData.characterCurrentMana});
         txn.commit();
         logger_.log("Character data updated successfully", GREEN);
+    }
+    catch (const std::exception &e)
+    {
+        db.handleDatabaseError(e);
+    }
+}
+
+void
+CharacterManager::updateCharacterExperienceAndLevel(Database &db, int characterId, int experiencePoints, int level)
+{
+    try
+    {
+        pqxx::work txn(db.getConnection());
+        db.executeQueryWithTransaction(txn, "set_character_exp_level", {characterId, experiencePoints, level});
+        txn.commit();
+        logger_.log("Character exp/level saved: id=" + std::to_string(characterId) +
+                        " exp=" + std::to_string(experiencePoints) +
+                        " level=" + std::to_string(level),
+            GREEN);
+
+        // Keep in-memory state in sync
+        std::unique_lock lock(mutex_);
+        auto it = charactersMap_.find(characterId);
+        if (it != charactersMap_.end())
+        {
+            it->second.characterExperiencePoints = experiencePoints;
+            it->second.characterLevel = level;
+        }
     }
     catch (const std::exception &e)
     {

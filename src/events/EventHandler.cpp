@@ -340,7 +340,7 @@ void
 EventHandler::handleDisconnectChunkEvent(const Event &event)
 {
     // Here we will disconnect the client
-    const auto data = event.getData();
+    const auto &data = event.getData();
     int clientID = event.getClientID();
     // get socket from the event
     std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
@@ -348,6 +348,22 @@ EventHandler::handleDisconnectChunkEvent(const Event &event)
     // Extract init data
     try
     {
+        // Save last position to DB if we have a valid CharacterDataStruct
+        if (std::holds_alternative<CharacterDataStruct>(data))
+        {
+            const CharacterDataStruct &charData = std::get<CharacterDataStruct>(data);
+            if (charData.characterId > 0)
+            {
+                gameServices_.getCharacterManager().updateCharacterPosition(
+                    gameServices_.getDatabase(),
+                    clientID,
+                    charData.characterId,
+                    charData.characterPosition);
+                gameServices_.getLogger().log(
+                    "Saved position on disconnect for characterId: " + std::to_string(charData.characterId), GREEN);
+            }
+        }
+
         if (clientID == 0)
         {
             gameServices_.getLogger().log("Client ID is 0, so we will just remove client from our list!");
@@ -1008,6 +1024,14 @@ EventHandler::dispatchEvent(const Event &event)
         handleGetNPCsAttributesEvent(event);
         break;
 
+    case Event::SAVE_POSITIONS:
+        handleSavePositionsEvent(event);
+        break;
+
+    case Event::SAVE_CHARACTER_PROGRESS:
+        handleSaveCharacterProgressEvent(event);
+        break;
+
     // chunk server events
     case Event::JOIN_CHUNK_SERVER:
         handleJoinChunkServerEvent(event);
@@ -1615,5 +1639,95 @@ EventHandler::handleGetNPCsAttributesEvent(const Event &event)
     catch (const std::exception &ex)
     {
         gameServices_.getLogger().logError("Error in handleGetNPCsAttributesEvent: " + std::string(ex.what()));
+    }
+}
+
+void
+EventHandler::handleSavePositionsEvent(const Event &event)
+{
+    const auto &data = event.getData();
+
+    try
+    {
+        if (!std::holds_alternative<std::vector<CharacterDataStruct>>(data))
+        {
+            gameServices_.getLogger().logError("handleSavePositionsEvent: unexpected data type");
+            return;
+        }
+
+        const auto &charactersList = std::get<std::vector<CharacterDataStruct>>(data);
+
+        if (charactersList.empty())
+        {
+            gameServices_.getLogger().log("handleSavePositionsEvent: empty positions list, skipping", YELLOW);
+            return;
+        }
+
+        int savedCount = 0;
+        for (const auto &charData : charactersList)
+        {
+            if (charData.characterId <= 0)
+                continue;
+
+            gameServices_.getCharacterManager().updateCharacterPosition(
+                gameServices_.getDatabase(),
+                0, // accountId not needed here
+                charData.characterId,
+                charData.characterPosition);
+
+            ++savedCount;
+        }
+
+        gameServices_.getLogger().log(
+            "Periodic position save: persisted " + std::to_string(savedCount) + " character(s) to DB", GREEN);
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("Error in handleSavePositionsEvent: " + std::string(ex.what()));
+    }
+}
+
+void
+EventHandler::handleSaveCharacterProgressEvent(const Event &event)
+{
+    const auto &data = event.getData();
+
+    try
+    {
+        if (!std::holds_alternative<std::vector<CharacterDataStruct>>(data))
+        {
+            gameServices_.getLogger().logError("handleSaveCharacterProgressEvent: unexpected data type");
+            return;
+        }
+
+        const auto &charactersList = std::get<std::vector<CharacterDataStruct>>(data);
+
+        if (charactersList.empty())
+        {
+            gameServices_.getLogger().log("handleSaveCharacterProgressEvent: empty list, skipping", YELLOW);
+            return;
+        }
+
+        int savedCount = 0;
+        for (const auto &charData : charactersList)
+        {
+            if (charData.characterId <= 0 || charData.characterLevel <= 0)
+                continue;
+
+            gameServices_.getCharacterManager().updateCharacterExperienceAndLevel(
+                gameServices_.getDatabase(),
+                charData.characterId,
+                charData.characterExperiencePoints,
+                charData.characterLevel);
+            ++savedCount;
+        }
+
+        gameServices_.getLogger().log(
+            "Instant character progress save: persisted " + std::to_string(savedCount) + " character(s) exp/level to DB",
+            GREEN);
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("Error in handleSaveCharacterProgressEvent: " + std::string(ex.what()));
     }
 }

@@ -9,7 +9,6 @@ ClientSession::ClientSession(std::shared_ptr<boost::asio::ip::tcp::socket> socke
     Logger &logger,
     EventQueue &eventQueue,
     EventQueue &eventQueuePing,
-    JSONParser &jsonParser,
     EventDispatcher &eventDispatcher,
     MessageHandler &messageHandler)
     : socket_(socket),
@@ -17,7 +16,6 @@ ClientSession::ClientSession(std::shared_ptr<boost::asio::ip::tcp::socket> socke
       eventQueue_(eventQueue),
       eventQueuePing_(eventQueuePing),
       gameServer_(gameServer),
-      jsonParser_(jsonParser),
       eventDispatcher_(eventDispatcher),
       messageHandler_(messageHandler)
 {
@@ -87,6 +85,7 @@ ClientSession::processMessage(const std::string &message)
             .characterData = characterData,
             .positionData = positionData,
             .messageStruct = messageStruct,
+            .rawMessage = message,
         };
 
         // For ping events, use special handling with timestamps
