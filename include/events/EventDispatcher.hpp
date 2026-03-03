@@ -30,6 +30,12 @@ class EventDispatcher
     void handleSavePositions(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
     void handleSaveCharacterProgress(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
 
+    // Dialogue & Quest
+    void handleGetPlayerQuests(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
+    void handleGetPlayerFlags(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
+    void handleUpdatePlayerQuestProgress(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
+    void handleUpdatePlayerFlag(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
+
     EventQueue &eventQueue_;
     EventQueue &eventQueuePing_;
     GameServer *gameServer_;

@@ -67,6 +67,22 @@ EventDispatcher::dispatch(const std::string &eventType,
     {
         handleSaveCharacterProgress(payload, socket);
     }
+    else if (eventType == "getPlayerQuests")
+    {
+        handleGetPlayerQuests(payload, socket);
+    }
+    else if (eventType == "getPlayerFlags")
+    {
+        handleGetPlayerFlags(payload, socket);
+    }
+    else if (eventType == "updatePlayerQuestProgress")
+    {
+        handleUpdatePlayerQuestProgress(payload, socket);
+    }
+    else if (eventType == "updatePlayerFlag")
+    {
+        handleUpdatePlayerFlag(payload, socket);
+    }
     else
     {
         logger_.logError("Unknown event type: " + eventType, RED);
@@ -247,4 +263,84 @@ EventDispatcher::handleSaveCharacterProgress(
     eventsBatch_.push_back(saveEvent);
     eventQueue_.pushBatch(eventsBatch_);
     eventsBatch_.clear();
+}
+
+void
+EventDispatcher::handleGetPlayerQuests(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    // Expect: {"header":{"eventType":"getPlayerQuests"},"body":{"characterId":N}}
+    try
+    {
+        auto j = nlohmann::json::parse(payload.rawMessage);
+        int characterId = j["body"].value("characterId", 0);
+        Event ev(Event::GET_PLAYER_QUESTS, characterId, static_cast<int>(characterId), socket);
+        eventsBatch_.push_back(ev);
+        eventQueue_.pushBatch(eventsBatch_);
+        eventsBatch_.clear();
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleGetPlayerQuests parse error: " + std::string(ex.what()));
+    }
+}
+
+void
+EventDispatcher::handleGetPlayerFlags(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    try
+    {
+        auto j = nlohmann::json::parse(payload.rawMessage);
+        int characterId = j["body"].value("characterId", 0);
+        Event ev(Event::GET_PLAYER_FLAGS, characterId, static_cast<int>(characterId), socket);
+        eventsBatch_.push_back(ev);
+        eventQueue_.pushBatch(eventsBatch_);
+        eventsBatch_.clear();
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleGetPlayerFlags parse error: " + std::string(ex.what()));
+    }
+}
+
+void
+EventDispatcher::handleUpdatePlayerQuestProgress(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    // Pass the whole raw JSON to the EventHandler via nlohmann::json variant
+    try
+    {
+        auto j = nlohmann::json::parse(payload.rawMessage);
+        Event ev(Event::UPDATE_PLAYER_QUEST_PROGRESS, 0, j, socket);
+        eventsBatch_.push_back(ev);
+        eventQueue_.pushBatch(eventsBatch_);
+        eventsBatch_.clear();
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleUpdatePlayerQuestProgress parse error: " + std::string(ex.what()));
+    }
+}
+
+void
+EventDispatcher::handleUpdatePlayerFlag(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    try
+    {
+        auto j = nlohmann::json::parse(payload.rawMessage);
+        Event ev(Event::UPDATE_PLAYER_FLAG, 0, j, socket);
+        eventsBatch_.push_back(ev);
+        eventQueue_.pushBatch(eventsBatch_);
+        eventsBatch_.clear();
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleUpdatePlayerFlag parse error: " + std::string(ex.what()));
+    }
 }

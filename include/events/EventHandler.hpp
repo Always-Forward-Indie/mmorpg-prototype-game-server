@@ -40,6 +40,14 @@ class EventHandler
     void handleSavePositionsEvent(const Event &event);
     void handleSaveCharacterProgressEvent(const Event &event);
 
+    // Dialogue & Quest events
+    void handleGetDialoguesEvent(const Event &event);
+    void handleGetQuestsEvent(const Event &event);
+    void handleGetPlayerQuestsEvent(const Event &event);
+    void handleGetPlayerFlagsEvent(const Event &event);
+    void handleUpdatePlayerQuestProgressEvent(const Event &event);
+    void handleUpdatePlayerFlagEvent(const Event &event);
+
     NetworkManager &networkManager_;
     GameServices &gameServices_;
 };

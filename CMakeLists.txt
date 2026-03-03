@@ -26,6 +26,7 @@ set(SOURCE_FILES
     src/services/NPCManager.cpp
     src/services/MobManager.cpp
     src/services/ItemManager.cpp
+    src/services/DialogueQuestManager.cpp
     src/network/NetworkManager.cpp
     src/network/ClientSession.cpp
     src/events/Event.cpp
@@ -59,6 +60,7 @@ set(HEADER_FILES
     include/services/MobManager.hpp
     include/services/ItemManager.hpp
     include/services/NPCManager.hpp
+    include/services/DialogueQuestManager.hpp
     include/network/NetworkManager.hpp
     include/network/ClientSession.hpp
     include/events/Event.hpp

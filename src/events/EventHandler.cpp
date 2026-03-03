@@ -487,6 +487,14 @@ EventHandler::handleJoinChunkServerEvent(const Event &event)
             // load experience level table
             Event expLevelTableEvent(Event::GET_EXP_LEVEL_TABLE, clientID, ClientDataStruct(), clientSocket);
             dispatchEvent(expLevelTableEvent);
+
+            // load dialogues and NPC dialogue mappings
+            Event dialoguesEvent(Event::GET_DIALOGUES, clientID, ClientDataStruct(), clientSocket);
+            dispatchEvent(dialoguesEvent);
+
+            // load quests
+            Event questsEvent(Event::GET_QUESTS, clientID, ClientDataStruct(), clientSocket);
+            dispatchEvent(questsEvent);
         }
 
         // Add the message to the response
@@ -1030,6 +1038,26 @@ EventHandler::dispatchEvent(const Event &event)
 
     case Event::SAVE_CHARACTER_PROGRESS:
         handleSaveCharacterProgressEvent(event);
+        break;
+
+    // Dialogue & Quest events
+    case Event::GET_DIALOGUES:
+        handleGetDialoguesEvent(event);
+        break;
+    case Event::GET_QUESTS:
+        handleGetQuestsEvent(event);
+        break;
+    case Event::GET_PLAYER_QUESTS:
+        handleGetPlayerQuestsEvent(event);
+        break;
+    case Event::GET_PLAYER_FLAGS:
+        handleGetPlayerFlagsEvent(event);
+        break;
+    case Event::UPDATE_PLAYER_QUEST_PROGRESS:
+        handleUpdatePlayerQuestProgressEvent(event);
+        break;
+    case Event::UPDATE_PLAYER_FLAG:
+        handleUpdatePlayerFlagEvent(event);
         break;
 
     // chunk server events
@@ -1729,5 +1757,231 @@ EventHandler::handleSaveCharacterProgressEvent(const Event &event)
     catch (const std::exception &ex)
     {
         gameServices_.getLogger().logError("Error in handleSaveCharacterProgressEvent: " + std::string(ex.what()));
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Dialogue & Quest handlers
+// ---------------------------------------------------------------------------
+
+void
+EventHandler::handleGetDialoguesEvent(const Event &event)
+{
+    int clientID = event.getClientID();
+    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
+
+    try
+    {
+        auto dialoguesJson = gameServices_.getDialogueQuestManager().getAllDialoguesJson();
+        auto mappingsJson = gameServices_.getDialogueQuestManager().getAllNPCDialogueMappingsJson();
+
+        ResponseBuilder builder;
+        nlohmann::json resp1 = builder
+                                   .setHeader("message", "Dialogues data")
+                                   .setHeader("hash", "")
+                                   .setHeader("clientId", clientID)
+                                   .setHeader("eventType", "setDialoguesData")
+                                   .setBody("dialogues", dialoguesJson)
+                                   .build();
+        networkManager_.sendResponse(clientSocket, networkManager_.generateResponseMessage("success", resp1));
+
+        nlohmann::json resp2 = builder
+                                   .setHeader("message", "NPC dialogue mappings")
+                                   .setHeader("hash", "")
+                                   .setHeader("clientId", clientID)
+                                   .setHeader("eventType", "setNPCDialogueMappings")
+                                   .setBody("mappings", mappingsJson)
+                                   .build();
+        networkManager_.sendResponse(clientSocket, networkManager_.generateResponseMessage("success", resp2));
+
+        gameServices_.getLogger().log("[EH] Sent " + std::to_string(dialoguesJson.size()) +
+                                          " dialogues + " + std::to_string(mappingsJson.size()) + " mappings to chunk",
+            GREEN);
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("Error in handleGetDialoguesEvent: " + std::string(ex.what()));
+    }
+}
+
+void
+EventHandler::handleGetQuestsEvent(const Event &event)
+{
+    int clientID = event.getClientID();
+    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
+
+    try
+    {
+        auto questsJson = gameServices_.getDialogueQuestManager().getAllQuestsJson();
+
+        ResponseBuilder builder;
+        nlohmann::json response = builder
+                                      .setHeader("message", "Quests data")
+                                      .setHeader("hash", "")
+                                      .setHeader("clientId", clientID)
+                                      .setHeader("eventType", "setQuestsData")
+                                      .setBody("quests", questsJson)
+                                      .build();
+        networkManager_.sendResponse(clientSocket, networkManager_.generateResponseMessage("success", response));
+
+        gameServices_.getLogger().log("[EH] Sent " + std::to_string(questsJson.size()) +
+                                          " quests to chunk",
+            GREEN);
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("Error in handleGetQuestsEvent: " + std::string(ex.what()));
+    }
+}
+
+void
+EventHandler::handleGetPlayerQuestsEvent(const Event &event)
+{
+    const auto &data = event.getData();
+    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
+
+    try
+    {
+        if (!std::holds_alternative<int>(data))
+        {
+            gameServices_.getLogger().logError("handleGetPlayerQuestsEvent: unexpected data type");
+            return;
+        }
+        int characterId = std::get<int>(data);
+
+        auto questsJson = gameServices_.getDialogueQuestManager().getPlayerQuestsJson(characterId);
+
+        ResponseBuilder builder;
+        nlohmann::json response = builder
+                                      .setHeader("message", "Player quests")
+                                      .setHeader("hash", "")
+                                      .setHeader("clientId", characterId)
+                                      .setHeader("eventType", "setPlayerQuestsData")
+                                      .setBody("characterId", characterId)
+                                      .setBody("quests", questsJson)
+                                      .build();
+        networkManager_.sendResponse(clientSocket, networkManager_.generateResponseMessage("success", response));
+
+        gameServices_.getLogger().log("[EH] Sent " + std::to_string(questsJson.size()) +
+                                          " quests for characterId=" + std::to_string(characterId),
+            GREEN);
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("Error in handleGetPlayerQuestsEvent: " + std::string(ex.what()));
+    }
+}
+
+void
+EventHandler::handleGetPlayerFlagsEvent(const Event &event)
+{
+    const auto &data = event.getData();
+    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
+
+    try
+    {
+        if (!std::holds_alternative<int>(data))
+        {
+            gameServices_.getLogger().logError("handleGetPlayerFlagsEvent: unexpected data type");
+            return;
+        }
+        int characterId = std::get<int>(data);
+
+        auto flagsJson = gameServices_.getDialogueQuestManager().getPlayerFlagsJson(characterId);
+
+        ResponseBuilder builder;
+        nlohmann::json response = builder
+                                      .setHeader("message", "Player flags")
+                                      .setHeader("hash", "")
+                                      .setHeader("clientId", characterId)
+                                      .setHeader("eventType", "setPlayerFlagsData")
+                                      .setBody("characterId", characterId)
+                                      .setBody("flags", flagsJson)
+                                      .build();
+        networkManager_.sendResponse(clientSocket, networkManager_.generateResponseMessage("success", response));
+
+        gameServices_.getLogger().log("[EH] Sent " + std::to_string(flagsJson.size()) +
+                                          " flags for characterId=" + std::to_string(characterId),
+            GREEN);
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("Error in handleGetPlayerFlagsEvent: " + std::string(ex.what()));
+    }
+}
+
+void
+EventHandler::handleUpdatePlayerQuestProgressEvent(const Event &event)
+{
+    const auto &data = event.getData();
+
+    try
+    {
+        if (!std::holds_alternative<nlohmann::json>(data))
+        {
+            gameServices_.getLogger().logError("handleUpdatePlayerQuestProgressEvent: unexpected data type");
+            return;
+        }
+        const auto &j = std::get<nlohmann::json>(data);
+        auto &body = j.at("body");
+
+        int characterId = body.value("characterId", 0);
+        int questId = body.value("questId", 0);
+        std::string state = body.value("state", "active");
+        int currentStep = body.value("currentStep", 0);
+        // progress may be a JSON object or a pre-serialized string
+        std::string progressJson = "{}";
+        if (body.contains("progress"))
+        {
+            const auto &prog = body.at("progress");
+            progressJson = prog.is_string() ? prog.get<std::string>() : prog.dump();
+        }
+
+        if (characterId <= 0 || questId <= 0)
+        {
+            gameServices_.getLogger().logError("handleUpdatePlayerQuestProgressEvent: invalid characterId/questId");
+            return;
+        }
+
+        gameServices_.getDialogueQuestManager().savePlayerQuestProgress(
+            characterId, questId, state, currentStep, progressJson);
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("Error in handleUpdatePlayerQuestProgressEvent: " + std::string(ex.what()));
+    }
+}
+
+void
+EventHandler::handleUpdatePlayerFlagEvent(const Event &event)
+{
+    const auto &data = event.getData();
+
+    try
+    {
+        if (!std::holds_alternative<nlohmann::json>(data))
+        {
+            gameServices_.getLogger().logError("handleUpdatePlayerFlagEvent: unexpected data type");
+            return;
+        }
+        const auto &j = std::get<nlohmann::json>(data);
+        auto &body = j.at("body");
+
+        int characterId = body.value("characterId", 0);
+        std::string flagKey = body.value("flagKey", "");
+        int intValue = body.value("intValue", 0);
+        bool boolValue = body.value("boolValue", false);
+
+        if (characterId <= 0 || flagKey.empty())
+        {
+            gameServices_.getLogger().logError("handleUpdatePlayerFlagEvent: invalid characterId or flagKey");
+            return;
+        }
+
+        gameServices_.getDialogueQuestManager().savePlayerFlag(characterId, flagKey, intValue, boolValue);
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("Error in handleUpdatePlayerFlagEvent: " + std::string(ex.what()));
     }
 }
