@@ -204,6 +204,7 @@ struct MobDataStruct
 
 struct SpawnZoneStruct
 {
+    int id = 0; // surrogate PK from spawn_zones.id
     int zoneId = 0;
     std::string zoneName = "";
     float posX = 0;

@@ -244,7 +244,8 @@ CharacterManager::updateBasicCharacterData(Database &db, int accountId, int char
     try
     {
         pqxx::work txn(db.getConnection());
-        db.executeQueryWithTransaction(txn, "set_basic_character_data", {characterId, characterData.characterLevel, characterData.characterExperiencePoints, characterData.characterCurrentHealth, characterData.characterCurrentMana});
+        db.executeQueryWithTransaction(txn, "set_basic_character_data", {characterId, characterData.characterLevel, characterData.characterExperiencePoints});
+        db.executeQueryWithTransaction(txn, "upsert_character_current_state", {characterId, characterData.characterCurrentHealth, characterData.characterCurrentMana});
         txn.commit();
         logger_.log("Character data updated successfully", GREEN);
     }

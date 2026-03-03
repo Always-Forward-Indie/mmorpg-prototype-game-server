@@ -49,16 +49,25 @@ Database::prepareDefaultQueries()
 {
     if (connection_->is_open())
     {
-        connection_->prepare("search_user", "SELECT * FROM users WHERE session_key = $1 LIMIT 1;");
+        connection_->prepare("search_user",
+            "SELECT u.* FROM users u "
+            "JOIN user_sessions s ON s.user_id = u.id "
+            "WHERE s.token_hash = $1 "
+            "AND s.revoked_at IS NULL "
+            "AND s.expires_at > now() "
+            "LIMIT 1;");
 
-        connection_->prepare("get_character", "SELECT characters.id as character_id, characters.level as character_lvl, "
-                                              "characters.name as character_name, character_class.name as character_class, race.name as race_name, "
-                                              "characters.experience_points as character_exp, characters.current_health as character_current_health, "
-                                              "characters.current_mana as character_current_mana "
-                                              "FROM characters "
-                                              "JOIN character_class ON characters.class_id = character_class.id "
-                                              "JOIN race on characters.race_id = race.id "
-                                              "WHERE characters.owner_id = $1 AND characters.id = $2 LIMIT 1;");
+        connection_->prepare("get_character",
+            "SELECT characters.id as character_id, characters.level as character_lvl, "
+            "characters.name as character_name, character_class.name as character_class, race.name as race_name, "
+            "characters.experience_points as character_exp, "
+            "COALESCE(ccs.current_health, 1) as character_current_health, "
+            "COALESCE(ccs.current_mana, 1) as character_current_mana "
+            "FROM characters "
+            "JOIN character_class ON characters.class_id = character_class.id "
+            "JOIN race on characters.race_id = race.id "
+            "LEFT JOIN character_current_state ccs ON ccs.character_id = characters.id "
+            "WHERE characters.owner_id = $1 AND characters.id = $2 LIMIT 1;");
 
         // get character attributes
         connection_->prepare("get_character_attributes", "SELECT entity_attributes.*, character_attributes.value FROM character_attributes "
@@ -108,15 +117,29 @@ Database::prepareDefaultQueries()
         // get experience for level data
         connection_->prepare("get_exp_level_table", "SELECT experience_points, level FROM exp_for_level;");
 
-        connection_->prepare("set_basic_character_data", "UPDATE characters "
-                                                         "SET level = $2, experience_points = $3, current_health = $4, current_mana = $5 "
-                                                         "WHERE id = $1;");
+        connection_->prepare("set_basic_character_data",
+            "UPDATE characters "
+            "SET level = $2, experience_points = $3 "
+            "WHERE id = $1;");
+        connection_->prepare("upsert_character_current_state",
+            "INSERT INTO character_current_state (character_id, current_health, current_mana) "
+            "VALUES ($1, $2, $3) "
+            "ON CONFLICT (character_id) DO UPDATE SET "
+            "current_health = EXCLUDED.current_health, "
+            "current_mana = EXCLUDED.current_mana, "
+            "updated_at = now();");
         connection_->prepare("set_character_level", "UPDATE characters "
                                                     "SET level = $2 WHERE id = $1;");
-        connection_->prepare("set_character_health", "UPDATE characters "
-                                                     "SET current_health = $2 WHERE id = $1;");
-        connection_->prepare("set_character_mana", "UPDATE characters "
-                                                   "SET current_mana = $2 WHERE id = $1;");
+        connection_->prepare("set_character_health",
+            "INSERT INTO character_current_state (character_id, current_health) "
+            "VALUES ($1, $2) "
+            "ON CONFLICT (character_id) DO UPDATE SET "
+            "current_health = EXCLUDED.current_health, updated_at = now();");
+        connection_->prepare("set_character_mana",
+            "INSERT INTO character_current_state (character_id, current_mana) "
+            "VALUES ($1, $2) "
+            "ON CONFLICT (character_id) DO UPDATE SET "
+            "current_mana = EXCLUDED.current_mana, updated_at = now();");
         connection_->prepare("set_character_exp", "UPDATE characters "
                                                   "SET experience_points = $2 WHERE id = $1;");
         connection_->prepare("set_character_exp_level", "UPDATE characters "

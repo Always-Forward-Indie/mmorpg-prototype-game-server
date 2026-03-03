@@ -30,6 +30,7 @@ SpawnZoneManager::loadMobSpawnZones()
         for (const auto &row : selectSpawnZones)
         {
             SpawnZoneStruct spawnZone;
+            spawnZone.id = row["id"].as<int>();
             spawnZone.zoneId = row["zone_id"].as<int>();
             spawnZone.zoneName = row["zone_name"].as<std::string>();
             spawnZone.posX = row["min_spawn_x"].as<float>();
@@ -42,7 +43,7 @@ SpawnZoneManager::loadMobSpawnZones()
             spawnZone.spawnCount = row["spawn_count"].as<int>();
             spawnZone.respawnTime = std::chrono::seconds(TimeConverter::getSeconds(row["respawn_time"].as<std::string>()));
 
-            mobSpawnZones_[spawnZone.zoneId] = spawnZone;
+            mobSpawnZones_[spawnZone.id] = spawnZone;
         }
     }
     catch (const std::exception &e)
@@ -73,17 +74,17 @@ SpawnZoneManager::getMobSpawnZoneByID(int zoneId)
     }
 }
 
-// get mobs in the zone
+// get mobs in the zone (linear search since map is now keyed by surrogate id)
 std::vector<MobDataStruct>
 SpawnZoneManager::getMobsInZone(int zoneId)
 {
-    auto zone = mobSpawnZones_.find(zoneId);
-    if (zone != mobSpawnZones_.end())
+    for (const auto &entry : mobSpawnZones_)
     {
-        return zone->second.spawnedMobsList;
+        if (entry.second.zoneId == zoneId)
+        {
+            return entry.second.spawnedMobsList;
+        }
     }
-    else
-    {
-        return std::vector<MobDataStruct>();
-    }
+    return std::vector<MobDataStruct>();
+}
 }
