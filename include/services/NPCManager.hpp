@@ -76,6 +76,7 @@ class NPCManager
   private:
     Database &database_;
     Logger &logger_;
+    std::shared_ptr<spdlog::logger> log_;
 
     // Thread-safe storage for NPCs
     mutable std::mutex npcsMutex_;
@@ -104,7 +105,7 @@ class NPCManager
      * @param npcId NPC identifier
      * @return PositionStruct with NPC coordinates
      */
-    PositionStruct loadNPCPosition(pqxx::work &transaction, int npcId);
+    PositionStruct loadNPCPosition(pqxx::work &transaction, int npcId, int &zoneId);
 
     /**
      * @brief Calculate max health from attributes

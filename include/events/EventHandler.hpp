@@ -38,6 +38,7 @@ class EventHandler
     void handleGetNPCsListEvent(const Event &event);
     void handleGetNPCsAttributesEvent(const Event &event);
     void handleSavePositionsEvent(const Event &event);
+    void handleSaveHpManaEvent(const Event &event); // ARCH-4
     void handleSaveCharacterProgressEvent(const Event &event);
 
     // Dialogue & Quest events
@@ -45,9 +46,15 @@ class EventHandler
     void handleGetQuestsEvent(const Event &event);
     void handleGetPlayerQuestsEvent(const Event &event);
     void handleGetPlayerFlagsEvent(const Event &event);
+    void handleGetPlayerActiveEffectsEvent(const Event &event);
+    void handleGetCharacterAttributesRefreshEvent(const Event &event);
     void handleUpdatePlayerQuestProgressEvent(const Event &event);
     void handleUpdatePlayerFlagEvent(const Event &event);
 
+    // Game config
+    void handleGetGameConfigEvent(const Event &event);
+
     NetworkManager &networkManager_;
     GameServices &gameServices_;
+    std::shared_ptr<spdlog::logger> log_;
 };

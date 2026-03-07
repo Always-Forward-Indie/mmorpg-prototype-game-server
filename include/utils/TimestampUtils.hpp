@@ -17,6 +17,12 @@ class TimestampUtils
     static long long getCurrentTimestampMs();
 
     /**
+     * @brief Get current timestamp as formatted string (YYYY-MM-DD HH:MM:SS.mmm)
+     * @return Formatted timestamp string
+     */
+    static std::string getCurrentTimestamp();
+
+    /**
      * @brief Set server receive timestamp to current time
      * @param timestamps Reference to TimestampStruct to update
      */

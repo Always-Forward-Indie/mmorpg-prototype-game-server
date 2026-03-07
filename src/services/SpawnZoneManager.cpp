@@ -1,10 +1,12 @@
 #include "services/SpawnZoneManager.hpp"
 #include "utils/TimeUtils.hpp"
 #include <algorithm>
+#include <spdlog/logger.h>
 
 SpawnZoneManager::SpawnZoneManager(MobManager &mobManager, Database &database, Logger &logger)
     : mobManager_(mobManager), database_(database), logger_(logger)
 {
+    log_ = logger.getSystem("spawn");
     loadMobSpawnZones();
 }
 
@@ -13,7 +15,8 @@ SpawnZoneManager::loadMobSpawnZones()
 {
     try
     {
-        pqxx::work transaction(database_.getConnection()); // Start a transaction
+        auto _dbConn = database_.getConnectionLocked();
+        pqxx::work transaction(_dbConn.get()); // Start a transaction
         pqxx::result selectSpawnZones = database_.executeQueryWithTransaction(
             transaction,
             "get_mob_spawn_zone_data",
@@ -22,7 +25,7 @@ SpawnZoneManager::loadMobSpawnZones()
         if (selectSpawnZones.empty())
         {
             // log that the data is empty
-            logger_.logError("No spawn zones found in the database");
+            log_->error("No spawn zones found in the database");
             // Rollback the transaction
             transaction.abort(); // Rollback the transaction
         }
@@ -30,15 +33,19 @@ SpawnZoneManager::loadMobSpawnZones()
         for (const auto &row : selectSpawnZones)
         {
             SpawnZoneStruct spawnZone;
-            spawnZone.id = row["id"].as<int>();
+            // szm_id is the unique id from spawn_zone_mobs — use as map key so
+            // multiple mobs in the same zone don't overwrite each other.
+            spawnZone.id = row["szm_id"].as<int>();
             spawnZone.zoneId = row["zone_id"].as<int>();
             spawnZone.zoneName = row["zone_name"].as<std::string>();
+            // min_spawn_x/y/z = origin corner, max_spawn_x/y/z = opposite corner
             spawnZone.posX = row["min_spawn_x"].as<float>();
             spawnZone.sizeX = row["max_spawn_x"].as<float>();
             spawnZone.posY = row["min_spawn_y"].as<float>();
             spawnZone.sizeY = row["max_spawn_y"].as<float>();
             spawnZone.posZ = row["min_spawn_z"].as<float>();
             spawnZone.sizeZ = row["max_spawn_z"].as<float>();
+            // mob data from spawn_zone_mobs join
             spawnZone.spawnMobId = row["mob_id"].as<int>();
             spawnZone.spawnCount = row["spawn_count"].as<int>();
             spawnZone.respawnTime = std::chrono::seconds(TimeConverter::getSeconds(row["respawn_time"].as<std::string>()));
@@ -74,7 +81,7 @@ SpawnZoneManager::getMobSpawnZoneByID(int zoneId)
     }
 }
 
-// get mobs in the zone (linear search since map is now keyed by surrogate id)
+// get mobs in the zone — collect all spawn entries whose zoneId matches
 std::vector<MobDataStruct>
 SpawnZoneManager::getMobsInZone(int zoneId)
 {
@@ -86,5 +93,4 @@ SpawnZoneManager::getMobsInZone(int zoneId)
         }
     }
     return std::vector<MobDataStruct>();
-}
 }

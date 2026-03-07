@@ -1,33 +1,37 @@
-#include <iostream>
-#include <csignal>
-#include <atomic>
-#include <thread>
-#include "utils/Config.hpp"
-#include "utils/Logger.hpp"
-#include "utils/TimeConverter.hpp"
 #include "game_server/GameServer.hpp"
 #include "network/NetworkManager.hpp"
-#include "utils/Database.hpp"
-#include "utils/Scheduler.hpp"
 #include "services/CharacterManager.hpp"
 #include "services/GameServices.hpp"
+#include "utils/Config.hpp"
+#include "utils/Database.hpp"
+#include "utils/Logger.hpp"
+#include "utils/Scheduler.hpp"
+#include "utils/TimeConverter.hpp"
+#include <atomic>
+#include <csignal>
+#include <iostream>
+#include <thread>
 
 std::atomic<bool> running(true);
 
-void signalHandler(int signal) {
+void
+signalHandler(int signal)
+{
     running = false;
 }
 
-int main() {
-    try {
+int
+main()
+{
+    Logger logger("game-server");
+    try
+    {
         // Register signal handlers
         std::signal(SIGINT, signalHandler);
         std::signal(SIGTERM, signalHandler);
 
         // Initialize Config
         Config config;
-        // Initialize Logger
-        Logger logger;
         // Get configs for connections to servers from config.json
         auto configs = config.parseConfig("config.json");
 
@@ -70,18 +74,21 @@ int main() {
         gameServer.startMainEventLoop();
 
         // Start Scheduler loop in a separate thread
-       scheduler.start();
+        scheduler.start();
 
         // wait for the signal to stop the server
-        while (running) {
+        while (running)
+        {
             std::this_thread::sleep_for(std::chrono::seconds(1));
         }
 
-        std::cout << "Shutting down gracefully..." << std::endl;
+        logger.info("Shutting down gracefully...");
 
         return 0;
-    } catch (const std::exception &e) {
-        std::cerr << "Error: " << e.what() << std::endl;
+    }
+    catch (const std::exception &e)
+    {
+        logger.critical("Fatal error: " + std::string(e.what()));
         return 1;
     }
 }

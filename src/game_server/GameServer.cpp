@@ -1,5 +1,6 @@
 #include "game_server/GameServer.hpp"
 #include <unordered_set>
+#include <spdlog/logger.h>
 
 GameServer::GameServer(GameServices &gameServices,
                         EventHandler &eventHandler,
@@ -15,19 +16,20 @@ GameServer::GameServer(GameServices &gameServices,
       scheduler_(scheduler),
       gameServices_(gameServices)
 {
+    log_ = gameServices_.getLogger().getSystem("gameloop");
     
 }
 
 void GameServer::mainEventLoopGS()
 {
-    gameServices_.getLogger().log("Add Tasks To Game Server Scheduler...", YELLOW);
+    log_->info("Add Tasks To Game Server Scheduler...");
     constexpr int BATCH_SIZE = 10;
 
     // TODO - save different data to the database in different time intervals
 
     try
     {
-        gameServices_.getLogger().log("Starting Game Server Event Loop...", YELLOW);
+        log_->info("Starting Game Server Event Loop...");
         while (running_)
         {
             std::vector<Event> eventsBatch;
@@ -39,7 +41,7 @@ void GameServer::mainEventLoopGS()
     }
     catch (const std::exception &e)
     {
-        gameServices_.getLogger().logError(e.what(), RED);
+        log_->error(e.what());
     }
 }
 
@@ -48,13 +50,13 @@ void GameServer::mainEventLoopGS()
 void GameServer::mainEventLoopCH()
 {
     constexpr int BATCH_SIZE = 10;
-    gameServices_.getLogger().log("Add Tasks To Chunk Server Scheduler...", YELLOW);
+    log_->info("Add Tasks To Chunk Server Scheduler...");
 
     // TODO - Get different data from chunk servers in different time intervals
 
     try
     {
-        gameServices_.getLogger().log("Starting Chunk Server Event Loop...", YELLOW);
+        log_->info("Starting Chunk Server Event Loop...");
         while (running_)
         {
             std::vector<Event> eventsBatch;
@@ -66,7 +68,7 @@ void GameServer::mainEventLoopCH()
     }
     catch (const std::exception &e)
     {
-        gameServices_.getLogger().logError(e.what(), RED);
+        log_->error(e.what());
     }
 }
 
@@ -74,7 +76,7 @@ void GameServer::mainEventLoopPing()
 {
     constexpr int BATCH_SIZE = 1; // Ping обрабатывай сразу
 
-    gameServices_.getLogger().log("Starting Ping Event Loop...", YELLOW);
+    log_->info("Starting Ping Event Loop...");
 
     try
     {
@@ -171,7 +173,7 @@ void GameServer::startMainEventLoop()
 {
     if (event_game_server_thread_.joinable() || event_chunk_server_thread_.joinable())
     {
-        gameServices_.getLogger().log("Game server event loops are already running!", RED);
+        log_->warn("Game server event loops are already running!");
         return;
     }
 
@@ -189,7 +191,7 @@ void GameServer::stop()
 
 GameServer::~GameServer()
 {
-    gameServices_.getLogger().log("Shutting down Game Server...", YELLOW);
+    log_->info("Shutting down Game Server...");
     
     stop();  
 

@@ -60,14 +60,18 @@ class Event
         MOVE_MOB,
         GET_NPCS_LIST,
         GET_NPCS_ATTRIBUTES,
-        SAVE_POSITIONS,               // Save player positions to database
-        SAVE_CHARACTER_PROGRESS,      // Save player exp/level to database
-        GET_DIALOGUES,                // Load all dialogues and send to chunk
-        GET_QUESTS,                   // Load all quests and send to chunk
-        GET_PLAYER_QUESTS,            // Load player quests and send to chunk
-        GET_PLAYER_FLAGS,             // Load player flags and send to chunk
-        UPDATE_PLAYER_QUEST_PROGRESS, // Persist quest progress to DB
-        UPDATE_PLAYER_FLAG            // Persist player flag to DB
+        SAVE_POSITIONS,                   // Save player positions to database
+        SAVE_CHARACTER_PROGRESS,          // Save player exp/level to database
+        SAVE_HP_MANA,                     // ARCH-4: Save player HP/Mana to database
+        GET_DIALOGUES,                    // Load all dialogues and send to chunk
+        GET_QUESTS,                       // Load all quests and send to chunk
+        GET_PLAYER_QUESTS,                // Load player quests and send to chunk
+        GET_PLAYER_FLAGS,                 // Load player flags and send to chunk
+        GET_PLAYER_ACTIVE_EFFECTS,        // Load non-expired active effects and send to chunk
+        GET_CHARACTER_ATTRIBUTES_REFRESH, // Re-query attributes (base+equip+perm mods) and send to chunk
+        UPDATE_PLAYER_QUEST_PROGRESS,     // Persist quest progress to DB
+        UPDATE_PLAYER_FLAG,               // Persist player flag to DB
+        GET_GAME_CONFIG                   // Load game_config and send to chunk-server
     }; // Define more event types as needed
     Event() = default; // Default constructor
     Event(EventType type, int clientID, const EventData data, std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket);

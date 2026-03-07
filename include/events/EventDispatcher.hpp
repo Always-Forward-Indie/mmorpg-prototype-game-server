@@ -4,6 +4,7 @@
 #include "events/EventQueue.hpp"
 #include "game_server/GameServer.hpp"
 #include "utils/JSONParser.hpp"
+#include <mutex>
 
 class EventDispatcher
 {
@@ -28,11 +29,14 @@ class EventDispatcher
 
     void handleGetNPCsData(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
     void handleSavePositions(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
+    void handleSaveHpMana(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket); // ARCH-4
     void handleSaveCharacterProgress(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
 
     // Dialogue & Quest
     void handleGetPlayerQuests(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
     void handleGetPlayerFlags(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
+    void handleGetPlayerActiveEffects(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
+    void handleGetCharacterAttributesRefresh(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
     void handleUpdatePlayerQuestProgress(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
     void handleUpdatePlayerFlag(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
 
@@ -40,8 +44,10 @@ class EventDispatcher
     EventQueue &eventQueuePing_;
     GameServer *gameServer_;
     Logger &logger_;
+    std::shared_ptr<spdlog::logger> log_;
     JSONParser &jsonParser_;
 
     std::vector<Event> eventsBatch_;
     constexpr static int BATCH_SIZE = 10;
+    mutable std::mutex dispatchMutex_; ///< CRITICAL-3: serialises concurrent dispatch() calls from io_context threads
 };

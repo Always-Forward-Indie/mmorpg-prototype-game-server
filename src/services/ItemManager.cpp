@@ -1,8 +1,10 @@
 #include "services/ItemManager.hpp"
+#include <spdlog/logger.h>
 
 ItemManager::ItemManager(Database &database, Logger &logger)
     : database_(database), logger_(logger)
 {
+    log_ = logger.getSystem("item");
     loadItems();
     loadMobLoot();
 }
@@ -12,7 +14,8 @@ ItemManager::loadItems()
 {
     try
     {
-        pqxx::work transaction(database_.getConnection());
+        auto _dbConn = database_.getConnectionLocked();
+        pqxx::work transaction(_dbConn.get());
         pqxx::result selectItems = database_.executeQueryWithTransaction(
             transaction,
             "get_items",
@@ -20,7 +23,7 @@ ItemManager::loadItems()
 
         if (selectItems.empty())
         {
-            logger_.logError("No items found in the database");
+            log_->error("No items found in the database");
             transaction.abort();
             return;
         }
@@ -40,6 +43,7 @@ ItemManager::loadItems()
             itemData.isTradable = row["is_tradable"].as<bool>();
             itemData.isEquippable = row["is_equippable"].as<bool>();
             itemData.isHarvest = row["is_harvest"].as<bool>();
+            itemData.isUsable = row["is_usable"].as<bool>();
             itemData.itemType = row["item_type"].as<int>();
             itemData.itemTypeName = row["item_type_name"].as<std::string>();
             itemData.itemTypeSlug = row["item_type_slug"].as<std::string>();
@@ -70,6 +74,7 @@ ItemManager::loadItems()
                 itemAttribute.name = attributeRow["name"].as<std::string>();
                 itemAttribute.slug = attributeRow["slug"].as<std::string>();
                 itemAttribute.value = attributeRow["value"].as<int>();
+                itemAttribute.apply_on = attributeRow["apply_on"].as<std::string>();
 
                 itemData.attributes.push_back(itemAttribute);
             }
@@ -91,7 +96,8 @@ ItemManager::loadMobLoot()
 {
     try
     {
-        pqxx::work transaction(database_.getConnection());
+        auto _dbConn = database_.getConnectionLocked();
+        pqxx::work transaction(_dbConn.get());
         pqxx::result selectMobLoot = database_.executeQueryWithTransaction(
             transaction,
             "get_mobs_loot",
@@ -99,7 +105,7 @@ ItemManager::loadMobLoot()
 
         if (selectMobLoot.empty())
         {
-            logger_.logError("No mob loot information found in the database");
+            log_->error("No mob loot information found in the database");
             transaction.abort();
             return;
         }
@@ -113,6 +119,9 @@ ItemManager::loadMobLoot()
             lootInfo.mobId = row["mob_id"].as<int>();
             lootInfo.itemId = row["item_id"].as<int>();
             lootInfo.dropChance = row["drop_chance"].as<float>();
+            lootInfo.isHarvestOnly = row["is_harvest_only"].as<bool>();
+            lootInfo.minQuantity = row["min_quantity"].as<int>();
+            lootInfo.maxQuantity = row["max_quantity"].as<int>();
 
             mobLootInfo_[lootInfo.mobId].push_back(lootInfo);
         }

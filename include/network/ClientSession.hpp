@@ -36,6 +36,7 @@ class ClientSession : public std::enable_shared_from_this<ClientSession>
     std::array<char, 1024> dataBuffer_;
     std::string accumulatedData_;
     Logger &logger_;
+    std::shared_ptr<spdlog::logger> log_;
     EventQueue &eventQueue_;
     EventQueue &eventQueuePing_;
     GameServer *gameServer_;

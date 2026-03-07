@@ -3,6 +3,7 @@
 #include "services/ChunkManager.hpp"
 #include "services/ClientManager.hpp"
 #include "services/DialogueQuestManager.hpp"
+#include "services/GameConfigService.hpp"
 #include "services/ItemManager.hpp"
 #include "services/MobManager.hpp"
 #include "services/NPCManager.hpp"
@@ -23,7 +24,8 @@ class GameServices
           characterManager_(logger_),
           clientManager_(logger_),
           chunkManager_(logger_),
-          dialogueQuestManager_(database_, logger_)
+          dialogueQuestManager_(database_, logger_),
+          gameConfigService_(database_, logger_)
     {
     }
 
@@ -67,6 +69,10 @@ class GameServices
     {
         return dialogueQuestManager_;
     }
+    GameConfigService &getGameConfigService()
+    {
+        return gameConfigService_;
+    }
 
   private:
     Logger &logger_;
@@ -79,4 +85,5 @@ class GameServices
     ClientManager clientManager_;
     ChunkManager chunkManager_;
     DialogueQuestManager dialogueQuestManager_;
+    GameConfigService gameConfigService_;
 };

@@ -1,9 +1,11 @@
 #include "services/DialogueQuestManager.hpp"
 #include <pqxx/pqxx>
+#include <spdlog/logger.h>
 
 DialogueQuestManager::DialogueQuestManager(Database &database, Logger &logger)
     : database_(database), logger_(logger)
 {
+    log_ = logger.getSystem("quest");
 }
 
 // ---------------------------------------------------------------------------
@@ -13,8 +15,9 @@ DialogueQuestManager::DialogueQuestManager(Database &database, Logger &logger)
 nlohmann::json
 DialogueQuestManager::getAllDialoguesJson()
 {
-    logger_.log("[DQM] Loading dialogues from database", BLUE);
-    pqxx::work txn(database_.getConnection());
+    log_->debug("[DQM] Loading dialogues from database");
+    auto _dbConn = database_.getConnectionLocked();
+    pqxx::work txn(_dbConn.get());
 
     auto dialogues = database_.executeQueryWithTransaction(txn, "get_dialogues", {});
     auto nodes = database_.executeQueryWithTransaction(txn, "get_dialogue_nodes", {});
@@ -99,7 +102,8 @@ DialogueQuestManager::getAllDialoguesJson()
 nlohmann::json
 DialogueQuestManager::getAllNPCDialogueMappingsJson()
 {
-    pqxx::work txn(database_.getConnection());
+    auto _dbConn = database_.getConnectionLocked();
+    pqxx::work txn(_dbConn.get());
     auto mappings = database_.executeQueryWithTransaction(txn, "get_npc_dialogue_mappings", {});
     txn.commit();
 
@@ -122,8 +126,9 @@ DialogueQuestManager::getAllNPCDialogueMappingsJson()
 nlohmann::json
 DialogueQuestManager::getAllQuestsJson()
 {
-    logger_.log("[DQM] Loading quests from database", BLUE);
-    pqxx::work txn(database_.getConnection());
+    log_->debug("[DQM] Loading quests from database");
+    auto _dbConn = database_.getConnectionLocked();
+    pqxx::work txn(_dbConn.get());
 
     auto quests = database_.executeQueryWithTransaction(txn, "get_quests", {});
     auto steps = database_.executeQueryWithTransaction(txn, "get_quest_steps", {});
@@ -190,7 +195,8 @@ DialogueQuestManager::getAllQuestsJson()
 nlohmann::json
 DialogueQuestManager::getPlayerQuestsJson(int characterId)
 {
-    pqxx::work txn(database_.getConnection());
+    auto _dbConn = database_.getConnectionLocked();
+    pqxx::work txn(_dbConn.get());
     auto result = database_.executeQueryWithTransaction(txn, "get_player_quests", {(int)characterId});
     txn.commit();
 
@@ -214,7 +220,8 @@ DialogueQuestManager::getPlayerQuestsJson(int characterId)
 nlohmann::json
 DialogueQuestManager::getPlayerFlagsJson(int characterId)
 {
-    pqxx::work txn(database_.getConnection());
+    auto _dbConn = database_.getConnectionLocked();
+    pqxx::work txn(_dbConn.get());
     auto result = database_.executeQueryWithTransaction(txn, "get_player_flags", {(int)characterId});
     txn.commit();
 
@@ -239,7 +246,8 @@ DialogueQuestManager::savePlayerQuestProgress(int characterId, int questId, cons
 {
     try
     {
-        pqxx::work txn(database_.getConnection());
+        auto _dbConn = database_.getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
         database_.executeQueryWithTransaction(txn, "upsert_player_quest", {(int)characterId, (int)questId, state, (int)currentStep, progressJson});
         txn.commit();
         logger_.log("[DQM] Saved quest characterId=" + std::to_string(characterId) +
@@ -257,12 +265,12 @@ DialogueQuestManager::savePlayerFlag(int characterId, const std::string &flagKey
 {
     try
     {
-        pqxx::work txn(database_.getConnection());
+        auto _dbConn = database_.getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
         database_.executeQueryWithTransaction(txn, "upsert_player_flag", {(int)characterId, flagKey, (int)intValue, std::string(boolValue ? "true" : "false")});
         txn.commit();
-        logger_.log("[DQM] Saved flag characterId=" + std::to_string(characterId) +
-                        " key=" + flagKey,
-            GREEN);
+        log_->info("[DQM] Saved flag characterId=" + std::to_string(characterId) +
+                        " key=" + flagKey);
     }
     catch (const std::exception &ex)
     {

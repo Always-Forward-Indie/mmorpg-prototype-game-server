@@ -36,8 +36,12 @@ class CharacterManager
     void updateBasicCharacterData(Database &db, int accountId, int characterId, const CharacterDataStruct &characterData);
     void updateCharacterExperienceAndLevel(Database &db, int characterId, int experiencePoints, int level);
 
+    /// ARCH-4: Persist current HP and Mana for a single character — called by periodic save task.
+    void saveCharacterHpMana(Database &db, int characterId, int currentHp, int currentMana);
+
   private:
     Logger &logger_;
+    std::shared_ptr<spdlog::logger> log_;
     std::unordered_map<int, CharacterDataStruct> charactersMap_;
     std::shared_mutex mutex_;
 };

@@ -1,8 +1,11 @@
 #include "services/MobManager.hpp"
+#include <cmath>
+#include <spdlog/logger.h>
 
 MobManager::MobManager(Database &database, Logger &logger)
     : database_(database), logger_(logger)
 {
+    log_ = logger.getSystem("mob");
     loadMobs();
 }
 
@@ -12,7 +15,8 @@ MobManager::loadMobs()
 {
     try
     {
-        pqxx::work transaction(database_.getConnection()); // Start a transaction
+        auto _dbConn = database_.getConnectionLocked();
+        pqxx::work transaction(_dbConn.get()); // Start a transaction
         pqxx::result selectMobs = database_.executeQueryWithTransaction(
             transaction,
             "get_mobs",
@@ -21,7 +25,7 @@ MobManager::loadMobs()
         if (selectMobs.empty())
         {
             // log that the data is empty
-            logger_.logError("No mobs found in the database");
+            log_->error("No mobs found in the database");
             // Rollback the transaction
             transaction.abort();
         }
@@ -36,10 +40,28 @@ MobManager::loadMobs()
             mobData.baseExperience = row["base_xp"].as<int>();
             mobData.radius = row["radius"].as<int>();
             mobData.raceName = row["race"].as<std::string>();
-            mobData.currentHealth = row["current_health"].as<int>();
-            mobData.currentMana = row["current_mana"].as<int>();
+            mobData.currentHealth = row["spawn_health"].as<int>();
+            mobData.currentMana = row["spawn_mana"].as<int>();
             mobData.isAggressive = row["is_aggressive"].as<bool>();
             mobData.isDead = row["is_dead"].as<bool>();
+            mobData.rankId = row["rank_id"].as<int>();
+            mobData.rankCode = row["rank_code"].as<std::string>();
+            mobData.rankMult = row["rank_mult"].as<float>();
+
+            // Per-mob AI configuration (migration 011)
+            mobData.aggroRange = row["aggro_range"].as<float>();
+            mobData.attackRange = row["attack_range"].as<float>();
+            mobData.attackCooldown = row["attack_cooldown"].as<float>();
+            mobData.chaseMultiplier = row["chase_multiplier"].as<float>();
+            mobData.patrolSpeed = row["patrol_speed"].as<float>();
+
+            // Social behaviour (migration 012)
+            mobData.isSocial = row["is_social"].as<bool>();
+            mobData.chaseDuration = row["chase_duration"].as<float>();
+
+            // AI depth (migration 016)
+            mobData.fleeHpThreshold = row["flee_hp_threshold"].as<float>();
+            mobData.aiArchetype = row["ai_archetype"].as<std::string>();
 
             // get mob attributes
             pqxx::result selectMobAttributes = database_.executeQueryWithTransaction(
@@ -53,22 +75,27 @@ MobManager::loadMobs()
             }
 
             // populate mob attributes
+            // Apply rankMult to all attributes so elite/boss mobs have proportionally
+            // stronger stats than normal mobs of the same template.
             for (const auto &attributeRow : selectMobAttributes)
             {
                 MobAttributeStruct mobAttribute;
-                mobAttribute.mob_id = mobData.id; // Set the mob_id for the attribute
+                mobAttribute.mob_id = mobData.id;
                 mobAttribute.id = attributeRow["id"].as<int>();
                 mobAttribute.name = attributeRow["name"].as<std::string>();
                 mobAttribute.slug = attributeRow["slug"].as<std::string>();
-                mobAttribute.value = attributeRow["value"].as<int>();
+
+                // Scale by rank multiplier (normal=1.0, elite=2.0, boss=3.0, …)
+                const int rawValue = attributeRow["value"].as<int>();
+                mobAttribute.value = static_cast<int>(std::round(rawValue * mobData.rankMult));
 
                 if (mobAttribute.slug == "max_health")
                 {
-                    mobData.maxHealth = mobAttribute.value; // Set max health from attribute
+                    mobData.maxHealth = mobAttribute.value;
                 }
                 else if (mobAttribute.slug == "max_mana")
                 {
-                    mobData.maxMana = mobAttribute.value; // Set max mana from attribute
+                    mobData.maxMana = mobAttribute.value;
                 }
 
                 mobData.attributes.push_back(mobAttribute);

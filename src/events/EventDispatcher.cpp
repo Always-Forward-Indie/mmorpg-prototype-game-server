@@ -1,4 +1,5 @@
 #include "events/EventDispatcher.hpp"
+#include <spdlog/logger.h>
 
 EventDispatcher::EventDispatcher(
     EventQueue &eventQueue,
@@ -12,6 +13,7 @@ EventDispatcher::EventDispatcher(
       logger_(logger),
       jsonParser_(jsonParser)
 {
+    log_ = logger.getSystem("events");
 }
 
 void
@@ -19,6 +21,10 @@ EventDispatcher::dispatch(const std::string &eventType,
     const EventPayload &payload,
     std::shared_ptr<boost::asio::ip::tcp::socket> socket)
 {
+    // CRITICAL-3 fix: eventsBatch_ is a shared member; serialise all dispatch() invocations
+    // so concurrent io_context threads cannot race on it.
+    std::lock_guard<std::mutex> dispatchLock(dispatchMutex_);
+
     if (eventType == "joinGame")
     {
         handleJoinGame(payload, socket);
@@ -63,6 +69,10 @@ EventDispatcher::dispatch(const std::string &eventType,
     {
         handleSavePositions(payload, socket);
     }
+    else if (eventType == "saveHpMana")
+    {
+        handleSaveHpMana(payload, socket);
+    }
     else if (eventType == "saveCharacterProgress")
     {
         handleSaveCharacterProgress(payload, socket);
@@ -75,6 +85,14 @@ EventDispatcher::dispatch(const std::string &eventType,
     {
         handleGetPlayerFlags(payload, socket);
     }
+    else if (eventType == "getPlayerActiveEffects")
+    {
+        handleGetPlayerActiveEffects(payload, socket);
+    }
+    else if (eventType == "getCharacterAttributes")
+    {
+        handleGetCharacterAttributesRefresh(payload, socket);
+    }
     else if (eventType == "updatePlayerQuestProgress")
     {
         handleUpdatePlayerQuestProgress(payload, socket);
@@ -85,7 +103,7 @@ EventDispatcher::dispatch(const std::string &eventType,
     }
     else
     {
-        logger_.logError("Unknown event type: " + eventType, RED);
+        log_->error("Unknown event type: " + eventType);
     }
 
     // Push batched events at the end
@@ -147,7 +165,7 @@ EventDispatcher::handleGetSpawnZones(
 {
     if (!gameServer_)
     {
-        logger_.logError("GameServer is nullptr in EventDispatcher!", RED);
+        log_->error("GameServer is nullptr in EventDispatcher!");
         return;
     }
 
@@ -220,7 +238,7 @@ EventDispatcher::handlePing(
     Event pingEvent(Event::PING_CLIENT, payload.clientData.clientId, payload.clientData, socket);
     eventQueuePing_.push(pingEvent);
 
-    logger_.log("Ping event dispatched for client " + std::to_string(payload.clientData.clientId), GREEN);
+    log_->info("Ping event dispatched for client " + std::to_string(payload.clientData.clientId));
 }
 
 void
@@ -251,6 +269,38 @@ EventDispatcher::handleSavePositions(
     eventsBatch_.push_back(saveEvent);
     eventQueue_.pushBatch(eventsBatch_);
     eventsBatch_.clear();
+}
+
+void
+EventDispatcher::handleSaveHpMana(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    // ARCH-4: Parse HP/Mana snapshot from chunk-server and create a save event
+    try
+    {
+        auto j = nlohmann::json::parse(payload.rawMessage);
+        const auto &arr = j["body"]["characters"];
+        std::vector<CharacterDataStruct> charactersList;
+        charactersList.reserve(arr.size());
+        for (const auto &entry : arr)
+        {
+            CharacterDataStruct cd;
+            cd.characterId = entry.value("characterId", 0);
+            cd.characterCurrentHealth = entry.value("currentHp", 0);
+            cd.characterCurrentMana = entry.value("currentMana", 0);
+            if (cd.characterId > 0)
+                charactersList.push_back(cd);
+        }
+        Event saveEvent(Event::SAVE_HP_MANA, 0, charactersList, socket);
+        eventsBatch_.push_back(saveEvent);
+        eventQueue_.pushBatch(eventsBatch_);
+        eventsBatch_.clear();
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleSaveHpMana parse error: " + std::string(ex.what()));
+    }
 }
 
 void
@@ -342,5 +392,45 @@ EventDispatcher::handleUpdatePlayerFlag(
     catch (const std::exception &ex)
     {
         logger_.logError("handleUpdatePlayerFlag parse error: " + std::string(ex.what()));
+    }
+}
+
+void
+EventDispatcher::handleGetPlayerActiveEffects(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    try
+    {
+        auto j = nlohmann::json::parse(payload.rawMessage);
+        int characterId = j["body"].value("characterId", 0);
+        Event ev(Event::GET_PLAYER_ACTIVE_EFFECTS, characterId, static_cast<int>(characterId), socket);
+        eventsBatch_.push_back(ev);
+        eventQueue_.pushBatch(eventsBatch_);
+        eventsBatch_.clear();
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleGetPlayerActiveEffects parse error: " + std::string(ex.what()));
+    }
+}
+
+void
+EventDispatcher::handleGetCharacterAttributesRefresh(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    try
+    {
+        auto j = nlohmann::json::parse(payload.rawMessage);
+        int characterId = j["body"].value("characterId", 0);
+        Event ev(Event::GET_CHARACTER_ATTRIBUTES_REFRESH, characterId, static_cast<int>(characterId), socket);
+        eventsBatch_.push_back(ev);
+        eventQueue_.pushBatch(eventsBatch_);
+        eventsBatch_.clear();
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleGetCharacterAttributesRefresh parse error: " + std::string(ex.what()));
     }
 }

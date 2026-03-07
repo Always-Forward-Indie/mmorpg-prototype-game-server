@@ -1,9 +1,11 @@
 #include "services/NPCManager.hpp"
 #include <algorithm>
+#include <spdlog/logger.h>
 
 NPCManager::NPCManager(Database &database, Logger &logger)
     : database_(database), logger_(logger)
 {
+    log_ = logger.getSystem("npc");
     // NPCs will be loaded when explicitly requested
     // This follows lazy loading pattern for better performance
 }
@@ -15,13 +17,14 @@ NPCManager::loadNPCs()
 
     if (loaded_)
     {
-        logger_.log("NPCs already loaded, skipping reload", YELLOW);
+        log_->info("NPCs already loaded, skipping reload");
         return;
     }
 
     try
     {
-        pqxx::work transaction(database_.getConnection());
+        auto _dbConn = database_.getConnectionLocked();
+        pqxx::work transaction(_dbConn.get());
 
         // Load basic NPC data
         pqxx::result selectNPCs = database_.executeQueryWithTransaction(
@@ -31,7 +34,7 @@ NPCManager::loadNPCs()
 
         if (selectNPCs.empty())
         {
-            logger_.logError("No NPCs found in the database");
+            log_->error("No NPCs found in the database");
             transaction.abort();
             return;
         }
@@ -73,7 +76,9 @@ NPCManager::loadNPCs()
             // Load related data
             npcData.attributes = loadNPCAttributes(transaction, npcData.id);
             npcData.skills = loadNPCSkills(transaction, npcData.id);
-            npcData.position = loadNPCPosition(transaction, npcData.id);
+
+            // loadNPCPosition also fills npcData.zoneId from the placement row
+            npcData.position = loadNPCPosition(transaction, npcData.id, npcData.zoneId);
 
             // Calculate derived values
             npcData.maxHealth = calculateMaxHealth(npcData.attributes);
@@ -248,7 +253,7 @@ NPCManager::loadNPCSkills(pqxx::work &transaction, int npcId)
 }
 
 PositionStruct
-NPCManager::loadNPCPosition(pqxx::work &transaction, int npcId)
+NPCManager::loadNPCPosition(pqxx::work &transaction, int npcId, int &zoneId)
 {
     PositionStruct position;
 
@@ -266,6 +271,11 @@ NPCManager::loadNPCPosition(pqxx::work &transaction, int npcId)
             position.positionY = row["y"].as<float>();
             position.positionZ = row["z"].as<float>();
             position.rotationZ = row["rot_z"].as<float>();
+            // zone_id comes from npc_placements (priority) or npc_position fallback
+            if (!row["zone_id"].is_null())
+            {
+                zoneId = row["zone_id"].as<int>();
+            }
         }
     }
     catch (const std::exception &e)

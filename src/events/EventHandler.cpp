@@ -4,6 +4,7 @@
 #include "utils/TimestampUtils.hpp"
 
 #include "events/Event.hpp"
+#include <spdlog/logger.h>
 
 EventHandler::EventHandler(
     NetworkManager &networkManager,
@@ -11,6 +12,7 @@ EventHandler::EventHandler(
     : networkManager_(networkManager),
       gameServices_(gameServices)
 {
+    log_ = gameServices_.getLogger().getSystem("events");
 }
 
 void
@@ -88,7 +90,7 @@ EventHandler::handleJoinPlayerClientEvent(const Event &event)
                 passedClientData.socket,
                 responseData);
 
-            gameServices_.getLogger().log("Sending data to the Client: " + responseData, YELLOW);
+            log_->info("Sending data to the Client: " + responseData);
 
             // Dispatch the event to get character data and send it to the chunk server
             Event getCharacterDataEvent(Event::GET_CHARACTER_DATA, clientID, passedClientData, chunkServerData.socket);
@@ -96,7 +98,7 @@ EventHandler::handleJoinPlayerClientEvent(const Event &event)
         }
         else
         {
-            gameServices_.getLogger().log("Error with extracting data!");
+            log_->info("Error with extracting data!");
         }
     }
     catch (const std::bad_variant_access &ex)
@@ -183,11 +185,19 @@ EventHandler::handleGetCharacterDataEvent(const Event &event)
                 }
                 if (attribute.slug == "max_mana")
                 {
-                    characterData.characterMaxHealth = attribute.value;
+                    characterData.characterMaxMana = attribute.value;
                 }
 
                 attributes.push_back(attributeData);
             }
+
+            // Cap current HP/MP to their respective max values.
+            // Stale DB data (e.g. test value 999) can exceed the computed max,
+            // which would produce nonsense like "999/197" on the client.
+            if (characterData.characterMaxHealth > 0)
+                characterData.characterCurrentHealth = std::min(characterData.characterCurrentHealth, characterData.characterMaxHealth);
+            if (characterData.characterMaxMana > 0)
+                characterData.characterCurrentMana = std::min(characterData.characterCurrentMana, characterData.characterMaxMana);
 
             // Create skills array
             nlohmann::json skills = nlohmann::json::array();
@@ -208,6 +218,7 @@ EventHandler::handleGetCharacterDataEvent(const Event &event)
                 skillData["castMs"] = skill.castMs;
                 skillData["costMp"] = skill.costMp;
                 skillData["maxRange"] = skill.maxRange;
+                skillData["areaRadius"] = skill.areaRadius;
 
                 skills.push_back(skillData);
             }
@@ -246,7 +257,7 @@ EventHandler::handleGetCharacterDataEvent(const Event &event)
         }
         else
         {
-            gameServices_.getLogger().log("Error with extracting data!");
+            log_->info("Error with extracting data!");
         }
     }
     catch (const std::bad_variant_access &ex)
@@ -317,7 +328,7 @@ EventHandler::handleMoveCharacterChunkEvent(const Event &event)
             // Prepare a response message
             std::string responseData = networkManager_.generateResponseMessage("success", response);
 
-            gameServices_.getLogger().log("Sending data to Chunk Server: " + responseData, YELLOW);
+            log_->info("Sending data to Chunk Server: " + responseData);
 
             // Send the response to the chunk server
             networkManager_.sendResponse(
@@ -326,7 +337,7 @@ EventHandler::handleMoveCharacterChunkEvent(const Event &event)
         }
         else
         {
-            gameServices_.getLogger().log("Error with extracting data!");
+            log_->info("Error with extracting data!");
         }
     }
     catch (const std::bad_variant_access &ex)
@@ -359,14 +370,14 @@ EventHandler::handleDisconnectChunkEvent(const Event &event)
                     clientID,
                     charData.characterId,
                     charData.characterPosition);
-                gameServices_.getLogger().log(
-                    "Saved position on disconnect for characterId: " + std::to_string(charData.characterId), GREEN);
+                log_->info(
+                    "Saved position on disconnect for characterId: " + std::to_string(charData.characterId));
             }
         }
 
         if (clientID == 0)
         {
-            gameServices_.getLogger().log("Client ID is 0, so we will just remove client from our list!");
+            log_->info("Client ID is 0, so we will just remove client from our list!");
 
             // Remove the client data by socket
             gameServices_.getClientManager().removeClientDataBySocket(clientSocket);
@@ -495,6 +506,11 @@ EventHandler::handleJoinChunkServerEvent(const Event &event)
             // load quests
             Event questsEvent(Event::GET_QUESTS, clientID, ClientDataStruct(), clientSocket);
             dispatchEvent(questsEvent);
+
+            // load game config
+            gameServices_.getGameConfigService().loadConfig();
+            Event gameConfigEvent(Event::GET_GAME_CONFIG, clientID, ClientDataStruct(), clientSocket);
+            dispatchEvent(gameConfigEvent);
         }
 
         // Add the message to the response
@@ -539,7 +555,7 @@ EventHandler::handleDisconnectChunkServerEvent(const Event &event)
     {
         if (clientID == 0)
         {
-            gameServices_.getLogger().log("Chunk Server ID is 0, so we will just remove chunk server from our list!");
+            log_->info("Chunk Server ID is 0, so we will just remove chunk server from our list!");
 
             // Remove the chunk server data by socket
             gameServices_.getChunkManager().removeChunkServerDataBySocket(clientSocket);
@@ -608,7 +624,7 @@ EventHandler::handleGetMobsAttributesEvent(const Event &event)
         // If the mobs attributes list is empty, log a message
         if (mobsAttributesListJson.empty())
         {
-            gameServices_.getLogger().log("Mobs attributes list is empty!", YELLOW);
+            log_->info("Mobs attributes list is empty!");
         }
 
         // Prepare the response message
@@ -680,6 +696,26 @@ EventHandler::handleGetMobsListEvent(const Event &event)
             mobJson["posZ"] = mobData.position.positionZ;
             mobJson["rotZ"] = mobData.position.rotationZ;
 
+            // Per-mob AI config (migration 011)
+            mobJson["aggroRange"] = mobData.aggroRange;
+            mobJson["attackRange"] = mobData.attackRange;
+            mobJson["attackCooldown"] = mobData.attackCooldown;
+            mobJson["chaseMultiplier"] = mobData.chaseMultiplier;
+            mobJson["patrolSpeed"] = mobData.patrolSpeed;
+
+            // Social behaviour (migration 012)
+            mobJson["isSocial"] = mobData.isSocial;
+            mobJson["chaseDuration"] = mobData.chaseDuration;
+
+            // Rank / difficulty tier (migrations 006/023)
+            mobJson["rankId"] = mobData.rankId;
+            mobJson["rankCode"] = mobData.rankCode;
+            mobJson["rankMult"] = mobData.rankMult;
+
+            // AI depth: flee behavior + archetype (migration 016)
+            mobJson["fleeHpThreshold"] = mobData.fleeHpThreshold;
+            mobJson["aiArchetype"] = mobData.aiArchetype;
+
             // Add the current item to the mobs list json
             mobsListJson.push_back(mobJson);
         }
@@ -687,7 +723,7 @@ EventHandler::handleGetMobsListEvent(const Event &event)
         // If the mobs list is empty, log a message
         if (mobsListJson.empty())
         {
-            gameServices_.getLogger().log("Mobs list is empty!", YELLOW);
+            log_->info("Mobs list is empty!");
         }
 
         // Prepare the response message
@@ -740,6 +776,7 @@ EventHandler::handleGetMobsListEvent(const Event &event)
                     skillJson["castMs"] = skill.castMs;
                     skillJson["costMp"] = skill.costMp;
                     skillJson["maxRange"] = skill.maxRange;
+                    skillJson["areaRadius"] = skill.areaRadius;
                     skillsArray.push_back(skillJson);
                 }
 
@@ -769,7 +806,7 @@ EventHandler::handleGetMobsListEvent(const Event &event)
         }
         else
         {
-            gameServices_.getLogger().log("No mob skills found to send", YELLOW);
+            log_->info("No mob skills found to send");
         }
     }
     catch (const std::bad_variant_access &ex)
@@ -826,6 +863,17 @@ EventHandler::handleGetMobDataEvent(const Event &event)
                 mobJson["posZ"] = mobData.position.positionZ;
                 mobJson["rotZ"] = mobData.position.rotationZ;
 
+                // Per-mob AI config (migration 011)
+                mobJson["aggroRange"] = mobData.aggroRange;
+                mobJson["attackRange"] = mobData.attackRange;
+                mobJson["attackCooldown"] = mobData.attackCooldown;
+                mobJson["chaseMultiplier"] = mobData.chaseMultiplier;
+                mobJson["patrolSpeed"] = mobData.patrolSpeed;
+
+                // Social behaviour (migration 012)
+                mobJson["isSocial"] = mobData.isSocial;
+                mobJson["chaseDuration"] = mobData.chaseDuration;
+
                 // Prepare the response message
                 nlohmann::json response;
                 ResponseBuilder builder;
@@ -867,7 +915,7 @@ EventHandler::handleGetMobDataEvent(const Event &event)
         }
         else
         {
-            gameServices_.getLogger().log("Error with extracting data!");
+            log_->info("Error with extracting data!");
             // Prepare the response message
             nlohmann::json response;
             ResponseBuilder builder;
@@ -1036,6 +1084,10 @@ EventHandler::dispatchEvent(const Event &event)
         handleSavePositionsEvent(event);
         break;
 
+    case Event::SAVE_HP_MANA:
+        handleSaveHpManaEvent(event);
+        break;
+
     case Event::SAVE_CHARACTER_PROGRESS:
         handleSaveCharacterProgressEvent(event);
         break;
@@ -1053,11 +1105,20 @@ EventHandler::dispatchEvent(const Event &event)
     case Event::GET_PLAYER_FLAGS:
         handleGetPlayerFlagsEvent(event);
         break;
+    case Event::GET_PLAYER_ACTIVE_EFFECTS:
+        handleGetPlayerActiveEffectsEvent(event);
+        break;
+    case Event::GET_CHARACTER_ATTRIBUTES_REFRESH:
+        handleGetCharacterAttributesRefreshEvent(event);
+        break;
     case Event::UPDATE_PLAYER_QUEST_PROGRESS:
         handleUpdatePlayerQuestProgressEvent(event);
         break;
     case Event::UPDATE_PLAYER_FLAG:
         handleUpdatePlayerFlagEvent(event);
+        break;
+    case Event::GET_GAME_CONFIG:
+        handleGetGameConfigEvent(event);
         break;
 
     // chunk server events
@@ -1105,6 +1166,7 @@ EventHandler::handleGetItemsListEvent(const Event &event)
             itemJson["isTradable"] = itemData.isTradable;
             itemJson["isEquippable"] = itemData.isEquippable;
             itemJson["isHarvest"] = itemData.isHarvest;
+            itemJson["isUsable"] = itemData.isUsable;
             itemJson["weight"] = itemData.weight;
             itemJson["rarityId"] = itemData.rarityId;
             itemJson["rarityName"] = itemData.rarityName;
@@ -1180,6 +1242,9 @@ EventHandler::handleGetMobLootInfoEvent(const Event &event)
                 lootJson["mobId"] = lootInfo.mobId;
                 lootJson["itemId"] = lootInfo.itemId;
                 lootJson["dropChance"] = lootInfo.dropChance;
+                lootJson["isHarvestOnly"] = lootInfo.isHarvestOnly;
+                lootJson["minQuantity"] = lootInfo.minQuantity;
+                lootJson["maxQuantity"] = lootInfo.maxQuantity;
 
                 mobLootListJson.push_back(lootJson);
             }
@@ -1214,11 +1279,11 @@ EventHandler::handlePingClientEvent(const Event &event)
     // get socket from the event
     std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
 
-    gameServices_.getLogger().log("Handling PING event for client ID: " + std::to_string(clientID), GREEN);
+    log_->info("Handling PING event for client ID: " + std::to_string(clientID));
 
     if (!clientSocket || !clientSocket->is_open())
     {
-        gameServices_.getLogger().log("Skipping ping - socket is closed for client ID: " + std::to_string(clientID), GREEN);
+        log_->info("Skipping ping - socket is closed for client ID: " + std::to_string(clientID));
         return;
     }
 
@@ -1264,11 +1329,11 @@ EventHandler::handlePingClientEvent(const Event &event)
             // Send the response to the client
             networkManager_.sendResponse(clientSocket, responseData);
 
-            gameServices_.getLogger().log("Sending PING response with timestamps to Client ID: " + std::to_string(clientID), GREEN);
+            log_->info("Sending PING response with timestamps to Client ID: " + std::to_string(clientID));
         }
         else
         {
-            gameServices_.getLogger().logError("Error extracting data from ping event for client ID: " + std::to_string(clientID));
+            log_->error("Error extracting data from ping event for client ID: " + std::to_string(clientID));
         }
     }
     catch (const std::bad_variant_access &ex)
@@ -1286,7 +1351,7 @@ EventHandler::handleGetCharacterExpForLevelEvent(const Event &event)
 
     try
     {
-        gameServices_.getLogger().log("Processing getCharacterExpForLevel request from chunk server", BLUE);
+        log_->debug("Processing getCharacterExpForLevel request from chunk server");
 
         // Извлекаем данные клиента из события
         if (std::holds_alternative<ClientDataStruct>(data))
@@ -1299,13 +1364,14 @@ EventHandler::handleGetCharacterExpForLevelEvent(const Event &event)
 
             int level = requestJson["body"]["level"].get<int>();
 
-            gameServices_.getLogger().log("Requesting experience points for level: " + std::to_string(level), BLUE);
+            log_->debug("Requesting experience points for level: " + std::to_string(level));
 
             // Получаем опыт для указанного уровня из базы данных
             int experiencePoints = 0;
             try
             {
-                pqxx::work txn(gameServices_.getDatabase().getConnection());
+                auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+                pqxx::work txn(_dbConn.get());
                 auto result = gameServices_.getDatabase().executeQueryWithTransaction(txn, "get_character_exp_for_next_level", {level});
 
                 if (!result.empty())
@@ -1317,7 +1383,7 @@ EventHandler::handleGetCharacterExpForLevelEvent(const Event &event)
                 }
                 else
                 {
-                    gameServices_.getLogger().logError("No experience data found for level " + std::to_string(level));
+                    log_->error("No experience data found for level " + std::to_string(level));
                     experiencePoints = 0;
                 }
 
@@ -1345,13 +1411,12 @@ EventHandler::handleGetCharacterExpForLevelEvent(const Event &event)
             std::string responseData = networkManager_.generateResponseMessage("success", response);
             networkManager_.sendResponse(clientSocket, responseData);
 
-            gameServices_.getLogger().log("Sent experience data for level " + std::to_string(level) +
-                                              " to chunk server",
-                GREEN);
+            log_->info("Sent experience data for level " + std::to_string(level) +
+                                              " to chunk server");
         }
         else
         {
-            gameServices_.getLogger().logError("Error extracting client data from getCharacterExpForLevel event");
+            log_->error("Error extracting client data from getCharacterExpForLevel event");
 
             // Отправляем ошибку
             ResponseBuilder builder;
@@ -1389,20 +1454,21 @@ EventHandler::handleGetExpLevelTableEvent(const Event &event)
 
     try
     {
-        gameServices_.getLogger().log("Processing getExpLevelTable request from chunk server", BLUE);
+        log_->debug("Processing getExpLevelTable request from chunk server");
 
         // Извлекаем данные клиента из события
         if (std::holds_alternative<ClientDataStruct>(data))
         {
             ClientDataStruct clientData = std::get<ClientDataStruct>(data);
 
-            gameServices_.getLogger().log("Requesting experience level table from database", BLUE);
+            log_->debug("Requesting experience level table from database");
 
             // Получаем всю таблицу опыта из базы данных
             nlohmann::json expLevelTable = nlohmann::json::array();
             try
             {
-                pqxx::work txn(gameServices_.getDatabase().getConnection());
+                auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+                pqxx::work txn(_dbConn.get());
                 auto result = gameServices_.getDatabase().executeQueryWithTransaction(txn, "get_exp_level_table", {});
 
                 for (const auto &row : result)
@@ -1445,7 +1511,7 @@ EventHandler::handleGetExpLevelTableEvent(const Event &event)
         }
         else
         {
-            gameServices_.getLogger().logError("Error extracting client data from getExpLevelTable event");
+            log_->error("Error extracting client data from getExpLevelTable event");
 
             // Отправляем ошибку
             ResponseBuilder builder;
@@ -1524,7 +1590,7 @@ EventHandler::handleGetNPCsListEvent(const Event &event)
         // If the NPCs list is empty, log a message
         if (npcsListJson.empty())
         {
-            gameServices_.getLogger().log("NPCs list is empty!", YELLOW);
+            log_->info("NPCs list is empty!");
         }
 
         // Prepare the response message
@@ -1568,6 +1634,7 @@ EventHandler::handleGetNPCsListEvent(const Event &event)
                 skillJson["castMs"] = skill.castMs;
                 skillJson["costMp"] = skill.costMp;
                 skillJson["maxRange"] = skill.maxRange;
+                skillJson["areaRadius"] = skill.areaRadius;
 
                 npcsSkillsJson.push_back(skillJson);
             }
@@ -1576,7 +1643,7 @@ EventHandler::handleGetNPCsListEvent(const Event &event)
         // If the NPCs skills list is empty, log a message
         if (npcsSkillsJson.empty())
         {
-            gameServices_.getLogger().log("NPCs skills list is empty!", YELLOW);
+            log_->info("NPCs skills list is empty!");
         }
 
         // Add the message to the response
@@ -1639,7 +1706,7 @@ EventHandler::handleGetNPCsAttributesEvent(const Event &event)
         // If the NPCs attributes list is empty, log a message
         if (npcsAttributesListJson.empty())
         {
-            gameServices_.getLogger().log("NPCs attributes list is empty!", YELLOW);
+            log_->info("NPCs attributes list is empty!");
         }
 
         // Prepare the response message
@@ -1679,7 +1746,7 @@ EventHandler::handleSavePositionsEvent(const Event &event)
     {
         if (!std::holds_alternative<std::vector<CharacterDataStruct>>(data))
         {
-            gameServices_.getLogger().logError("handleSavePositionsEvent: unexpected data type");
+            log_->error("handleSavePositionsEvent: unexpected data type");
             return;
         }
 
@@ -1687,7 +1754,7 @@ EventHandler::handleSavePositionsEvent(const Event &event)
 
         if (charactersList.empty())
         {
-            gameServices_.getLogger().log("handleSavePositionsEvent: empty positions list, skipping", YELLOW);
+            log_->info("handleSavePositionsEvent: empty positions list, skipping");
             return;
         }
 
@@ -1715,6 +1782,46 @@ EventHandler::handleSavePositionsEvent(const Event &event)
     }
 }
 
+// ARCH-4: Handles the periodic HP/Mana snapshot from chunk-server.
+void
+EventHandler::handleSaveHpManaEvent(const Event &event)
+{
+    const auto &data = event.getData();
+
+    try
+    {
+        if (!std::holds_alternative<std::vector<CharacterDataStruct>>(data))
+        {
+            log_->error("handleSaveHpManaEvent: unexpected data type");
+            return;
+        }
+
+        const auto &charactersList = std::get<std::vector<CharacterDataStruct>>(data);
+        if (charactersList.empty())
+            return;
+
+        int savedCount = 0;
+        for (const auto &charData : charactersList)
+        {
+            if (charData.characterId <= 0)
+                continue;
+            gameServices_.getCharacterManager().saveCharacterHpMana(
+                gameServices_.getDatabase(),
+                charData.characterId,
+                charData.characterCurrentHealth,
+                charData.characterCurrentMana);
+            ++savedCount;
+        }
+
+        gameServices_.getLogger().log(
+            "[SAVE_HP_MANA] Persisted HP/Mana for " + std::to_string(savedCount) + " character(s)", GREEN);
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("Error in handleSaveHpManaEvent: " + std::string(ex.what()));
+    }
+}
+
 void
 EventHandler::handleSaveCharacterProgressEvent(const Event &event)
 {
@@ -1724,7 +1831,7 @@ EventHandler::handleSaveCharacterProgressEvent(const Event &event)
     {
         if (!std::holds_alternative<std::vector<CharacterDataStruct>>(data))
         {
-            gameServices_.getLogger().logError("handleSaveCharacterProgressEvent: unexpected data type");
+            log_->error("handleSaveCharacterProgressEvent: unexpected data type");
             return;
         }
 
@@ -1732,7 +1839,7 @@ EventHandler::handleSaveCharacterProgressEvent(const Event &event)
 
         if (charactersList.empty())
         {
-            gameServices_.getLogger().log("handleSaveCharacterProgressEvent: empty list, skipping", YELLOW);
+            log_->info("handleSaveCharacterProgressEvent: empty list, skipping");
             return;
         }
 
@@ -1844,7 +1951,7 @@ EventHandler::handleGetPlayerQuestsEvent(const Event &event)
     {
         if (!std::holds_alternative<int>(data))
         {
-            gameServices_.getLogger().logError("handleGetPlayerQuestsEvent: unexpected data type");
+            log_->error("handleGetPlayerQuestsEvent: unexpected data type");
             return;
         }
         int characterId = std::get<int>(data);
@@ -1882,7 +1989,7 @@ EventHandler::handleGetPlayerFlagsEvent(const Event &event)
     {
         if (!std::holds_alternative<int>(data))
         {
-            gameServices_.getLogger().logError("handleGetPlayerFlagsEvent: unexpected data type");
+            log_->error("handleGetPlayerFlagsEvent: unexpected data type");
             return;
         }
         int characterId = std::get<int>(data);
@@ -1919,7 +2026,7 @@ EventHandler::handleUpdatePlayerQuestProgressEvent(const Event &event)
     {
         if (!std::holds_alternative<nlohmann::json>(data))
         {
-            gameServices_.getLogger().logError("handleUpdatePlayerQuestProgressEvent: unexpected data type");
+            log_->error("handleUpdatePlayerQuestProgressEvent: unexpected data type");
             return;
         }
         const auto &j = std::get<nlohmann::json>(data);
@@ -1939,7 +2046,7 @@ EventHandler::handleUpdatePlayerQuestProgressEvent(const Event &event)
 
         if (characterId <= 0 || questId <= 0)
         {
-            gameServices_.getLogger().logError("handleUpdatePlayerQuestProgressEvent: invalid characterId/questId");
+            log_->error("handleUpdatePlayerQuestProgressEvent: invalid characterId/questId");
             return;
         }
 
@@ -1961,7 +2068,7 @@ EventHandler::handleUpdatePlayerFlagEvent(const Event &event)
     {
         if (!std::holds_alternative<nlohmann::json>(data))
         {
-            gameServices_.getLogger().logError("handleUpdatePlayerFlagEvent: unexpected data type");
+            log_->error("handleUpdatePlayerFlagEvent: unexpected data type");
             return;
         }
         const auto &j = std::get<nlohmann::json>(data);
@@ -1974,7 +2081,7 @@ EventHandler::handleUpdatePlayerFlagEvent(const Event &event)
 
         if (characterId <= 0 || flagKey.empty())
         {
-            gameServices_.getLogger().logError("handleUpdatePlayerFlagEvent: invalid characterId or flagKey");
+            log_->error("handleUpdatePlayerFlagEvent: invalid characterId or flagKey");
             return;
         }
 
@@ -1983,5 +2090,157 @@ EventHandler::handleUpdatePlayerFlagEvent(const Event &event)
     catch (const std::exception &ex)
     {
         gameServices_.getLogger().logError("Error in handleUpdatePlayerFlagEvent: " + std::string(ex.what()));
+    }
+}
+
+void
+EventHandler::handleGetGameConfigEvent(const Event &event)
+{
+    int clientID = event.getClientID();
+    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
+
+    try
+    {
+        // Получаем snapshot конфига (уже загружен loadConfig() выше)
+        auto configMap = gameServices_.getGameConfigService().getAll();
+
+        nlohmann::json configListJson = nlohmann::json::array();
+        for (const auto &[key, value] : configMap)
+        {
+            nlohmann::json entry;
+            entry["key"] = key;
+            entry["value"] = value;
+            configListJson.push_back(entry);
+        }
+
+        nlohmann::json response = ResponseBuilder()
+                                      .setHeader("message", "Game config loaded")
+                                      .setHeader("hash", "")
+                                      .setHeader("clientId", clientID)
+                                      .setHeader("eventType", "setGameConfig")
+                                      .setBody("configList", configListJson)
+                                      .build();
+
+        std::string responseData = networkManager_.generateResponseMessage("success", response);
+        networkManager_.sendResponse(clientSocket, responseData);
+
+        gameServices_.getLogger().log("Sent game config (" +
+                                      std::to_string(configMap.size()) + " entries) to chunk-server.");
+    }
+    catch (const std::exception &e)
+    {
+        gameServices_.getLogger().logError("handleGetGameConfigEvent error: " + std::string(e.what()));
+    }
+}
+
+void
+EventHandler::handleGetPlayerActiveEffectsEvent(const Event &event)
+{
+    const auto &data = event.getData();
+    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
+
+    try
+    {
+        if (!std::holds_alternative<int>(data))
+        {
+            log_->error("handleGetPlayerActiveEffectsEvent: unexpected data type");
+            return;
+        }
+        int characterId = std::get<int>(data);
+
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+        auto result = gameServices_.getDatabase().executeQueryWithTransaction(
+            txn, "get_player_active_effects", {characterId});
+
+        nlohmann::json effectsJson = nlohmann::json::array();
+        for (const auto &row : result)
+        {
+            nlohmann::json eff;
+            eff["id"] = row["id"].as<int64_t>();
+            eff["effectId"] = row["effect_id"].as<int>();
+            eff["effectSlug"] = row["effect_slug"].as<std::string>();
+            eff["effectTypeSlug"] = row["effect_type_slug"].as<std::string>();
+            eff["attributeId"] = row["attribute_id"].as<int>();
+            eff["attributeSlug"] = row["attribute_slug"].as<std::string>();
+            eff["value"] = row["value"].as<float>();
+            eff["sourceType"] = row["source_type"].as<std::string>();
+            eff["tickMs"] = row["tick_ms"].as<int>();
+            eff["expiresAt"] = row["expires_at_unix"].as<int64_t>();
+            effectsJson.push_back(std::move(eff));
+        }
+
+        ResponseBuilder builder;
+        nlohmann::json response = builder
+                                      .setHeader("message", "Player active effects")
+                                      .setHeader("hash", "")
+                                      .setHeader("clientId", characterId)
+                                      .setHeader("eventType", "setPlayerActiveEffects")
+                                      .setBody("characterId", characterId)
+                                      .setBody("effects", effectsJson)
+                                      .build();
+        networkManager_.sendResponse(clientSocket,
+            networkManager_.generateResponseMessage("success", response));
+
+        gameServices_.getLogger().log("[EH] Sent " + std::to_string(effectsJson.size()) +
+                                          " active effects for characterId=" + std::to_string(characterId),
+            GREEN);
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("Error in handleGetPlayerActiveEffectsEvent: " + std::string(ex.what()));
+    }
+}
+
+void
+EventHandler::handleGetCharacterAttributesRefreshEvent(const Event &event)
+{
+    const auto &data = event.getData();
+    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
+
+    try
+    {
+        if (!std::holds_alternative<int>(data))
+        {
+            log_->error("handleGetCharacterAttributesRefreshEvent: unexpected data type");
+            return;
+        }
+        int characterId = std::get<int>(data);
+
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+        auto result = gameServices_.getDatabase().executeQueryWithTransaction(
+            txn, "get_character_attributes", {characterId});
+
+        nlohmann::json attrsJson = nlohmann::json::array();
+        for (const auto &row : result)
+        {
+            nlohmann::json attr;
+            attr["id"] = row["id"].as<int>();
+            attr["name"] = row["name"].as<std::string>();
+            attr["slug"] = row["slug"].as<std::string>();
+            attr["value"] = row["value"].as<int>();
+            attrsJson.push_back(std::move(attr));
+        }
+
+        ResponseBuilder builder;
+        nlohmann::json response = builder
+                                      .setHeader("message", "Character attributes refresh")
+                                      .setHeader("hash", "")
+                                      .setHeader("clientId", characterId)
+                                      .setHeader("eventType", "setCharacterAttributesRefresh")
+                                      .setBody("characterId", characterId)
+                                      .setBody("attributesData", attrsJson)
+                                      .build();
+        networkManager_.sendResponse(clientSocket,
+            networkManager_.generateResponseMessage("success", response));
+
+        gameServices_.getLogger().log("[EH] Sent " + std::to_string(attrsJson.size()) +
+                                          " attribute entries (refresh) for characterId=" + std::to_string(characterId),
+            GREEN);
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("Error in handleGetCharacterAttributesRefreshEvent: " + std::string(ex.what()));
     }
 }

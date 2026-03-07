@@ -24,6 +24,7 @@ class SpawnZoneManager
   private:
     Database &database_;
     Logger &logger_;
+    std::shared_ptr<spdlog::logger> log_;
     MobManager &mobManager_;
     // Store the mob spawn zones in memory with zoneId as key
     std::map<int, SpawnZoneStruct> mobSpawnZones_;

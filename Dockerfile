@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \
     cargo \
+    libspdlog-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # ✅ Install Rust (required for watchexec)

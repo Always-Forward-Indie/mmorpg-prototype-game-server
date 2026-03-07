@@ -22,6 +22,7 @@ class ChunkManager
 
   private:
     Logger &logger_;
+    std::shared_ptr<spdlog::logger> log_;
     mutable std::shared_mutex mutex_;
 
     std::unordered_map<int, ChunkInfoStruct> chunksById_;

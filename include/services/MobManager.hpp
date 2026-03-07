@@ -19,6 +19,7 @@ class MobManager
   private:
     Database &database_;
     Logger &logger_;
+    std::shared_ptr<spdlog::logger> log_;
 
     // Store the mobs in memory as map with mobId as key
     std::map<int, MobDataStruct> mobs_;

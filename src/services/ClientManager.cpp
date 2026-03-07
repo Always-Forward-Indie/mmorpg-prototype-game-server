@@ -1,7 +1,8 @@
 #include "services/ClientManager.hpp"
 
 ClientManager::ClientManager(Logger& logger)
-    : logger_(logger) {}
+    : logger_(logger) {
+    log_ = logger.getSystem("client");}
 
 void ClientManager::setClientData(const ClientDataStruct& clientData) {
     std::unique_lock lock(mutex_);

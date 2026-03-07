@@ -58,4 +58,5 @@ private:
     ThreadPool threadPool_{std::thread::hardware_concurrency()};
 
     GameServices& gameServices_;
+    std::shared_ptr<spdlog::logger> log_;
 };

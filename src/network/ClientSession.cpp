@@ -3,6 +3,7 @@
 #include "events/EventDispatcher.hpp"
 #include "game_server/GameServer.hpp"
 #include "handlers/MessageHandler.hpp"
+#include <spdlog/logger.h>
 
 ClientSession::ClientSession(std::shared_ptr<boost::asio::ip::tcp::socket> socket,
     GameServer *gameServer,
@@ -19,6 +20,7 @@ ClientSession::ClientSession(std::shared_ptr<boost::asio::ip::tcp::socket> socke
       eventDispatcher_(eventDispatcher),
       messageHandler_(messageHandler)
 {
+    log_ = logger.getSystem("network");
 }
 
 void
@@ -40,7 +42,7 @@ ClientSession::doRead()
                 accumulatedData_.append(dataBuffer_.data(), bytes_transferred);
 
                 // log the received data
-                logger_.log("DEBUG Received data from client: " + accumulatedData_, YELLOW);
+                log_->info("DEBUG Received data from client: " + accumulatedData_);
 
                 std::string delimiter = "\n";
                 size_t pos;
@@ -48,7 +50,7 @@ ClientSession::doRead()
                 while ((pos = accumulatedData_.find(delimiter)) != std::string::npos)
                 {
                     std::string message = accumulatedData_.substr(0, pos);
-                    logger_.log("Received data from client: " + message, YELLOW);
+                    log_->info("Received data from client: " + message);
                     processMessage(message);
                     accumulatedData_.erase(0, pos + delimiter.size());
                 }
@@ -56,12 +58,12 @@ ClientSession::doRead()
             }
             else if (ec == boost::asio::error::eof)
             {
-                logger_.logError("Client disconnected gracefully.", RED);
+                log_->error("Client disconnected gracefully.");
                 handleClientDisconnect();
             }
             else
             {
-                logger_.logError("Error during async_read_some: " + ec.message(), RED);
+                log_->error("Error during async_read_some: " + ec.message());
                 handleClientDisconnect();
             }
         });

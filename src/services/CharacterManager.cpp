@@ -4,9 +4,11 @@
 #include <pqxx/pqxx>
 #include <random>
 #include <vector>
+#include <spdlog/logger.h>
 
 CharacterManager::CharacterManager(Logger &logger)
-    : logger_(logger) {}
+    : logger_(logger) {
+    log_ = logger.getSystem("character");}
 
 void
 CharacterManager::addOrUpdateCharacter(const CharacterDataStruct &character)
@@ -73,7 +75,8 @@ CharacterManager::getBasicCharacterDataFromDatabase(Database &db, int accountId,
     CharacterDataStruct characterData;
     try
     {
-        pqxx::work txn(db.getConnection());
+        auto _dbConn = db.getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
         auto result = db.executeQueryWithTransaction(txn, "get_character", {accountId, characterId});
         if (!result.empty())
         {
@@ -105,7 +108,8 @@ CharacterManager::getCharacterPositionFromDatabase(Database &db, int accountId, 
     PositionStruct pos;
     try
     {
-        pqxx::work txn(db.getConnection());
+        auto _dbConn = db.getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
         auto result = db.executeQueryWithTransaction(txn, "get_character_position", {characterId});
         if (!result.empty())
         {
@@ -128,7 +132,8 @@ CharacterManager::getCharacterAttributesFromDatabase(Database &db, int character
     std::vector<CharacterAttributeStruct> attributes;
     try
     {
-        pqxx::work txn(db.getConnection());
+        auto _dbConn = db.getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
         auto result = db.executeQueryWithTransaction(txn, "get_character_attributes", {characterId});
         for (const auto &row : result)
         {
@@ -155,10 +160,12 @@ CharacterManager::getCharacterSkillsFromDatabase(Database &db, int characterId)
     try
     {
         // debug
-        logger_.log("Fetching character skills from database", BLUE);
-        logger_.log("Character ID: " + std::to_string(characterId), BLUE);
+        log_->debug("Fetching character skills from database");
+        log_->debug("Character ID: " + std::to_string(characterId));
 
-        pqxx::work txn(db.getConnection());
+        auto _dbConn = db.getConnectionLocked();
+
+        pqxx::work txn(_dbConn.get());
         auto result = db.executeQueryWithTransaction(txn, "get_character_skills", {characterId});
         for (const auto &row : result)
         {
@@ -176,6 +183,7 @@ CharacterManager::getCharacterSkillsFromDatabase(Database &db, int characterId)
             skill.castMs = row["cast_ms"].as<int>();
             skill.costMp = row["cost_mp"].as<int>();
             skill.maxRange = row["max_range"].as<float>();
+            skill.areaRadius = row["area_radius"].as<float>();
             skills.push_back(skill);
         }
         txn.commit();
@@ -193,7 +201,8 @@ CharacterManager::getMobSkillsFromDatabase(Database &db, int mobId)
     std::vector<SkillStruct> skills;
     try
     {
-        pqxx::work txn(db.getConnection());
+        auto _dbConn = db.getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
         auto result = db.executeQueryWithTransaction(txn, "get_mob_skills", {mobId});
         for (const auto &row : result)
         {
@@ -211,6 +220,7 @@ CharacterManager::getMobSkillsFromDatabase(Database &db, int mobId)
             skill.castMs = row["cast_ms"].as<int>();
             skill.costMp = row["cost_mp"].as<int>();
             skill.maxRange = row["max_range"].as<float>();
+            skill.areaRadius = row["area_radius"].as<float>();
             skills.push_back(skill);
         }
         txn.commit();
@@ -227,10 +237,11 @@ CharacterManager::updateCharacterPosition(Database &db, int accountId, int chara
 {
     try
     {
-        pqxx::work txn(db.getConnection());
+        auto _dbConn = db.getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
         db.executeQueryWithTransaction(txn, "set_character_position", {position.positionX, position.positionY, position.positionZ, characterId});
         txn.commit();
-        logger_.log("Character position updated successfully", GREEN);
+        log_->info("Character position updated successfully");
     }
     catch (const std::exception &e)
     {
@@ -243,11 +254,12 @@ CharacterManager::updateBasicCharacterData(Database &db, int accountId, int char
 {
     try
     {
-        pqxx::work txn(db.getConnection());
+        auto _dbConn = db.getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
         db.executeQueryWithTransaction(txn, "set_basic_character_data", {characterId, characterData.characterLevel, characterData.characterExperiencePoints});
         db.executeQueryWithTransaction(txn, "upsert_character_current_state", {characterId, characterData.characterCurrentHealth, characterData.characterCurrentMana});
         txn.commit();
-        logger_.log("Character data updated successfully", GREEN);
+        log_->info("Character data updated successfully");
     }
     catch (const std::exception &e)
     {
@@ -260,7 +272,8 @@ CharacterManager::updateCharacterExperienceAndLevel(Database &db, int characterI
 {
     try
     {
-        pqxx::work txn(db.getConnection());
+        auto _dbConn = db.getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
         db.executeQueryWithTransaction(txn, "set_character_exp_level", {characterId, experiencePoints, level});
         txn.commit();
         logger_.log("Character exp/level saved: id=" + std::to_string(characterId) +
@@ -276,6 +289,23 @@ CharacterManager::updateCharacterExperienceAndLevel(Database &db, int characterI
             it->second.characterExperiencePoints = experiencePoints;
             it->second.characterLevel = level;
         }
+    }
+    catch (const std::exception &e)
+    {
+        db.handleDatabaseError(e);
+    }
+}
+
+// ARCH-4: Lightweight periodic HP/Mana persist — only writes current_health and current_mana.
+void
+CharacterManager::saveCharacterHpMana(Database &db, int characterId, int currentHp, int currentMana)
+{
+    try
+    {
+        auto _dbConn = db.getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+        db.executeQueryWithTransaction(txn, "upsert_character_current_state", {characterId, currentHp, currentMana});
+        txn.commit();
     }
     catch (const std::exception &e)
     {

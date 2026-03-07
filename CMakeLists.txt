@@ -27,6 +27,7 @@ set(SOURCE_FILES
     src/services/MobManager.cpp
     src/services/ItemManager.cpp
     src/services/DialogueQuestManager.cpp
+    src/services/GameConfigService.cpp
     src/network/NetworkManager.cpp
     src/network/ClientSession.cpp
     src/events/Event.cpp
@@ -93,8 +94,11 @@ include_directories(include)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(libpqxx REQUIRED IMPORTED_TARGET libpqxx)
 
+# spdlog
+find_package(spdlog REQUIRED)
+
 # Create the executable
 add_executable(${PROJECT_NAME} ${SOURCE_FILES} ${HEADER_FILES})
 
 # Link against libpqxx and PostgreSQL
-target_link_libraries(${PROJECT_NAME} PkgConfig::libpqxx pq)
+target_link_libraries(${PROJECT_NAME} PkgConfig::libpqxx pq spdlog::spdlog_header_only)

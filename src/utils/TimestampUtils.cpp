@@ -1,4 +1,7 @@
 #include "utils/TimestampUtils.hpp"
+#include <chrono>
+#include <ctime>
+#include <iomanip>
 #include <sstream>
 
 long long
@@ -7,6 +10,18 @@ TimestampUtils::getCurrentTimestampMs()
     auto now = std::chrono::system_clock::now();
     auto duration = now.time_since_epoch();
     return std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+}
+
+std::string
+TimestampUtils::getCurrentTimestamp()
+{
+    auto now = std::chrono::system_clock::now();
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
+    auto t = std::chrono::system_clock::to_time_t(now);
+    std::ostringstream ss;
+    ss << std::put_time(std::localtime(&t), "%Y-%m-%d %H:%M:%S");
+    ss << '.' << std::setfill('0') << std::setw(3) << ms.count();
+    return ss.str();
 }
 
 void

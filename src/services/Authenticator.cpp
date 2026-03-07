@@ -18,7 +18,8 @@ int Authenticator::authenticate(Database& database, const std::string& hash, con
        // ClientDataStruct clientDataStruct;
 
         // Create a PostgreSQL database connection
-        pqxx::work transaction(database.getConnection());
+        auto _dbConn = database.getConnectionLocked();
+        pqxx::work transaction(_dbConn.get());
         pqxx::result getUserDBData = database.executeQueryWithTransaction(
                     transaction,
                     "search_user",

@@ -54,6 +54,19 @@ struct CharacterAttributeStruct
     int value = 0;
 };
 
+// Runtime buff/debuff applied to a character
+struct ActiveEffectStruct
+{
+    int64_t id = 0;
+    int effectId = 0;
+    std::string effectSlug = "";
+    int attributeId = 0;            // 0 = non-stat effect
+    std::string attributeSlug = ""; // slug matched against entity_attributes
+    float value = 0.0f;
+    std::string sourceType = ""; // quest|skill|item|dialogue
+    int64_t expiresAt = 0;       // Unix timestamp sec; 0 = permanent
+};
+
 struct MobAttributeStruct
 {
     int id = 0;
@@ -79,6 +92,7 @@ struct ItemAttributeStruct
     std::string name = "";
     std::string slug = "";
     int value = 0;
+    std::string apply_on = "equip"; // 'equip' | 'use'
 };
 
 struct ItemDataStruct
@@ -96,6 +110,7 @@ struct ItemDataStruct
     bool isTradable = true;
     bool isEquippable = false;
     bool isHarvest = false; // New field for harvestable items
+    bool isUsable = false;  // TRUE = can be used from inventory (potion, scroll, food)
     float weight = 0.0f;
     int rarityId = 1;
     std::string rarityName = "";
@@ -117,6 +132,9 @@ struct MobLootInfoStruct
     int mobId = 0;
     int itemId = 0;
     float dropChance = 0.0f;
+    bool isHarvestOnly = false; // only drops from harvesting, not regular kill
+    int minQuantity = 1;
+    int maxQuantity = 1;
 };
 
 struct DroppedItemStruct
@@ -186,6 +204,26 @@ struct MobDataStruct
     bool isAggressive = false;
     bool isDead = false;
 
+    // Rank / difficulty tier (from mob_ranks)
+    int rankId = 1; // 1=normal, 2=pack, 3=strong, 4=elite, 5=miniboss, 6=boss
+    std::string rankCode = "normal";
+    float rankMult = 1.0f; // XP / stat multiplier for this rank
+
+    // Per-mob AI configuration (migration 011, from mob table columns)
+    float aggroRange = 400.0f;    // Aggro detection radius (world units)
+    float attackRange = 150.0f;   // Melee/ranged attack range (world units)
+    float attackCooldown = 2.0f;  // Seconds between attacks
+    float chaseMultiplier = 2.0f; // aggroRange * chaseMultiplier = max chase distance
+    float patrolSpeed = 1.0f;     // Patrol movement speed multiplier
+
+    // Social and chase behaviour (migration 012)
+    bool isSocial = false;       // Group aggro / passive-social enabled
+    float chaseDuration = 30.0f; // Max seconds of pursuit before leashing
+
+    // AI depth (migration 016)
+    float fleeHpThreshold = 0.0f;      // 0.0 = never flees; 0.25 = flee at 25% HP
+    std::string aiArchetype = "melee"; // melee | caster | ranged | support
+
     float speedMultiplier = 1.0f;
     float nextMoveTime = 0.0f;
 
@@ -242,6 +280,7 @@ struct NPCDataStruct
     int currentMana = 0;
     int maxHealth = 0;
     int maxMana = 0;
+    int zoneId = 0; // game zone this NPC belongs to (from npc_placements or npc_position)
     std::vector<NPCAttributeStruct> attributes;
     std::vector<SkillStruct> skills;
     PositionStruct position;

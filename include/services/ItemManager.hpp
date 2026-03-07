@@ -55,6 +55,7 @@ class ItemManager
   private:
     Database &database_;
     Logger &logger_;
+    std::shared_ptr<spdlog::logger> log_;
 
     // Store items in memory
     std::map<int, ItemDataStruct> items_;
