@@ -101,6 +101,82 @@ EventDispatcher::dispatch(const std::string &eventType,
     {
         handleUpdatePlayerFlag(payload, socket);
     }
+    else if (eventType == "saveInventoryChange")
+    {
+        handleSaveInventoryChange(payload, socket);
+    }
+    else if (eventType == "getPlayerInventory")
+    {
+        handleGetPlayerInventory(payload, socket);
+    }
+    else if (eventType == "saveEquipmentChange")
+    {
+        handleSaveEquipmentChange(payload, socket);
+    }
+    else if (eventType == "saveExperienceDebt")
+    {
+        handleSaveExperienceDebt(payload, socket);
+    }
+    else if (eventType == "saveActiveEffect")
+    {
+        handleSaveActiveEffect(payload, socket);
+    }
+    else if (eventType == "saveDurabilityChange")
+    {
+        handleSaveDurabilityChange(payload, socket);
+    }
+    else if (eventType == "saveItemKillCount")
+    {
+        handleSaveItemKillCount(payload, socket);
+    }
+    else if (eventType == "transferInventoryItem")
+    {
+        handleTransferInventoryItem(payload, socket);
+    }
+    else if (eventType == "nullifyItemOwner")
+    {
+        handleNullifyItemOwner(payload, socket);
+    }
+    else if (eventType == "deleteInventoryItem")
+    {
+        handleDeleteInventoryItem(payload, socket);
+    }
+    else if (eventType == "getPlayerPityData")
+    {
+        handleGetPlayerPityData(payload, socket);
+    }
+    else if (eventType == "getPlayerBestiaryData")
+    {
+        handleGetPlayerBestiaryData(payload, socket);
+    }
+    else if (eventType == "savePityCounter")
+    {
+        handleSavePityCounter(payload, socket);
+    }
+    else if (eventType == "saveBestiaryKill")
+    {
+        handleSaveBestiaryKill(payload, socket);
+    }
+    else if (eventType == "timedChampionKilled")
+    {
+        handleTimedChampionKilled(payload, socket);
+    }
+    else if (eventType == "getPlayerReputationsData")
+    {
+        handleGetPlayerReputationsData(payload, socket);
+    }
+    else if (eventType == "saveReputation")
+    {
+        handleSaveReputation(payload, socket);
+    }
+    else if (eventType == "getPlayerMasteriesData")
+    {
+        handleGetPlayerMasteriesData(payload, socket);
+    }
+    else if (eventType == "saveMastery")
+    {
+        handleSaveMastery(payload, socket);
+    }
     else
     {
         log_->error("Unknown event type: " + eventType);
@@ -432,5 +508,393 @@ EventDispatcher::handleGetCharacterAttributesRefresh(
     catch (const std::exception &ex)
     {
         logger_.logError("handleGetCharacterAttributesRefresh parse error: " + std::string(ex.what()));
+    }
+}
+
+void
+EventDispatcher::handleSaveInventoryChange(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    try
+    {
+        auto j = nlohmann::json::parse(payload.rawMessage);
+        const auto &body = j["body"];
+        Event saveEvent(Event::SAVE_INVENTORY_CHANGE, 0, body, socket);
+        eventsBatch_.push_back(saveEvent);
+        eventQueue_.pushBatch(eventsBatch_);
+        eventsBatch_.clear();
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleSaveInventoryChange parse error: " + std::string(ex.what()));
+    }
+}
+
+void
+EventDispatcher::handleSaveEquipmentChange(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    try
+    {
+        auto j = nlohmann::json::parse(payload.rawMessage);
+        const auto &body = j["body"];
+        Event saveEvent(Event::SAVE_EQUIPMENT_CHANGE, 0, body, socket);
+        eventsBatch_.push_back(saveEvent);
+        eventQueue_.pushBatch(eventsBatch_);
+        eventsBatch_.clear();
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleSaveEquipmentChange parse error: " + std::string(ex.what()));
+    }
+}
+
+void
+EventDispatcher::handleGetPlayerInventory(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    try
+    {
+        auto j = nlohmann::json::parse(payload.rawMessage);
+        int characterId = j["body"].value("characterId", 0);
+        Event ev(Event::GET_PLAYER_INVENTORY, characterId, static_cast<int>(characterId), socket);
+        eventsBatch_.push_back(ev);
+        eventQueue_.pushBatch(eventsBatch_);
+        eventsBatch_.clear();
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleGetPlayerInventory parse error: " + std::string(ex.what()));
+    }
+}
+
+void
+EventDispatcher::handleSaveExperienceDebt(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    try
+    {
+        auto j = nlohmann::json::parse(payload.rawMessage);
+        const auto &body = j["body"];
+        Event saveEvent(Event::SAVE_EXPERIENCE_DEBT, 0, body, socket);
+        eventsBatch_.push_back(saveEvent);
+        eventQueue_.pushBatch(eventsBatch_);
+        eventsBatch_.clear();
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleSaveExperienceDebt parse error: " + std::string(ex.what()));
+    }
+}
+
+void
+EventDispatcher::handleSaveActiveEffect(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    try
+    {
+        auto j = nlohmann::json::parse(payload.rawMessage);
+        const auto &body = j["body"];
+        Event saveEvent(Event::SAVE_ACTIVE_EFFECT, 0, body, socket);
+        eventsBatch_.push_back(saveEvent);
+        eventQueue_.pushBatch(eventsBatch_);
+        eventsBatch_.clear();
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleSaveActiveEffect parse error: " + std::string(ex.what()));
+    }
+}
+
+void
+EventDispatcher::handleSaveDurabilityChange(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    try
+    {
+        auto j = nlohmann::json::parse(payload.rawMessage);
+        const auto &body = j["body"];
+        Event saveEvent(Event::SAVE_DURABILITY_CHANGE, 0, body, socket);
+        eventsBatch_.push_back(saveEvent);
+        eventQueue_.pushBatch(eventsBatch_);
+        eventsBatch_.clear();
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleSaveDurabilityChange parse error: " + std::string(ex.what()));
+    }
+}
+
+void
+EventDispatcher::handleSaveItemKillCount(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    try
+    {
+        auto j = nlohmann::json::parse(payload.rawMessage);
+        const auto &body = j["body"];
+        Event saveEvent(Event::SAVE_ITEM_KILL_COUNT, 0, body, socket);
+        eventsBatch_.push_back(saveEvent);
+        eventQueue_.pushBatch(eventsBatch_);
+        eventsBatch_.clear();
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleSaveItemKillCount parse error: " + std::string(ex.what()));
+    }
+}
+
+void
+EventDispatcher::handleTransferInventoryItem(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    try
+    {
+        auto j = nlohmann::json::parse(payload.rawMessage);
+        const auto &body = j["body"];
+        Event saveEvent(Event::TRANSFER_INVENTORY_ITEM, 0, body, socket);
+        eventsBatch_.push_back(saveEvent);
+        eventQueue_.pushBatch(eventsBatch_);
+        eventsBatch_.clear();
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleTransferInventoryItem parse error: " + std::string(ex.what()));
+    }
+}
+
+void
+EventDispatcher::handleNullifyItemOwner(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    try
+    {
+        auto j = nlohmann::json::parse(payload.rawMessage);
+        const auto &body = j["body"];
+        Event saveEvent(Event::NULLIFY_ITEM_OWNER, 0, body, socket);
+        eventsBatch_.push_back(saveEvent);
+        eventQueue_.pushBatch(eventsBatch_);
+        eventsBatch_.clear();
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleNullifyItemOwner parse error: " + std::string(ex.what()));
+    }
+}
+
+void
+EventDispatcher::handleDeleteInventoryItem(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    try
+    {
+        auto j = nlohmann::json::parse(payload.rawMessage);
+        const auto &body = j["body"];
+        Event saveEvent(Event::DELETE_INVENTORY_ITEM, 0, body, socket);
+        eventsBatch_.push_back(saveEvent);
+        eventQueue_.pushBatch(eventsBatch_);
+        eventsBatch_.clear();
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleDeleteInventoryItem parse error: " + std::string(ex.what()));
+    }
+}
+
+// ── Pity ──────────────────────────────────────────────────────────────────
+
+void
+EventDispatcher::handleGetPlayerPityData(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    try
+    {
+        auto j = nlohmann::json::parse(payload.rawMessage);
+        int characterId = j["body"].value("characterId", 0);
+        Event ev(Event::GET_PLAYER_PITY, characterId, static_cast<int>(characterId), socket);
+        eventsBatch_.push_back(ev);
+        eventQueue_.pushBatch(eventsBatch_);
+        eventsBatch_.clear();
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleGetPlayerPityData parse error: " + std::string(ex.what()));
+    }
+}
+
+void
+EventDispatcher::handleSavePityCounter(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    try
+    {
+        auto j = nlohmann::json::parse(payload.rawMessage);
+        const auto &body = j["body"];
+        Event saveEvent(Event::SAVE_PITY_COUNTER, 0, body, socket);
+        eventsBatch_.push_back(saveEvent);
+        eventQueue_.pushBatch(eventsBatch_);
+        eventsBatch_.clear();
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleSavePityCounter parse error: " + std::string(ex.what()));
+    }
+}
+
+// ── Bestiary ──────────────────────────────────────────────────────────────
+
+void
+EventDispatcher::handleGetPlayerBestiaryData(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    try
+    {
+        auto j = nlohmann::json::parse(payload.rawMessage);
+        int characterId = j["body"].value("characterId", 0);
+        Event ev(Event::GET_PLAYER_BESTIARY, characterId, static_cast<int>(characterId), socket);
+        eventsBatch_.push_back(ev);
+        eventQueue_.pushBatch(eventsBatch_);
+        eventsBatch_.clear();
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleGetPlayerBestiaryData parse error: " + std::string(ex.what()));
+    }
+}
+
+void
+EventDispatcher::handleSaveBestiaryKill(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    try
+    {
+        auto j = nlohmann::json::parse(payload.rawMessage);
+        const auto &body = j["body"];
+        Event saveEvent(Event::SAVE_BESTIARY_KILL, 0, body, socket);
+        eventsBatch_.push_back(saveEvent);
+        eventQueue_.pushBatch(eventsBatch_);
+        eventsBatch_.clear();
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleSaveBestiaryKill parse error: " + std::string(ex.what()));
+    }
+}
+
+void
+EventDispatcher::handleTimedChampionKilled(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    try
+    {
+        auto j = nlohmann::json::parse(payload.rawMessage);
+        const auto &body = j["body"];
+        Event evt(Event::TIMED_CHAMPION_KILLED, 0, body, socket);
+        eventsBatch_.push_back(evt);
+        eventQueue_.pushBatch(eventsBatch_);
+        eventsBatch_.clear();
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleTimedChampionKilled parse error: " + std::string(ex.what()));
+    }
+}
+
+// ── Stage 4: Reputation ───────────────────────────────────────────────────
+
+void
+EventDispatcher::handleGetPlayerReputationsData(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    try
+    {
+        auto j = nlohmann::json::parse(payload.rawMessage);
+        int characterId = j["body"].value("characterId", 0);
+        Event ev(Event::GET_PLAYER_REPUTATIONS, characterId, static_cast<int>(characterId), socket);
+        eventsBatch_.push_back(ev);
+        eventQueue_.pushBatch(eventsBatch_);
+        eventsBatch_.clear();
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleGetPlayerReputationsData parse error: " + std::string(ex.what()));
+    }
+}
+
+void
+EventDispatcher::handleSaveReputation(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    try
+    {
+        auto j = nlohmann::json::parse(payload.rawMessage);
+        const auto &body = j["body"];
+        Event saveEvent(Event::SAVE_REPUTATION, 0, body, socket);
+        eventsBatch_.push_back(saveEvent);
+        eventQueue_.pushBatch(eventsBatch_);
+        eventsBatch_.clear();
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleSaveReputation parse error: " + std::string(ex.what()));
+    }
+}
+
+// ── Stage 4: Mastery ──────────────────────────────────────────────────────
+
+void
+EventDispatcher::handleGetPlayerMasteriesData(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    try
+    {
+        auto j = nlohmann::json::parse(payload.rawMessage);
+        int characterId = j["body"].value("characterId", 0);
+        Event ev(Event::GET_PLAYER_MASTERIES, characterId, static_cast<int>(characterId), socket);
+        eventsBatch_.push_back(ev);
+        eventQueue_.pushBatch(eventsBatch_);
+        eventsBatch_.clear();
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleGetPlayerMasteriesData parse error: " + std::string(ex.what()));
+    }
+}
+
+void
+EventDispatcher::handleSaveMastery(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    try
+    {
+        auto j = nlohmann::json::parse(payload.rawMessage);
+        const auto &body = j["body"];
+        Event saveEvent(Event::SAVE_MASTERY, 0, body, socket);
+        eventsBatch_.push_back(saveEvent);
+        eventQueue_.pushBatch(eventsBatch_);
+        eventsBatch_.clear();
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleSaveMastery parse error: " + std::string(ex.what()));
     }
 }

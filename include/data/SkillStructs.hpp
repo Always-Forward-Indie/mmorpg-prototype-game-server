@@ -17,12 +17,18 @@ struct SkillStruct
     float flatAdd = 0.0f; // Плоская добавка
 
     // Характеристики скила
-    int cooldownMs = 0;      // Время восстановления в мс
-    int gcdMs = 0;           // Глобальный КД в мс
-    int castMs = 0;          // Время каста в мс
-    int costMp = 0;          // Стоимость маны
-    float maxRange = 0.0f;   // Максимальная дальность
-    float areaRadius = 0.0f; // Радиус AoE (0 = single target)
+    int cooldownMs = 0;             // Время восстановления в мс
+    int gcdMs = 0;                  // Глобальный КД в мс
+    int castMs = 0;                 // Время каста в мс
+    int costMp = 0;                 // Стоимость маны
+    float maxRange = 0.0f;          // Максимальная дальность
+    float areaRadius = 0.0f;        // Радиус AoE (0 = single target)
+    int swingMs = 300;              // Длительность анимации свинга (после каста), мс
+    std::string animationName = ""; // Название анимационного клипа кастера (Unity Animator state)
+
+    // Passive skill flag: if true the skill is always-on and never cast actively.
+    // Its modifiers arrive as ActiveEffectStruct entries (sourceType="skill_passive", expiresAt=0).
+    bool isPassive = false;
 };
 
 // Структура для атрибута entity (персонажа или моба)

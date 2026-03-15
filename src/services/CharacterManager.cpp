@@ -3,12 +3,14 @@
 #include <iostream>
 #include <pqxx/pqxx>
 #include <random>
-#include <vector>
 #include <spdlog/logger.h>
+#include <vector>
 
 CharacterManager::CharacterManager(Logger &logger)
-    : logger_(logger) {
-    log_ = logger.getSystem("character");}
+    : logger_(logger)
+{
+    log_ = logger.getSystem("character");
+}
 
 void
 CharacterManager::addOrUpdateCharacter(const CharacterDataStruct &character)
@@ -89,6 +91,8 @@ CharacterManager::getBasicCharacterDataFromDatabase(Database &db, int accountId,
             characterData.characterExperiencePoints = row[5].as<int>();
             characterData.characterCurrentHealth = row[6].as<int>();
             characterData.characterCurrentMana = row[7].as<int>();
+            characterData.classId = row["class_id"].as<int>();
+            characterData.experienceDebt = row["experience_debt"].as<int>(0);
 
             auto expResult = db.executeQueryWithTransaction(txn, "get_character_exp_for_next_level", {characterData.characterLevel});
             characterData.expForNextLevel = expResult[0][0].as<int>();
@@ -184,6 +188,9 @@ CharacterManager::getCharacterSkillsFromDatabase(Database &db, int characterId)
             skill.costMp = row["cost_mp"].as<int>();
             skill.maxRange = row["max_range"].as<float>();
             skill.areaRadius = row["area_radius"].as<float>();
+            skill.swingMs = row["swing_ms"].as<int>();
+            skill.animationName = row["animation_name"].as<std::string>();
+            skill.isPassive = row["is_passive"].as<bool>(false);
             skills.push_back(skill);
         }
         txn.commit();
@@ -221,6 +228,8 @@ CharacterManager::getMobSkillsFromDatabase(Database &db, int mobId)
             skill.costMp = row["cost_mp"].as<int>();
             skill.maxRange = row["max_range"].as<float>();
             skill.areaRadius = row["area_radius"].as<float>();
+            skill.swingMs = row["swing_ms"].as<int>();
+            skill.animationName = row["animation_name"].as<std::string>();
             skills.push_back(skill);
         }
         txn.commit();
@@ -230,6 +239,15 @@ CharacterManager::getMobSkillsFromDatabase(Database &db, int mobId)
         db.handleDatabaseError(e);
     }
     return skills;
+}
+
+void
+CharacterManager::updateCharacterPositionInMemory(int accountId, int characterId, const PositionStruct &position)
+{
+    std::unique_lock<std::shared_mutex> lock(mutex_);
+    auto it = charactersMap_.find(characterId);
+    if (it != charactersMap_.end())
+        it->second.characterPosition = position;
 }
 
 void

@@ -73,6 +73,10 @@ NPCManager::loadNPCs()
                 npcData.isInteractable = true; // default value
             }
 
+            // Social systems (Stage 4, migration 039)
+            if (!row["faction_slug"].is_null())
+                npcData.factionSlug = row["faction_slug"].as<std::string>();
+
             // Load related data
             npcData.attributes = loadNPCAttributes(transaction, npcData.id);
             npcData.skills = loadNPCSkills(transaction, npcData.id);
@@ -241,6 +245,8 @@ NPCManager::loadNPCSkills(pqxx::work &transaction, int npcId)
             skill.costMp = skillRow["cost_mp"].as<int>();
             skill.maxRange = skillRow["max_range"].as<float>();
 
+            skill.animationName = skillRow["animation_name"].as<std::string>();
+            skill.swingMs = skillRow["swing_ms"].as<int>();
             skills.push_back(std::move(skill));
         }
     }

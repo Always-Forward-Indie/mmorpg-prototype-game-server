@@ -159,6 +159,7 @@ DialogueQuestManager::getAllQuestsJson()
             step["id"] = s["id"].as<long long>();
             step["stepIndex"] = s["step_index"].as<int>();
             step["stepType"] = s["step_type"].as<std::string>();
+            step["completionMode"] = s["completion_mode"].as<std::string>();
             step["clientStepKey"] = s["client_step_key"].as<std::string>();
             // Parse params jsonb text to actual JSON object
             {
@@ -205,6 +206,7 @@ DialogueQuestManager::getPlayerQuestsJson(int characterId)
     {
         nlohmann::json q;
         q["questId"] = row["quest_id"].as<long long>();
+        q["questSlug"] = row["slug"].as<std::string>();
         q["state"] = row["state"].as<std::string>();
         q["currentStep"] = row["current_step"].as<int>();
         // Parse progress jsonb text to actual JSON object
@@ -270,7 +272,7 @@ DialogueQuestManager::savePlayerFlag(int characterId, const std::string &flagKey
         database_.executeQueryWithTransaction(txn, "upsert_player_flag", {(int)characterId, flagKey, (int)intValue, std::string(boolValue ? "true" : "false")});
         txn.commit();
         log_->info("[DQM] Saved flag characterId=" + std::to_string(characterId) +
-                        " key=" + flagKey);
+                   " key=" + flagKey);
     }
     catch (const std::exception &ex)
     {

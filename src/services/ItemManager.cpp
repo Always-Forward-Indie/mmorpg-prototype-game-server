@@ -34,9 +34,7 @@ ItemManager::loadItems()
         {
             ItemDataStruct itemData;
             itemData.id = row["id"].as<int>();
-            itemData.name = row["name"].as<std::string>();
             itemData.slug = row["slug"].as<std::string>();
-            itemData.description = row["description"].as<std::string>();
             itemData.isQuestItem = row["is_quest_item"].as<bool>();
             itemData.isContainer = row["is_container"].as<bool>();
             itemData.isDurable = row["is_durable"].as<bool>();
@@ -59,6 +57,7 @@ ItemManager::loadItems()
             itemData.equipSlotName = row["equip_slot_name"].as<std::string>();
             itemData.equipSlotSlug = row["equip_slot_slug"].as<std::string>();
             itemData.levelRequirement = row["level_requirement"].as<int>();
+            itemData.isTwoHanded = row["is_two_handed"].as<bool>();
 
             // Load item attributes
             pqxx::result selectItemAttributes = database_.executeQueryWithTransaction(
@@ -79,7 +78,59 @@ ItemManager::loadItems()
                 itemData.attributes.push_back(itemAttribute);
             }
 
+            // Load item use-effects (potions, scrolls, food — migration 034)
+            pqxx::result selectUseEffects = database_.executeQueryWithTransaction(
+                transaction,
+                "get_item_use_effects",
+                {itemData.id});
+
+            for (const auto &ueRow : selectUseEffects)
+            {
+                ItemUseEffectStruct ue;
+                ue.effectSlug = ueRow["effect_slug"].as<std::string>();
+                ue.attributeSlug = ueRow["attribute_slug"].as<std::string>();
+                ue.value = ueRow["value"].as<float>();
+                ue.isInstant = ueRow["is_instant"].as<bool>();
+                ue.durationSeconds = ueRow["duration_seconds"].as<int>();
+                ue.tickMs = ueRow["tick_ms"].as<int>();
+                ue.cooldownSeconds = ueRow["cooldown_seconds"].as<int>();
+                itemData.useEffects.push_back(ue);
+            }
+
+            // Social systems (Stage 4, migration 039)
+            itemData.masterySlug = row["mastery_slug"].as<std::string>();
+
             items_[itemData.id] = itemData;
+        }
+
+        // Load per-class restrictions into the already-built items map
+        pqxx::result selectClassRestrictions = database_.executeQueryWithTransaction(
+            transaction,
+            "get_item_class_restrictions",
+            {});
+        for (const auto &restrictionRow : selectClassRestrictions)
+        {
+            int itemId = restrictionRow["item_id"].as<int>();
+            int classId = restrictionRow["class_id"].as<int>();
+            if (items_.count(itemId))
+                items_[itemId].allowedClassIds.push_back(classId);
+        }
+
+        // Load item-set memberships into the already-built items map
+        pqxx::result selectSetMembers = database_.executeQueryWithTransaction(
+            transaction,
+            "get_item_set_memberships",
+            {});
+        for (const auto &setRow : selectSetMembers)
+        {
+            int itemId = setRow["item_id"].as<int>();
+            int setId = setRow["set_id"].as<int>();
+            std::string setSlug = setRow["set_slug"].as<std::string>();
+            if (items_.count(itemId))
+            {
+                items_[itemId].setId = setId;
+                items_[itemId].setSlug = setSlug;
+            }
         }
 
         transaction.commit();
@@ -122,6 +173,7 @@ ItemManager::loadMobLoot()
             lootInfo.isHarvestOnly = row["is_harvest_only"].as<bool>();
             lootInfo.minQuantity = row["min_quantity"].as<int>();
             lootInfo.maxQuantity = row["max_quantity"].as<int>();
+            lootInfo.lootTier = row["loot_tier"].as<std::string>();
 
             mobLootInfo_[lootInfo.mobId].push_back(lootInfo);
         }

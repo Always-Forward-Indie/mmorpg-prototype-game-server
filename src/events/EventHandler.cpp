@@ -219,6 +219,9 @@ EventHandler::handleGetCharacterDataEvent(const Event &event)
                 skillData["costMp"] = skill.costMp;
                 skillData["maxRange"] = skill.maxRange;
                 skillData["areaRadius"] = skill.areaRadius;
+                skillData["swingMs"] = skill.swingMs;
+                skillData["animationName"] = skill.animationName;
+                skillData["isPassive"] = skill.isPassive;
 
                 skills.push_back(skillData);
             }
@@ -231,11 +234,13 @@ EventHandler::handleGetCharacterDataEvent(const Event &event)
                            .setHeader("eventType", "setCharacterData")
                            .setBody("id", currentClientData.characterId)
                            .setBody("class", characterData.characterClass)
+                           .setBody("classId", characterData.classId)
                            .setBody("level", characterData.characterLevel)
                            .setBody("expForNextLevel", characterData.expForNextLevel)
                            .setBody("name", characterData.characterName)
                            .setBody("race", characterData.characterRace)
                            .setBody("currentExp", characterData.characterExperiencePoints)
+                           .setBody("experienceDebt", characterData.experienceDebt)
                            .setBody("currentHealth", characterData.characterCurrentHealth)
                            .setBody("currentMana", characterData.characterCurrentMana)
                            .setBody("maxHealth", characterData.characterMaxHealth)
@@ -307,9 +312,10 @@ EventHandler::handleMoveCharacterChunkEvent(const Event &event)
                 return;
             }
 
-            // Update the character position in the database
-            gameServices_.getCharacterManager().updateCharacterPosition(
-                gameServices_.getDatabase(),
+            // Position is persisted to DB only on disconnect (see handleDisconnectChunkEvent).
+            // Writing on every move packet would produce 20+ SQL UPDATE/s per player.
+            // Update the in-memory position so data is fresh for other GS queries.
+            gameServices_.getCharacterManager().updateCharacterPositionInMemory(
                 passedCharacterData.clientId,
                 passedCharacterData.characterId,
                 passedCharacterData.characterPosition);
@@ -511,6 +517,30 @@ EventHandler::handleJoinChunkServerEvent(const Event &event)
             gameServices_.getGameConfigService().loadConfig();
             Event gameConfigEvent(Event::GET_GAME_CONFIG, clientID, ClientDataStruct(), clientSocket);
             dispatchEvent(gameConfigEvent);
+
+            // load vendor NPC inventory
+            Event vendorDataEvent(Event::GET_VENDOR_DATA, clientID, ClientDataStruct(), clientSocket);
+            dispatchEvent(vendorDataEvent);
+
+            // load respawn zones
+            Event respawnZonesEvent(Event::GET_RESPAWN_ZONES, clientID, ClientDataStruct(), clientSocket);
+            dispatchEvent(respawnZonesEvent);
+
+            // load game zones (AABB bounds + exploration XP)
+            Event gameZonesEvent(Event::GET_GAME_ZONES, clientID, ClientDataStruct(), clientSocket);
+            dispatchEvent(gameZonesEvent);
+
+            // load status effect templates (data-driven buff/debuff config)
+            Event statusEffectTemplatesEvent(Event::GET_STATUS_EFFECT_TEMPLATES, clientID, ClientDataStruct(), clientSocket);
+            dispatchEvent(statusEffectTemplatesEvent);
+
+            // load timed champion templates (Stage 3 — mob ecosystem)
+            Event timedChampionTemplatesEvent(Event::GET_TIMED_CHAMPION_TEMPLATES, clientID, ClientDataStruct(), clientSocket);
+            dispatchEvent(timedChampionTemplatesEvent);
+
+            // load zone event templates (Stage 4 — world events)
+            Event zoneEventTemplatesEvent(Event::GET_ZONE_EVENT_TEMPLATES, clientID, ClientDataStruct(), clientSocket);
+            dispatchEvent(zoneEventTemplatesEvent);
         }
 
         // Add the message to the response
@@ -716,6 +746,22 @@ EventHandler::handleGetMobsListEvent(const Event &event)
             mobJson["fleeHpThreshold"] = mobData.fleeHpThreshold;
             mobJson["aiArchetype"] = mobData.aiArchetype;
 
+            // Survival / Rare mob groundwork (Stage 3, migration 038)
+            mobJson["canEvolve"] = mobData.canEvolve;
+            mobJson["isRare"] = mobData.isRare;
+            mobJson["rareSpawnChance"] = mobData.rareSpawnChance;
+            mobJson["rareSpawnCondition"] = mobData.rareSpawnCondition;
+
+            // Social systems (Stage 4, migration 039)
+            mobJson["factionSlug"] = mobData.factionSlug;
+            mobJson["repDeltaPerKill"] = mobData.repDeltaPerKill;
+
+            // Bestiary metadata (migration 040)
+            mobJson["biomeSlug"] = mobData.biomeSlug;
+            mobJson["mobTypeSlug"] = mobData.mobTypeSlug;
+            mobJson["hpMin"] = mobData.hpMin;
+            mobJson["hpMax"] = mobData.hpMax;
+
             // Add the current item to the mobs list json
             mobsListJson.push_back(mobJson);
         }
@@ -777,6 +823,8 @@ EventHandler::handleGetMobsListEvent(const Event &event)
                     skillJson["costMp"] = skill.costMp;
                     skillJson["maxRange"] = skill.maxRange;
                     skillJson["areaRadius"] = skill.areaRadius;
+                    skillJson["swingMs"] = skill.swingMs;
+                    skillJson["animationName"] = skill.animationName;
                     skillsArray.push_back(skillJson);
                 }
 
@@ -807,6 +855,52 @@ EventHandler::handleGetMobsListEvent(const Event &event)
         else
         {
             log_->info("No mob skills found to send");
+        }
+
+        // Send mob weaknesses and resistances (migration 040)
+        {
+            auto _dbConn2 = gameServices_.getDatabase().getConnectionLocked();
+            pqxx::work txnWR(_dbConn2.get());
+
+            auto weakRows = gameServices_.getDatabase().executeQueryWithTransaction(
+                txnWR, "get_mob_weaknesses_all", {});
+            auto resistRows = gameServices_.getDatabase().executeQueryWithTransaction(
+                txnWR, "get_mob_resistances_all", {});
+
+            // Build per-mob weaknesses map
+            std::unordered_map<int, std::vector<std::string>> weakMap;
+            for (const auto &row : weakRows)
+                weakMap[row["mob_id"].as<int>()].push_back(row["element_slug"].as<std::string>());
+
+            std::unordered_map<int, std::vector<std::string>> resistMap;
+            for (const auto &row : resistRows)
+                resistMap[row["mob_id"].as<int>()].push_back(row["element_slug"].as<std::string>());
+
+            nlohmann::json wrJson = nlohmann::json::array();
+            for (const auto &mobItem : mobsListMap)
+            {
+                int mid = mobItem.first;
+                nlohmann::json entry;
+                entry["mobId"] = mid;
+                entry["weaknesses"] = weakMap.count(mid) ? nlohmann::json(weakMap[mid]) : nlohmann::json::array();
+                entry["resistances"] = resistMap.count(mid) ? nlohmann::json(resistMap[mid]) : nlohmann::json::array();
+                wrJson.push_back(std::move(entry));
+            }
+
+            if (!wrJson.empty())
+            {
+                nlohmann::json wrResponse = ResponseBuilder()
+                                                .setHeader("message", "Mob weaknesses/resistances")
+                                                .setHeader("hash", "")
+                                                .setHeader("clientId", clientID)
+                                                .setHeader("eventType", "setMobWeaknessesResistances")
+                                                .setBody("data", wrJson)
+                                                .build();
+                networkManager_.sendResponse(clientSocket,
+                    networkManager_.generateResponseMessage("success", wrResponse));
+                log_->info("[EH] Sent weaknesses/resistances for " +
+                           std::to_string(wrJson.size()) + " mobs");
+            }
         }
     }
     catch (const std::bad_variant_access &ex)
@@ -873,6 +967,12 @@ EventHandler::handleGetMobDataEvent(const Event &event)
                 // Social behaviour (migration 012)
                 mobJson["isSocial"] = mobData.isSocial;
                 mobJson["chaseDuration"] = mobData.chaseDuration;
+
+                // Survival / Rare mob groundwork (Stage 3, migration 038)
+                mobJson["canEvolve"] = mobData.canEvolve;
+                mobJson["isRare"] = mobData.isRare;
+                mobJson["rareSpawnChance"] = mobData.rareSpawnChance;
+                mobJson["rareSpawnCondition"] = mobData.rareSpawnCondition;
 
                 // Prepare the response message
                 nlohmann::json response;
@@ -1092,6 +1192,14 @@ EventHandler::dispatchEvent(const Event &event)
         handleSaveCharacterProgressEvent(event);
         break;
 
+    case Event::SAVE_INVENTORY_CHANGE:
+        handleSaveInventoryChangeEvent(event);
+        break;
+
+    case Event::GET_PLAYER_INVENTORY:
+        handleGetPlayerInventoryEvent(event);
+        break;
+
     // Dialogue & Quest events
     case Event::GET_DIALOGUES:
         handleGetDialoguesEvent(event);
@@ -1119,6 +1227,80 @@ EventHandler::dispatchEvent(const Event &event)
         break;
     case Event::GET_GAME_CONFIG:
         handleGetGameConfigEvent(event);
+        break;
+    case Event::GET_VENDOR_DATA:
+        handleGetVendorDataEvent(event);
+        break;
+    case Event::SAVE_DURABILITY_CHANGE:
+        handleSaveDurabilityChangeEvent(event);
+        break;
+    case Event::SAVE_CURRENCY_TRANSACTION:
+        handleSaveCurrencyTransactionEvent(event);
+        break;
+    case Event::SAVE_EQUIPMENT_CHANGE:
+        handleSaveEquipmentChangeEvent(event);
+        break;
+    case Event::GET_RESPAWN_ZONES:
+        handleGetRespawnZonesEvent(event);
+        break;
+    case Event::GET_STATUS_EFFECT_TEMPLATES:
+        handleGetStatusEffectTemplatesEvent(event);
+        break;
+    case Event::GET_GAME_ZONES:
+        handleGetGameZonesEvent(event);
+        break;
+    case Event::SAVE_EXPERIENCE_DEBT:
+        handleSaveExperienceDebtEvent(event);
+        break;
+    case Event::SAVE_ACTIVE_EFFECT:
+        handleSaveActiveEffectEvent(event);
+        break;
+    case Event::SAVE_ITEM_KILL_COUNT:
+        handleSaveItemKillCountEvent(event);
+        break;
+    case Event::TRANSFER_INVENTORY_ITEM:
+        handleTransferInventoryItemEvent(event);
+        break;
+    case Event::NULLIFY_ITEM_OWNER:
+        handleNullifyItemOwnerEvent(event);
+        break;
+    case Event::DELETE_INVENTORY_ITEM:
+        handleDeleteInventoryItemEvent(event);
+        break;
+    case Event::GET_PLAYER_PITY:
+        handleGetPlayerPityEvent(event);
+        break;
+    case Event::GET_PLAYER_BESTIARY:
+        handleGetPlayerBestiaryEvent(event);
+        break;
+    case Event::SAVE_PITY_COUNTER:
+        handleSavePityCounterEvent(event);
+        break;
+    case Event::SAVE_BESTIARY_KILL:
+        handleSaveBestiaryKillEvent(event);
+        break;
+    case Event::GET_TIMED_CHAMPION_TEMPLATES:
+        handleGetTimedChampionTemplatesEvent(event);
+        break;
+    case Event::TIMED_CHAMPION_KILLED:
+        handleTimedChampionKilledEvent(event);
+        break;
+
+    // Stage 4: Reputation & Mastery
+    case Event::GET_PLAYER_REPUTATIONS:
+        handleGetPlayerReputationsEvent(event);
+        break;
+    case Event::SAVE_REPUTATION:
+        handleSaveReputationEvent(event);
+        break;
+    case Event::GET_PLAYER_MASTERIES:
+        handleGetPlayerMasteriesEvent(event);
+        break;
+    case Event::SAVE_MASTERY:
+        handleSaveMasteryEvent(event);
+        break;
+    case Event::GET_ZONE_EVENT_TEMPLATES:
+        handleGetZoneEventTemplatesEvent(event);
         break;
 
     // chunk server events
@@ -1154,9 +1336,7 @@ EventHandler::handleGetItemsListEvent(const Event &event)
 
             nlohmann::json itemJson;
             itemJson["id"] = itemData.id;
-            itemJson["name"] = itemData.name;
             itemJson["slug"] = itemData.slug;
-            itemJson["description"] = itemData.description;
             itemJson["isQuestItem"] = itemData.isQuestItem;
             itemJson["itemType"] = itemData.itemType;
             itemJson["itemTypeName"] = itemData.itemTypeName;
@@ -1179,6 +1359,15 @@ EventHandler::handleGetItemsListEvent(const Event &event)
             itemJson["equipSlotName"] = itemData.equipSlotName;
             itemJson["equipSlotSlug"] = itemData.equipSlotSlug;
             itemJson["levelRequirement"] = itemData.levelRequirement;
+            itemJson["isTwoHanded"] = itemData.isTwoHanded;
+
+            nlohmann::json allowedClassIdsArray = nlohmann::json::array();
+            for (int classId : itemData.allowedClassIds)
+                allowedClassIdsArray.push_back(classId);
+            itemJson["allowedClassIds"] = allowedClassIdsArray;
+
+            itemJson["setId"] = itemData.setId;
+            itemJson["setSlug"] = itemData.setSlug;
 
             // Add attributes
             nlohmann::json attributesArray = nlohmann::json::array();
@@ -1193,6 +1382,25 @@ EventHandler::handleGetItemsListEvent(const Event &event)
                 attributesArray.push_back(attributeJson);
             }
             itemJson["attributes"] = attributesArray;
+
+            // Add use effects
+            nlohmann::json useEffectsArray = nlohmann::json::array();
+            for (const auto &ue : itemData.useEffects)
+            {
+                nlohmann::json ueJson;
+                ueJson["effectSlug"] = ue.effectSlug;
+                ueJson["attributeSlug"] = ue.attributeSlug;
+                ueJson["value"] = ue.value;
+                ueJson["isInstant"] = ue.isInstant;
+                ueJson["durationSeconds"] = ue.durationSeconds;
+                ueJson["tickMs"] = ue.tickMs;
+                ueJson["cooldownSeconds"] = ue.cooldownSeconds;
+                useEffectsArray.push_back(ueJson);
+            }
+            itemJson["useEffects"] = useEffectsArray;
+
+            // Social systems (Stage 4, migration 039)
+            itemJson["masterySlug"] = itemData.masterySlug;
 
             // Add the current item to the items list json
             itemsListJson.push_back(itemJson);
@@ -1245,6 +1453,7 @@ EventHandler::handleGetMobLootInfoEvent(const Event &event)
                 lootJson["isHarvestOnly"] = lootInfo.isHarvestOnly;
                 lootJson["minQuantity"] = lootInfo.minQuantity;
                 lootJson["maxQuantity"] = lootInfo.maxQuantity;
+                lootJson["lootTier"] = lootInfo.lootTier;
 
                 mobLootListJson.push_back(lootJson);
             }
@@ -1412,7 +1621,7 @@ EventHandler::handleGetCharacterExpForLevelEvent(const Event &event)
             networkManager_.sendResponse(clientSocket, responseData);
 
             log_->info("Sent experience data for level " + std::to_string(level) +
-                                              " to chunk server");
+                       " to chunk server");
         }
         else
         {
@@ -1578,6 +1787,7 @@ EventHandler::handleGetNPCsListEvent(const Event &event)
             npcJson["isInteractable"] = npcData.isInteractable;
             npcJson["dialogueId"] = npcData.dialogueId;
             npcJson["questId"] = npcData.questId;
+            npcJson["factionSlug"] = npcData.factionSlug;
             npcJson["posX"] = npcData.position.positionX;
             npcJson["posY"] = npcData.position.positionY;
             npcJson["posZ"] = npcData.position.positionZ;
@@ -1635,6 +1845,8 @@ EventHandler::handleGetNPCsListEvent(const Event &event)
                 skillJson["costMp"] = skill.costMp;
                 skillJson["maxRange"] = skill.maxRange;
                 skillJson["areaRadius"] = skill.areaRadius;
+                skillJson["swingMs"] = skill.swingMs;
+                skillJson["animationName"] = skill.animationName;
 
                 npcsSkillsJson.push_back(skillJson);
             }
@@ -1819,6 +2031,121 @@ EventHandler::handleSaveHpManaEvent(const Event &event)
     catch (const std::exception &ex)
     {
         gameServices_.getLogger().logError("Error in handleSaveHpManaEvent: " + std::string(ex.what()));
+    }
+}
+
+void
+EventHandler::handleSaveInventoryChangeEvent(const Event &event)
+{
+    const auto &data = event.getData();
+
+    try
+    {
+        if (!std::holds_alternative<nlohmann::json>(data))
+        {
+            log_->error("handleSaveInventoryChangeEvent: unexpected data type");
+            return;
+        }
+        const auto &j = std::get<nlohmann::json>(data);
+        int characterId = j.value("characterId", 0);
+        int itemId = j.value("itemId", 0);
+        int quantity = j.value("quantity", 0);
+
+        if (characterId <= 0 || itemId <= 0)
+            return;
+
+        std::shared_ptr<boost::asio::ip::tcp::socket> chunkSocket = event.getClientSocket();
+
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+        if (quantity > 0)
+        {
+            auto result = gameServices_.getDatabase().executeQueryWithTransaction(
+                txn, "upsert_player_inventory_item", {characterId, itemId, quantity});
+            txn.commit();
+
+            // Send back the assigned player_inventory.id so chunk server can fix in-memory id=0
+            if (!result.empty() && chunkSocket && chunkSocket->is_open())
+            {
+                int64_t assignedId = result[0]["id"].as<int64_t>();
+                nlohmann::json syncPkt;
+                syncPkt["header"]["eventType"] = "inventoryItemIdSync";
+                syncPkt["header"]["clientId"] = 0;
+                syncPkt["body"]["characterId"] = characterId;
+                syncPkt["body"]["itemId"] = itemId;
+                syncPkt["body"]["inventoryItemId"] = assignedId;
+                networkManager_.sendResponse(chunkSocket,
+                    networkManager_.generateResponseMessage("success", syncPkt));
+            }
+        }
+        else
+        {
+            gameServices_.getDatabase().executeQueryWithTransaction(
+                txn, "delete_player_inventory_item", {characterId, itemId});
+            txn.commit();
+        }
+        log_->info("[SAVE_INVENTORY] character=" + std::to_string(characterId) +
+                   " item=" + std::to_string(itemId) + " qty=" + std::to_string(quantity));
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("Error in handleSaveInventoryChangeEvent: " + std::string(ex.what()));
+    }
+}
+
+void
+EventHandler::handleGetPlayerInventoryEvent(const Event &event)
+{
+    const auto &data = event.getData();
+    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
+
+    try
+    {
+        if (!std::holds_alternative<int>(data))
+        {
+            log_->error("handleGetPlayerInventoryEvent: unexpected data type");
+            return;
+        }
+        int characterId = std::get<int>(data);
+
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+        auto result = gameServices_.getDatabase().executeQueryWithTransaction(
+            txn, "get_player_inventory", {characterId});
+
+        nlohmann::json itemsJson = nlohmann::json::array();
+        for (const auto &row : result)
+        {
+            nlohmann::json item;
+            item["id"] = row["id"].as<int64_t>();
+            item["itemId"] = row["item_id"].as<int>();
+            item["quantity"] = row["quantity"].as<int>();
+            item["slotIndex"] = row["slot_index"].as<int>();
+            item["durabilityCurrent"] = row["durability_current"].as<int>();
+            item["isEquipped"] = row["is_equipped"].as<bool>(false);
+            item["killCount"] = row["kill_count"].as<int>(0);
+            itemsJson.push_back(std::move(item));
+        }
+
+        ResponseBuilder builder;
+        nlohmann::json response = builder
+                                      .setHeader("message", "Player inventory")
+                                      .setHeader("hash", "")
+                                      .setHeader("clientId", characterId)
+                                      .setHeader("eventType", "setPlayerInventoryData")
+                                      .setBody("characterId", characterId)
+                                      .setBody("items", itemsJson)
+                                      .build();
+        networkManager_.sendResponse(clientSocket,
+            networkManager_.generateResponseMessage("success", response));
+
+        gameServices_.getLogger().log("[EH] Sent " + std::to_string(itemsJson.size()) +
+                                          " inventory items for characterId=" + std::to_string(characterId),
+            GREEN);
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("Error in handleGetPlayerInventoryEvent: " + std::string(ex.what()));
     }
 }
 
@@ -2170,6 +2497,39 @@ EventHandler::handleGetPlayerActiveEffectsEvent(const Event &event)
             effectsJson.push_back(std::move(eff));
         }
 
+        // Also append permanent modifiers from passive skills the character has learned.
+        // These are computed from passive_skill_modifiers × character_skills and arrive as
+        // permanent (expiresAt=0, tickMs=0) flat/percent stat modifiers.
+        try
+        {
+            auto passiveResult = gameServices_.getDatabase().executeQueryWithTransaction(
+                txn, "get_player_passive_skill_effects", {characterId});
+
+            for (const auto &row : passiveResult)
+            {
+                nlohmann::json eff;
+                eff["id"] = row["id"].as<int64_t>();
+                eff["effectId"] = 0;
+                eff["effectSlug"] = row["effect_slug"].as<std::string>();
+                eff["effectTypeSlug"] = std::string("passive");
+                eff["attributeId"] = 0;
+                eff["attributeSlug"] = row["attribute_slug"].as<std::string>();
+                eff["value"] = row["value"].as<float>();
+                eff["sourceType"] = std::string("skill_passive");
+                eff["tickMs"] = 0;
+                eff["expiresAt"] = int64_t(0); // permanent
+                effectsJson.push_back(std::move(eff));
+            }
+        }
+        catch (const std::exception &passiveEx)
+        {
+            // passive_skill_modifiers table may not exist in older DBs — degrade gracefully
+            log_->warn("[EH] Could not load passive skill effects for character " +
+                       std::to_string(characterId) + ": " + passiveEx.what());
+        }
+
+        txn.commit();
+
         ResponseBuilder builder;
         nlohmann::json response = builder
                                       .setHeader("message", "Player active effects")
@@ -2242,5 +2602,1082 @@ EventHandler::handleGetCharacterAttributesRefreshEvent(const Event &event)
     catch (const std::exception &ex)
     {
         gameServices_.getLogger().logError("Error in handleGetCharacterAttributesRefreshEvent: " + std::string(ex.what()));
+    }
+}
+
+void
+EventHandler::handleGetVendorDataEvent(const Event &event)
+{
+    int clientID = event.getClientID();
+    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
+
+    try
+    {
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+
+        // Get all vendor NPC IDs
+        auto npcRows = gameServices_.getDatabase().executeQueryWithTransaction(txn, "get_vendor_npcs", {});
+
+        nlohmann::json vendorList = nlohmann::json::array();
+        for (const auto &npcRow : npcRows)
+        {
+            int npcId = npcRow["npc_id"].as<int>();
+
+            auto itemRows = gameServices_.getDatabase().executeQueryWithTransaction(
+                txn, "get_vendor_inventory", {npcId});
+
+            nlohmann::json items = nlohmann::json::array();
+            for (const auto &row : itemRows)
+            {
+                nlohmann::json item;
+                item["itemId"] = row["item_id"].as<int>();
+                item["stockCurrent"] = row["stock_current"].as<int>();
+                item["stockMax"] = row["stock_max"].as<int>();
+                item["restockAmount"] = row["restock_amount"].as<int>();
+                item["restockIntervalSec"] = row["restock_interval_sec"].as<int>();
+                item["priceOverrideBuy"] = row["price_override_buy"].as<int>();
+                item["priceOverrideSell"] = row["price_override_sell"].as<int>();
+                items.push_back(std::move(item));
+            }
+
+            nlohmann::json vendor;
+            vendor["npcId"] = npcId;
+            vendor["items"] = std::move(items);
+            vendorList.push_back(std::move(vendor));
+        }
+        txn.commit();
+
+        ResponseBuilder builder;
+        nlohmann::json response = builder
+                                      .setHeader("message", "Vendor data loaded")
+                                      .setHeader("hash", "")
+                                      .setHeader("clientId", clientID)
+                                      .setHeader("eventType", "setVendorData")
+                                      .setBody("vendors", vendorList)
+                                      .build();
+
+        networkManager_.sendResponse(clientSocket,
+            networkManager_.generateResponseMessage("success", response));
+
+        gameServices_.getLogger().log("[EH] Sent vendor data: " +
+                                      std::to_string(vendorList.size()) + " vendors.");
+    }
+    catch (const std::exception &e)
+    {
+        gameServices_.getLogger().logError("handleGetVendorDataEvent error: " + std::string(e.what()));
+    }
+}
+
+void
+EventHandler::handleSaveDurabilityChangeEvent(const Event &event)
+{
+    const auto &data = event.getData();
+
+    try
+    {
+        if (!std::holds_alternative<nlohmann::json>(data))
+        {
+            log_->error("handleSaveDurabilityChangeEvent: unexpected data type");
+            return;
+        }
+        const auto &j = std::get<nlohmann::json>(data);
+        int characterId = j.value("characterId", 0);
+        int inventoryItemId = j.value("inventoryItemId", 0);
+        int durabilityCurrent = j.value("durabilityCurrent", 0);
+
+        if (characterId <= 0 || inventoryItemId <= 0)
+            return;
+
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+        gameServices_.getDatabase().executeQueryWithTransaction(
+            txn, "update_durability_current", {durabilityCurrent, inventoryItemId, characterId});
+        txn.commit();
+
+        log_->info("[SAVE_DUR] char=" + std::to_string(characterId) +
+                   " item=" + std::to_string(inventoryItemId) +
+                   " dur=" + std::to_string(durabilityCurrent));
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("Error in handleSaveDurabilityChangeEvent: " + std::string(ex.what()));
+    }
+}
+
+void
+EventHandler::handleSaveCurrencyTransactionEvent(const Event &event)
+{
+    const auto &data = event.getData();
+
+    try
+    {
+        if (!std::holds_alternative<nlohmann::json>(data))
+        {
+            log_->error("handleSaveCurrencyTransactionEvent: unexpected data type");
+            return;
+        }
+        const auto &j = std::get<nlohmann::json>(data);
+        int characterId = j.value("characterId", 0);
+        int npcId = j.value("npcId", 0);
+        int itemId = j.value("itemId", 0);
+        int quantity = j.value("quantity", 0);
+        int totalPrice = j.value("totalPrice", 0);
+        std::string txType = j.value("transactionType", "");
+
+        if (characterId <= 0)
+            return;
+
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+        gameServices_.getDatabase().executeQueryWithTransaction(
+            txn, "insert_currency_transaction", {characterId, npcId, totalPrice, txType});
+        txn.commit();
+
+        log_->info("[CURRENCY_TX] char=" + std::to_string(characterId) +
+                   " type=" + txType + " item=" + std::to_string(itemId) +
+                   " qty=" + std::to_string(quantity) + " price=" + std::to_string(totalPrice));
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("Error in handleSaveCurrencyTransactionEvent: " + std::string(ex.what()));
+    }
+}
+
+void
+EventHandler::handleSaveEquipmentChangeEvent(const Event &event)
+{
+    const auto &data = event.getData();
+
+    try
+    {
+        if (!std::holds_alternative<nlohmann::json>(data))
+        {
+            log_->error("handleSaveEquipmentChangeEvent: unexpected data type");
+            return;
+        }
+        const auto &j = std::get<nlohmann::json>(data);
+        int characterId = j.value("characterId", 0);
+        int inventoryItemId = j.value("inventoryItemId", 0);
+        std::string action = j.value("action", "");
+        std::string equipSlotSlug = j.value("equipSlotSlug", "");
+
+        if (characterId <= 0 || inventoryItemId <= 0 || action.empty())
+            return;
+
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+
+        if (action == "equip")
+        {
+            if (equipSlotSlug.empty())
+            {
+                log_->error("[SAVE_EQUIP] equipSlotSlug is empty for char=" + std::to_string(characterId));
+                return;
+            }
+            gameServices_.getDatabase().executeQueryWithTransaction(
+                txn, "insert_character_equipment", {characterId, equipSlotSlug, inventoryItemId});
+        }
+        else if (action == "unequip")
+        {
+            gameServices_.getDatabase().executeQueryWithTransaction(
+                txn, "delete_character_equipment", {characterId, inventoryItemId});
+        }
+        else
+        {
+            log_->error("[SAVE_EQUIP] Unknown action: " + action);
+            return;
+        }
+        txn.commit();
+
+        log_->info("[SAVE_EQUIP] char=" + std::to_string(characterId) +
+                   " action=" + action +
+                   " slot=" + equipSlotSlug +
+                   " invItemId=" + std::to_string(inventoryItemId));
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("Error in handleSaveEquipmentChangeEvent: " + std::string(ex.what()));
+    }
+}
+
+void
+EventHandler::handleGetRespawnZonesEvent(const Event &event)
+{
+    int clientID = event.getClientID();
+    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
+
+    try
+    {
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+        auto rows = gameServices_.getDatabase().executeQueryWithTransaction(txn, "get_respawn_zones", {});
+        txn.commit();
+
+        nlohmann::json zonesJson = nlohmann::json::array();
+        for (const auto &row : rows)
+        {
+            nlohmann::json z;
+            z["id"] = row["id"].as<int>();
+            z["name"] = row["name"].as<std::string>();
+            z["x"] = row["x"].as<float>();
+            z["y"] = row["y"].as<float>();
+            z["z"] = row["z"].as<float>();
+            z["zoneId"] = row["zone_id"].as<int>();
+            z["isDefault"] = row["is_default"].as<bool>();
+            zonesJson.push_back(z);
+        }
+
+        ResponseBuilder builder;
+        nlohmann::json response = builder
+                                      .setHeader("message", "Respawn zones loaded")
+                                      .setHeader("hash", "")
+                                      .setHeader("clientId", clientID)
+                                      .setHeader("eventType", "setRespawnZonesList")
+                                      .setBody("respawnZonesData", zonesJson)
+                                      .build();
+        std::string responseData = networkManager_.generateResponseMessage("success", response);
+        networkManager_.sendResponse(clientSocket, responseData);
+
+        log_->info("[RESPAWN_ZONES] Sent " + std::to_string(zonesJson.size()) + " respawn zones to chunk server");
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("handleGetRespawnZonesEvent error: " + std::string(ex.what()));
+    }
+}
+
+void
+EventHandler::handleSaveExperienceDebtEvent(const Event &event)
+{
+    try
+    {
+        const auto &data = event.getData();
+        if (!std::holds_alternative<nlohmann::json>(data))
+            return;
+        const auto &j = std::get<nlohmann::json>(data);
+        int characterId = j.value("characterId", 0);
+        int debt = j.value("experienceDebt", 0);
+        if (characterId <= 0)
+            return;
+
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+        gameServices_.getDatabase().executeQueryWithTransaction(txn, "set_character_experience_debt", {characterId, debt});
+        txn.commit();
+
+        log_->info("[SAVE_EXP_DEBT] char=" + std::to_string(characterId) + " debt=" + std::to_string(debt));
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("handleSaveExperienceDebtEvent error: " + std::string(ex.what()));
+    }
+}
+
+void
+EventHandler::handleSaveActiveEffectEvent(const Event &event)
+{
+    try
+    {
+        const auto &data = event.getData();
+        if (!std::holds_alternative<nlohmann::json>(data))
+            return;
+        const auto &j = std::get<nlohmann::json>(data);
+
+        int characterId = j.value("characterId", 0);
+        std::string effectSlug = j.value("effectSlug", std::string(""));
+        std::string attributeSlug = j.value("attributeSlug", std::string(""));
+        std::string sourceType = j.value("sourceType", std::string("death"));
+        double value = j.value("value", 0.0);
+        int64_t expiresAt = j.value("expiresAt", int64_t(0));
+        int tickMs = j.value("tickMs", 0);
+
+        if (characterId <= 0 || effectSlug.empty())
+            return;
+
+        // $1=player_id $2=effect_slug $3=attribute_slug $4=source_type $5=value $6=expires_at $7=tick_ms
+        // An empty attributeSlug results in NULL attribute_id (no match in entity_attributes).
+        using DbParam = std::variant<int, float, double, std::string>;
+        std::vector<DbParam> params{
+            characterId,
+            effectSlug,
+            attributeSlug, // '' → NULL attribute_id via SQL subquery
+            sourceType,
+            value,                          // double
+            static_cast<double>(expiresAt), // int64 → double (unix sec, safe precision)
+            tickMs};
+
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+        gameServices_.getDatabase().executeQueryWithTransaction(
+            txn, "insert_player_active_effect", params);
+        txn.commit();
+
+        log_->info("[SAVE_ACTIVE_EFFECT] char=" + std::to_string(characterId) + " effect=" + effectSlug);
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("handleSaveActiveEffectEvent error: " + std::string(ex.what()));
+    }
+}
+
+void
+EventHandler::handleSaveItemKillCountEvent(const Event &event)
+{
+    const auto &data = event.getData();
+
+    try
+    {
+        if (!std::holds_alternative<nlohmann::json>(data))
+        {
+            log_->error("handleSaveItemKillCountEvent: unexpected data type");
+            return;
+        }
+        const auto &j = std::get<nlohmann::json>(data);
+        int characterId = j.value("characterId", 0);
+        int inventoryItemId = j.value("inventoryItemId", 0);
+        int killCount = j.value("killCount", 0);
+
+        if (characterId <= 0 || inventoryItemId <= 0)
+            return;
+
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+        gameServices_.getDatabase().executeQueryWithTransaction(
+            txn, "update_item_kill_count", {killCount, inventoryItemId, characterId});
+        txn.commit();
+
+        log_->info("[SAVE_KILL_COUNT] char=" + std::to_string(characterId) +
+                   " item=" + std::to_string(inventoryItemId) +
+                   " kills=" + std::to_string(killCount));
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("Error in handleSaveItemKillCountEvent: " + std::string(ex.what()));
+    }
+}
+
+void
+EventHandler::handleTransferInventoryItemEvent(const Event &event)
+{
+    const auto &data = event.getData();
+
+    try
+    {
+        if (!std::holds_alternative<nlohmann::json>(data))
+        {
+            log_->error("handleTransferInventoryItemEvent: unexpected data type");
+            return;
+        }
+        const auto &j = std::get<nlohmann::json>(data);
+        int toCharId = j.value("toCharId", 0);
+        int inventoryItemId = j.value("inventoryItemId", 0);
+        int fromCharId = j.value("fromCharId", 0);
+
+        if (toCharId <= 0 || inventoryItemId <= 0)
+            return;
+
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+        if (fromCharId > 0)
+        {
+            // P2P trade: item still owned by the sender in DB
+            gameServices_.getDatabase().executeQueryWithTransaction(
+                txn, "transfer_item_between_chars", {toCharId, inventoryItemId, fromCharId});
+        }
+        else
+        {
+            // Ground pickup: character_id IS NULL in DB
+            gameServices_.getDatabase().executeQueryWithTransaction(
+                txn, "transfer_item_ownership", {toCharId, inventoryItemId});
+        }
+        txn.commit();
+
+        log_->info("[TRANSFER_ITEM] to=" + std::to_string(toCharId) +
+                   " invItem=" + std::to_string(inventoryItemId) +
+                   (fromCharId > 0 ? " from=" + std::to_string(fromCharId) : " (ground)"));
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("Error in handleTransferInventoryItemEvent: " + std::string(ex.what()));
+    }
+}
+
+void
+EventHandler::handleNullifyItemOwnerEvent(const Event &event)
+{
+    const auto &data = event.getData();
+    try
+    {
+        if (!std::holds_alternative<nlohmann::json>(data))
+            return;
+        const auto &j = std::get<nlohmann::json>(data);
+        int inventoryItemId = j.value("inventoryItemId", 0);
+        int fromCharId = j.value("fromCharId", 0);
+        if (inventoryItemId <= 0 || fromCharId <= 0)
+            return;
+
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+        gameServices_.getDatabase().executeQueryWithTransaction(
+            txn, "nullify_item_owner", {inventoryItemId, fromCharId});
+        txn.commit();
+
+        log_->info("[NULLIFY_OWNER] char=" + std::to_string(fromCharId) +
+                   " invItem=" + std::to_string(inventoryItemId));
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("Error in handleNullifyItemOwnerEvent: " + std::string(ex.what()));
+    }
+}
+
+void
+EventHandler::handleDeleteInventoryItemEvent(const Event &event)
+{
+    const auto &data = event.getData();
+    try
+    {
+        if (!std::holds_alternative<nlohmann::json>(data))
+            return;
+        const auto &j = std::get<nlohmann::json>(data);
+        int inventoryItemId = j.value("inventoryItemId", 0);
+        if (inventoryItemId <= 0)
+            return;
+
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+        gameServices_.getDatabase().executeQueryWithTransaction(
+            txn, "delete_inventory_item_by_id", {inventoryItemId});
+        txn.commit();
+
+        log_->info("[DELETE_ITEM] invItem=" + std::to_string(inventoryItemId));
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("Error in handleDeleteInventoryItemEvent: " + std::string(ex.what()));
+    }
+}
+
+void
+EventHandler::handleGetStatusEffectTemplatesEvent(const Event &event)
+{
+    int clientID = event.getClientID();
+    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
+
+    try
+    {
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+        auto rows = gameServices_.getDatabase().executeQueryWithTransaction(txn, "get_status_effect_templates", {});
+        txn.commit();
+
+        // Group rows by effect_slug into a nested JSON structure:
+        // { "effectSlug": "resurrection_sickness", "category": "debuff",
+        //   "durationSec": 120,
+        //   "modifiers": [{"modifierType":"percent_all","attributeSlug":"","value":-20}] }
+        nlohmann::json effectsJson = nlohmann::json::array();
+        std::string currentSlug;
+        nlohmann::json currentEffect;
+
+        auto pushCurrentEffect = [&]()
+        {
+            if (!currentSlug.empty())
+                effectsJson.push_back(std::move(currentEffect));
+        };
+
+        for (const auto &row : rows)
+        {
+            std::string slug = row["effect_slug"].as<std::string>();
+
+            if (slug != currentSlug)
+            {
+                pushCurrentEffect();
+                currentEffect = nlohmann::json::object();
+                currentEffect["effectSlug"] = slug;
+                currentEffect["category"] = row["category"].as<std::string>();
+                currentEffect["durationSec"] = row["duration_sec"].as<int>();
+                currentEffect["modifiers"] = nlohmann::json::array();
+                currentSlug = slug;
+            }
+
+            // A LEFT JOIN row with no modifier columns means the effect has no modifiers yet.
+            if (!row["modifier_type"].is_null())
+            {
+                nlohmann::json mod;
+                mod["modifierType"] = row["modifier_type"].as<std::string>();
+                mod["attributeSlug"] = row["attribute_slug"].as<std::string>(); // '' for percent_all
+                mod["value"] = row["value"].as<double>();
+                currentEffect["modifiers"].push_back(std::move(mod));
+            }
+        }
+        pushCurrentEffect(); // push the last effect
+
+        ResponseBuilder builder;
+        nlohmann::json response = builder
+                                      .setHeader("message", "Status effect templates loaded")
+                                      .setHeader("hash", "")
+                                      .setHeader("clientId", clientID)
+                                      .setHeader("eventType", "setStatusEffectTemplates")
+                                      .setBody("templates", effectsJson)
+                                      .build();
+        std::string responseData = networkManager_.generateResponseMessage("success", response);
+        networkManager_.sendResponse(clientSocket, responseData);
+
+        log_->info("[STATUS_EFFECT_TEMPLATES] Sent " + std::to_string(effectsJson.size()) + " templates to chunk server");
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("handleGetStatusEffectTemplatesEvent error: " + std::string(ex.what()));
+    }
+}
+
+void
+EventHandler::handleGetGameZonesEvent(const Event &event)
+{
+    int clientID = event.getClientID();
+    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
+
+    try
+    {
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+        auto rows = gameServices_.getDatabase().executeQueryWithTransaction(txn, "get_game_zones", {});
+        txn.commit();
+
+        nlohmann::json zonesJson = nlohmann::json::array();
+        for (const auto &row : rows)
+        {
+            nlohmann::json z;
+            z["id"] = row["id"].as<int>();
+            z["slug"] = row["slug"].as<std::string>();
+            z["name"] = row["name"].as<std::string>();
+            z["minLevel"] = row["min_level"].as<int>();
+            z["maxLevel"] = row["max_level"].as<int>();
+            z["isPvp"] = row["is_pvp"].as<bool>();
+            z["isSafeZone"] = row["is_safe_zone"].as<bool>();
+            z["minX"] = row["min_x"].as<float>();
+            z["maxX"] = row["max_x"].as<float>();
+            z["minY"] = row["min_y"].as<float>();
+            z["maxY"] = row["max_y"].as<float>();
+            z["explorationXpReward"] = row["exploration_xp_reward"].as<int>();
+            z["championThresholdKills"] = row["champion_threshold_kills"].as<int>();
+            zonesJson.push_back(z);
+        }
+
+        ResponseBuilder builder;
+        nlohmann::json response = builder
+                                      .setHeader("message", "Game zones loaded")
+                                      .setHeader("hash", "")
+                                      .setHeader("clientId", clientID)
+                                      .setHeader("eventType", "setGameZonesList")
+                                      .setBody("gameZonesData", zonesJson)
+                                      .build();
+        std::string responseData = networkManager_.generateResponseMessage("success", response);
+        networkManager_.sendResponse(clientSocket, responseData);
+
+        log_->info("[GAME_ZONES] Sent " + std::to_string(zonesJson.size()) + " game zones to chunk server");
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("handleGetGameZonesEvent error: " + std::string(ex.what()));
+    }
+}
+
+// ── GET_PLAYER_PITY ────────────────────────────────────────────────────────
+void
+EventHandler::handleGetPlayerPityEvent(const Event &event)
+{
+    const auto &data = event.getData();
+    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
+
+    try
+    {
+        if (!std::holds_alternative<int>(data))
+        {
+            log_->error("handleGetPlayerPityEvent: unexpected data type");
+            return;
+        }
+        int characterId = std::get<int>(data);
+
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+        auto result = gameServices_.getDatabase().executeQueryWithTransaction(
+            txn, "get_player_pity", {characterId});
+
+        nlohmann::json entriesJson = nlohmann::json::array();
+        for (const auto &row : result)
+        {
+            nlohmann::json entry;
+            entry["itemId"] = row["item_id"].as<int>();
+            entry["killCount"] = row["kill_count"].as<int>();
+            entriesJson.push_back(std::move(entry));
+        }
+
+        ResponseBuilder builder;
+        nlohmann::json response = builder
+                                      .setHeader("message", "Player pity data")
+                                      .setHeader("hash", "")
+                                      .setHeader("clientId", characterId)
+                                      .setHeader("eventType", "setPlayerPityData")
+                                      .setBody("characterId", characterId)
+                                      .setBody("entries", entriesJson)
+                                      .build();
+        networkManager_.sendResponse(clientSocket,
+            networkManager_.generateResponseMessage("success", response));
+
+        log_->info("[EH] Sent " + std::to_string(entriesJson.size()) +
+                   " pity counters for characterId=" + std::to_string(characterId));
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("handleGetPlayerPityEvent error: " + std::string(ex.what()));
+    }
+}
+
+// ── GET_PLAYER_BESTIARY ────────────────────────────────────────────────────
+void
+EventHandler::handleGetPlayerBestiaryEvent(const Event &event)
+{
+    const auto &data = event.getData();
+    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
+
+    try
+    {
+        if (!std::holds_alternative<int>(data))
+        {
+            log_->error("handleGetPlayerBestiaryEvent: unexpected data type");
+            return;
+        }
+        int characterId = std::get<int>(data);
+
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+        auto result = gameServices_.getDatabase().executeQueryWithTransaction(
+            txn, "get_player_bestiary", {characterId});
+
+        nlohmann::json entriesJson = nlohmann::json::array();
+        for (const auto &row : result)
+        {
+            nlohmann::json entry;
+            entry["mobTemplateId"] = row["mob_template_id"].as<int>();
+            entry["killCount"] = row["kill_count"].as<int>();
+            entriesJson.push_back(std::move(entry));
+        }
+
+        ResponseBuilder builder;
+        nlohmann::json response = builder
+                                      .setHeader("message", "Player bestiary data")
+                                      .setHeader("hash", "")
+                                      .setHeader("clientId", characterId)
+                                      .setHeader("eventType", "setPlayerBestiaryData")
+                                      .setBody("characterId", characterId)
+                                      .setBody("entries", entriesJson)
+                                      .build();
+        networkManager_.sendResponse(clientSocket,
+            networkManager_.generateResponseMessage("success", response));
+
+        log_->info("[EH] Sent " + std::to_string(entriesJson.size()) +
+                   " bestiary entries for characterId=" + std::to_string(characterId));
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("handleGetPlayerBestiaryEvent error: " + std::string(ex.what()));
+    }
+}
+
+// ── SAVE_PITY_COUNTER ──────────────────────────────────────────────────────
+void
+EventHandler::handleSavePityCounterEvent(const Event &event)
+{
+    const auto &data = event.getData();
+
+    try
+    {
+        if (!std::holds_alternative<nlohmann::json>(data))
+        {
+            log_->error("handleSavePityCounterEvent: unexpected data type");
+            return;
+        }
+        const auto &j = std::get<nlohmann::json>(data);
+        int characterId = j.value("characterId", 0);
+        int itemId = j.value("itemId", 0);
+        int killCount = j.value("killCount", 0);
+
+        if (characterId <= 0 || itemId <= 0)
+            return;
+
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+        gameServices_.getDatabase().executeQueryWithTransaction(
+            txn, "upsert_pity_counter", {characterId, itemId, killCount});
+        txn.commit();
+
+        log_->info("[SAVE_PITY] char=" + std::to_string(characterId) +
+                   " item=" + std::to_string(itemId) +
+                   " kills=" + std::to_string(killCount));
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("handleSavePityCounterEvent error: " + std::string(ex.what()));
+    }
+}
+
+// ── SAVE_BESTIARY_KILL ─────────────────────────────────────────────────────
+void
+EventHandler::handleSaveBestiaryKillEvent(const Event &event)
+{
+    const auto &data = event.getData();
+
+    try
+    {
+        if (!std::holds_alternative<nlohmann::json>(data))
+        {
+            log_->error("handleSaveBestiaryKillEvent: unexpected data type");
+            return;
+        }
+        const auto &j = std::get<nlohmann::json>(data);
+        int characterId = j.value("characterId", 0);
+        int mobTemplateId = j.value("mobTemplateId", 0);
+        int killCount = j.value("killCount", 0);
+
+        if (characterId <= 0 || mobTemplateId <= 0)
+            return;
+
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+        gameServices_.getDatabase().executeQueryWithTransaction(
+            txn, "upsert_bestiary_kill", {characterId, mobTemplateId, killCount});
+        txn.commit();
+
+        log_->info("[SAVE_BESTIARY] char=" + std::to_string(characterId) +
+                   " mob=" + std::to_string(mobTemplateId) +
+                   " kills=" + std::to_string(killCount));
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("handleSaveBestiaryKillEvent error: " + std::string(ex.what()));
+    }
+}
+
+// ── GET_TIMED_CHAMPION_TEMPLATES ──────────────────────────────────────────────
+
+void
+EventHandler::handleGetTimedChampionTemplatesEvent(const Event &event)
+{
+    int clientID = event.getClientID();
+    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
+
+    try
+    {
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+        auto rows = gameServices_.getDatabase().executeQueryWithTransaction(txn, "get_timed_champion_templates", {});
+        txn.commit();
+
+        nlohmann::json arr = nlohmann::json::array();
+        for (const auto &row : rows)
+        {
+            nlohmann::json t;
+            t["id"] = row["id"].as<int>();
+            t["slug"] = row["slug"].as<std::string>();
+            t["gameZoneId"] = row["game_zone_id"].as<int>();
+            t["mobTemplateId"] = row["mob_template_id"].as<int>();
+            t["intervalHours"] = row["interval_hours"].as<int>();
+            t["windowMinutes"] = row["window_minutes"].as<int>();
+            t["nextSpawnAt"] = row["next_spawn_at"].as<int64_t>();
+            t["announceKey"] = row["announce_key"].as<std::string>();
+            arr.push_back(std::move(t));
+        }
+
+        ResponseBuilder builder;
+        nlohmann::json response = builder
+                                      .setHeader("message", "Timed champion templates loaded")
+                                      .setHeader("hash", "")
+                                      .setHeader("clientId", clientID)
+                                      .setHeader("eventType", "setTimedChampionTemplatesList")
+                                      .setBody("timedChampionTemplates", arr)
+                                      .build();
+
+        std::string responseData = networkManager_.generateResponseMessage("success", response);
+        networkManager_.sendResponse(clientSocket, responseData);
+
+        log_->info("[TIMED_CHAMP] Sent {} timed champion templates to chunk server", arr.size());
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("handleGetTimedChampionTemplatesEvent error: " + std::string(ex.what()));
+    }
+}
+
+// ── TIMED_CHAMPION_KILLED ─────────────────────────────────────────────────────
+
+void
+EventHandler::handleTimedChampionKilledEvent(const Event &event)
+{
+    try
+    {
+        const auto &data = event.getData();
+        if (!std::holds_alternative<nlohmann::json>(data))
+        {
+            log_->error("handleTimedChampionKilledEvent: unexpected data type");
+            return;
+        }
+        const auto &j = std::get<nlohmann::json>(data);
+        const std::string slug = j.value("slug", "");
+        const int64_t killedAt = j.value("killedAt", int64_t{0});
+
+        if (slug.empty())
+            return;
+
+        // Compute next_spawn_at = killedAt + interval_hours * 3600
+        // We need the interval_hours for this slug. Query and then update.
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+
+        // Get interval_hours for this slug
+        auto rows = txn.exec_params(
+            "SELECT interval_hours FROM timed_champion_templates WHERE slug = $1", slug);
+        if (!rows.empty())
+        {
+            int intervalHours = rows[0]["interval_hours"].as<int>();
+            int64_t nextSpawnAt = killedAt + static_cast<int64_t>(intervalHours) * 3600;
+
+            gameServices_.getDatabase().executeQueryWithTransaction(
+                txn, "update_timed_champion_next_spawn", {slug, static_cast<double>(nextSpawnAt)});
+        }
+        txn.commit();
+
+        log_->info("[TIMED_CHAMP] Updated next_spawn for slug='{}' after kill", slug);
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("handleTimedChampionKilledEvent error: " + std::string(ex.what()));
+    }
+}
+
+// ── GET_PLAYER_REPUTATIONS ─────────────────────────────────────────────────
+void
+EventHandler::handleGetPlayerReputationsEvent(const Event &event)
+{
+    const auto &data = event.getData();
+    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
+
+    try
+    {
+        if (!std::holds_alternative<int>(data))
+        {
+            log_->error("handleGetPlayerReputationsEvent: unexpected data type");
+            return;
+        }
+        int characterId = std::get<int>(data);
+
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+        auto result = gameServices_.getDatabase().executeQueryWithTransaction(
+            txn, "get_player_reputations", {characterId});
+
+        nlohmann::json entriesJson = nlohmann::json::array();
+        for (const auto &row : result)
+        {
+            nlohmann::json entry;
+            entry["factionSlug"] = row["faction_slug"].as<std::string>();
+            entry["value"] = row["value"].as<int>();
+            entriesJson.push_back(std::move(entry));
+        }
+
+        ResponseBuilder builder;
+        nlohmann::json response = builder
+                                      .setHeader("message", "Player reputations")
+                                      .setHeader("hash", "")
+                                      .setHeader("clientId", characterId)
+                                      .setHeader("eventType", "setPlayerReputationsData")
+                                      .setBody("characterId", characterId)
+                                      .setBody("entries", entriesJson)
+                                      .build();
+        networkManager_.sendResponse(clientSocket,
+            networkManager_.generateResponseMessage("success", response));
+
+        log_->info("[REPUTATION] Sent {} entries for characterId={}", entriesJson.size(), characterId);
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("handleGetPlayerReputationsEvent error: " + std::string(ex.what()));
+    }
+}
+
+// ── SAVE_REPUTATION ────────────────────────────────────────────────────────
+void
+EventHandler::handleSaveReputationEvent(const Event &event)
+{
+    const auto &data = event.getData();
+
+    try
+    {
+        if (!std::holds_alternative<nlohmann::json>(data))
+        {
+            log_->error("handleSaveReputationEvent: unexpected data type");
+            return;
+        }
+        const auto &j = std::get<nlohmann::json>(data);
+        int characterId = j.value("characterId", 0);
+        std::string faction = j.value("factionSlug", "");
+        int value = j.value("value", 0);
+
+        if (characterId <= 0 || faction.empty())
+            return;
+
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+        gameServices_.getDatabase().executeQueryWithTransaction(
+            txn, "upsert_reputation", {characterId, faction, value});
+        txn.commit();
+
+        log_->info("[REPUTATION] Saved char={} faction={} value={}", characterId, faction, value);
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("handleSaveReputationEvent error: " + std::string(ex.what()));
+    }
+}
+
+// ── GET_PLAYER_MASTERIES ───────────────────────────────────────────────────
+void
+EventHandler::handleGetPlayerMasteriesEvent(const Event &event)
+{
+    const auto &data = event.getData();
+    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
+
+    try
+    {
+        if (!std::holds_alternative<int>(data))
+        {
+            log_->error("handleGetPlayerMasteriesEvent: unexpected data type");
+            return;
+        }
+        int characterId = std::get<int>(data);
+
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+        auto result = gameServices_.getDatabase().executeQueryWithTransaction(
+            txn, "get_player_masteries", {characterId});
+
+        nlohmann::json entriesJson = nlohmann::json::array();
+        for (const auto &row : result)
+        {
+            nlohmann::json entry;
+            entry["masterySlug"] = row["mastery_slug"].as<std::string>();
+            entry["value"] = row["value"].as<float>();
+            entriesJson.push_back(std::move(entry));
+        }
+
+        ResponseBuilder builder;
+        nlohmann::json response = builder
+                                      .setHeader("message", "Player masteries")
+                                      .setHeader("hash", "")
+                                      .setHeader("clientId", characterId)
+                                      .setHeader("eventType", "setPlayerMasteriesData")
+                                      .setBody("characterId", characterId)
+                                      .setBody("entries", entriesJson)
+                                      .build();
+        networkManager_.sendResponse(clientSocket,
+            networkManager_.generateResponseMessage("success", response));
+
+        log_->info("[MASTERY] Sent {} entries for characterId={}", entriesJson.size(), characterId);
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("handleGetPlayerMasteriesEvent error: " + std::string(ex.what()));
+    }
+}
+
+// ── SAVE_MASTERY ───────────────────────────────────────────────────────────
+void
+EventHandler::handleSaveMasteryEvent(const Event &event)
+{
+    const auto &data = event.getData();
+
+    try
+    {
+        if (!std::holds_alternative<nlohmann::json>(data))
+        {
+            log_->error("handleSaveMasteryEvent: unexpected data type");
+            return;
+        }
+        const auto &j = std::get<nlohmann::json>(data);
+        int characterId = j.value("characterId", 0);
+        std::string masterySlug = j.value("masterySlug", "");
+        float value = j.value("value", 0.0f);
+
+        if (characterId <= 0 || masterySlug.empty())
+            return;
+
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+        gameServices_.getDatabase().executeQueryWithTransaction(
+            txn, "upsert_mastery", {characterId, masterySlug, value});
+        txn.commit();
+
+        log_->info("[MASTERY] Saved char={} slug={} value={}", characterId, masterySlug, value);
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("handleSaveMasteryEvent error: " + std::string(ex.what()));
+    }
+}
+
+// ── GET_ZONE_EVENT_TEMPLATES ───────────────────────────────────────────────
+void
+EventHandler::handleGetZoneEventTemplatesEvent(const Event &event)
+{
+    int clientID = event.getClientID();
+    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
+
+    try
+    {
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+        auto rows = gameServices_.getDatabase().executeQueryWithTransaction(
+            txn, "get_zone_event_templates", {});
+
+        nlohmann::json arr = nlohmann::json::array();
+        for (const auto &row : rows)
+        {
+            nlohmann::json t;
+            t["id"] = row["id"].as<int>();
+            t["slug"] = row["slug"].as<std::string>();
+            t["gameZoneId"] = row["game_zone_id"].as<int>();
+            t["triggerType"] = row["trigger_type"].as<std::string>();
+            t["durationSec"] = row["duration_sec"].as<int>();
+            t["lootMultiplier"] = row["loot_multiplier"].as<float>();
+            t["spawnRateMultiplier"] = row["spawn_rate_multiplier"].as<float>();
+            t["mobSpeedMultiplier"] = row["mob_speed_multiplier"].as<float>();
+            t["announceKey"] = row["announce_key"].as<std::string>();
+            t["intervalHours"] = row["interval_hours"].as<int>();
+            t["randomChancePerHour"] = row["random_chance_per_hour"].as<float>();
+            t["hasInvasionWave"] = row["has_invasion_wave"].as<bool>();
+            t["invasionMobTemplateId"] = row["invasion_mob_template_id"].is_null()
+                                             ? 0
+                                             : row["invasion_mob_template_id"].as<int>();
+            t["invasionWaveCount"] = row["invasion_wave_count"].as<int>();
+            arr.push_back(std::move(t));
+        }
+
+        ResponseBuilder builder;
+        nlohmann::json response = builder
+                                      .setHeader("message", "Zone event templates loaded")
+                                      .setHeader("hash", "")
+                                      .setHeader("clientId", clientID)
+                                      .setHeader("eventType", "setZoneEventTemplatesList")
+                                      .setBody("templates", arr)
+                                      .build();
+        networkManager_.sendResponse(clientSocket,
+            networkManager_.generateResponseMessage("success", response));
+
+        log_->info("[ZONE_EVENT] Sent {} zone event templates to chunk server", arr.size());
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("handleGetZoneEventTemplatesEvent error: " + std::string(ex.what()));
     }
 }

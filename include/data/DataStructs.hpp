@@ -95,12 +95,24 @@ struct ItemAttributeStruct
     std::string apply_on = "equip"; // 'equip' | 'use'
 };
 
+// -----------------------------------------------------------------------
+// Item use effect — one row from item_use_effects table.
+// -----------------------------------------------------------------------
+struct ItemUseEffectStruct
+{
+    std::string effectSlug;
+    std::string attributeSlug;
+    float value = 0.0f;
+    bool isInstant = true;
+    int durationSeconds = 0;
+    int tickMs = 0;
+    int cooldownSeconds = 30;
+};
+
 struct ItemDataStruct
 {
     int id = 0;
-    std::string name = "";
-    std::string slug = "";
-    std::string description = "";
+    std::string slug = ""; // used as localisation key on the client
     bool isQuestItem = false;
     int itemType = 0;
     std::string itemTypeName = "";
@@ -123,7 +135,13 @@ struct ItemDataStruct
     std::string equipSlotName = "";
     std::string equipSlotSlug = "";
     int levelRequirement = 0;
+    bool isTwoHanded = false;
+    std::vector<int> allowedClassIds;
+    int setId = 0;            // 0 = not part of any set
+    std::string setSlug = ""; // slug of the item set
     std::vector<ItemAttributeStruct> attributes;
+    std::vector<ItemUseEffectStruct> useEffects; // populated for isUsable items
+    std::string masterySlug;                     ///< mastery progression slug (Stage 4, migration 039)
 };
 
 struct MobLootInfoStruct
@@ -135,6 +153,7 @@ struct MobLootInfoStruct
     bool isHarvestOnly = false; // only drops from harvesting, not regular kill
     int minQuantity = 1;
     int maxQuantity = 1;
+    std::string lootTier = "common"; ///< 'common' | 'uncommon' | 'rare' | 'very_rare' (migration 040)
 };
 
 struct DroppedItemStruct
@@ -167,9 +186,11 @@ struct CharacterDataStruct
     int characterMaxHealth = 0;
     int characterMaxMana = 0;
     int expForNextLevel = 0;
+    int experienceDebt = 0;
     std::string characterName = "";
     std::string characterClass = "";
     std::string characterRace = "";
+    int classId = 0;
     PositionStruct characterPosition;
     std::vector<CharacterAttributeStruct> attributes;
     std::vector<SkillStruct> skills;
@@ -223,6 +244,22 @@ struct MobDataStruct
     // AI depth (migration 016)
     float fleeHpThreshold = 0.0f;      // 0.0 = never flees; 0.25 = flee at 25% HP
     std::string aiArchetype = "melee"; // melee | caster | ranged | support
+
+    // Survival / Rare mob groundwork (Stage 3, migration 038)
+    bool canEvolve = false;         ///< Mob can become Survival Champion if alive too long
+    bool isRare = false;            ///< Rare mob variant flag
+    float rareSpawnChance = 0.0f;   ///< Spawn probability [0..1]
+    std::string rareSpawnCondition; ///< 'night' | 'day' | '' = any time
+
+    // Social systems (Stage 4, migration 039)
+    std::string factionSlug; ///< faction this mob belongs to
+    int repDeltaPerKill = 0; ///< reputation change on kill (negative = lose rep)
+
+    // Bestiary static metadata (migration 040)
+    std::string biomeSlug;   ///< e.g. 'forest', 'dungeon', 'swamp'
+    std::string mobTypeSlug; ///< e.g. 'beast', 'undead', 'humanoid', 'elemental'
+    int hpMin = 0;           ///< Min HP observable in the wild (for bestiary Tier-1)
+    int hpMax = 0;           ///< Max HP observable in the wild
 
     float speedMultiplier = 1.0f;
     float nextMoveTime = 0.0f;
@@ -290,6 +327,7 @@ struct NPCDataStruct
     bool isInteractable = true;
     int dialogueId = 0;
     int questId = 0;
+    std::string factionSlug; ///< faction this NPC belongs to (Stage 4, migration 039)
 
     // Define the equality operator
     bool operator==(const NPCDataStruct &other) const

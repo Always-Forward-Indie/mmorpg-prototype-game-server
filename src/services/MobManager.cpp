@@ -63,6 +63,22 @@ MobManager::loadMobs()
             mobData.fleeHpThreshold = row["flee_hp_threshold"].as<float>();
             mobData.aiArchetype = row["ai_archetype"].as<std::string>();
 
+            // Survival / Rare mob groundwork (Stage 3, migration 038)
+            mobData.canEvolve = row["can_evolve"].as<bool>();
+            mobData.isRare = row["is_rare"].as<bool>();
+            mobData.rareSpawnChance = row["rare_spawn_chance"].as<float>();
+            mobData.rareSpawnCondition = row["rare_spawn_condition"].as<std::string>();
+
+            // Social systems (Stage 4, migration 039)
+            mobData.factionSlug = row["faction_slug"].as<std::string>();
+            mobData.repDeltaPerKill = row["rep_delta_per_kill"].as<int>();
+
+            // Bestiary metadata (migration 040)
+            mobData.biomeSlug = row["biome_slug"].as<std::string>();
+            mobData.mobTypeSlug = row["mob_type_slug"].as<std::string>();
+            mobData.hpMin = row["hp_min"].as<int>();
+            mobData.hpMax = row["hp_max"].as<int>();
+
             // get mob attributes
             pqxx::result selectMobAttributes = database_.executeQueryWithTransaction(
                 transaction,

@@ -40,6 +40,8 @@ class EventHandler
     void handleSavePositionsEvent(const Event &event);
     void handleSaveHpManaEvent(const Event &event); // ARCH-4
     void handleSaveCharacterProgressEvent(const Event &event);
+    void handleSaveInventoryChangeEvent(const Event &event);
+    void handleGetPlayerInventoryEvent(const Event &event);
 
     // Dialogue & Quest events
     void handleGetDialoguesEvent(const Event &event);
@@ -53,6 +55,44 @@ class EventHandler
 
     // Game config
     void handleGetGameConfigEvent(const Event &event);
+
+    // Vendor / durability
+    void handleGetVendorDataEvent(const Event &event);
+    void handleSaveDurabilityChangeEvent(const Event &event);
+    void handleSaveItemKillCountEvent(const Event &event);
+    void handleTransferInventoryItemEvent(const Event &event);
+    void handleNullifyItemOwnerEvent(const Event &event);
+    void handleDeleteInventoryItemEvent(const Event &event);
+    void handleSaveCurrencyTransactionEvent(const Event &event);
+    void handleSaveEquipmentChangeEvent(const Event &event);
+
+    // Respawn zones
+    void handleGetRespawnZonesEvent(const Event &event);
+    void handleGetStatusEffectTemplatesEvent(const Event &event);
+    void handleGetGameZonesEvent(const Event &event);
+
+    // Pity & Bestiary
+    void handleGetPlayerPityEvent(const Event &event);
+    void handleGetPlayerBestiaryEvent(const Event &event);
+    void handleSavePityCounterEvent(const Event &event);
+    void handleSaveBestiaryKillEvent(const Event &event);
+
+    // Champion system (Stage 3)
+    void handleGetTimedChampionTemplatesEvent(const Event &event);
+    void handleTimedChampionKilledEvent(const Event &event);
+
+    // Stage 4: Reputation, Mastery, Zone Events
+    void handleGetPlayerReputationsEvent(const Event &event);
+    void handleSaveReputationEvent(const Event &event);
+    void handleGetPlayerMasteriesEvent(const Event &event);
+    void handleSaveMasteryEvent(const Event &event);
+    void handleGetZoneEventTemplatesEvent(const Event &event);
+
+    // Experience debt
+    void handleSaveExperienceDebtEvent(const Event &event);
+
+    // Active status effects
+    void handleSaveActiveEffectEvent(const Event &event);
 
     NetworkManager &networkManager_;
     GameServices &gameServices_;
