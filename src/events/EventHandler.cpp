@@ -2050,6 +2050,7 @@ EventHandler::handleSaveInventoryChangeEvent(const Event &event)
         int characterId = j.value("characterId", 0);
         int itemId = j.value("itemId", 0);
         int quantity = j.value("quantity", 0);
+        int inventoryItemId = static_cast<int>(j.value("inventoryItemId", 0));
 
         if (characterId <= 0 || itemId <= 0)
             return;
@@ -2060,28 +2061,50 @@ EventHandler::handleSaveInventoryChangeEvent(const Event &event)
         pqxx::work txn(_dbConn.get());
         if (quantity > 0)
         {
-            auto result = gameServices_.getDatabase().executeQueryWithTransaction(
-                txn, "upsert_player_inventory_item", {characterId, itemId, quantity});
-            txn.commit();
-
-            // Send back the assigned player_inventory.id so chunk server can fix in-memory id=0
-            if (!result.empty() && chunkSocket && chunkSocket->is_open())
+            if (inventoryItemId > 0)
             {
-                int64_t assignedId = result[0]["id"].as<int64_t>();
-                nlohmann::json syncPkt;
-                syncPkt["header"]["eventType"] = "inventoryItemIdSync";
-                syncPkt["header"]["clientId"] = 0;
-                syncPkt["body"]["characterId"] = characterId;
-                syncPkt["body"]["itemId"] = itemId;
-                syncPkt["body"]["inventoryItemId"] = assignedId;
-                networkManager_.sendResponse(chunkSocket,
-                    networkManager_.generateResponseMessage("success", syncPkt));
+                // Row already exists in DB — UPDATE quantity in-place, no new row.
+                gameServices_.getDatabase().executeQueryWithTransaction(
+                    txn, "update_player_inventory_quantity", {quantity, inventoryItemId, characterId});
+                txn.commit();
+                // No id sync needed — the id didn't change.
+            }
+            else
+            {
+                // New item — INSERT and send assigned id back to chunk server.
+                auto result = gameServices_.getDatabase().executeQueryWithTransaction(
+                    txn, "upsert_player_inventory_item", {characterId, itemId, quantity});
+                txn.commit();
+
+                // Send back the assigned player_inventory.id so chunk server can fix in-memory id=0
+                if (!result.empty() && chunkSocket && chunkSocket->is_open())
+                {
+                    int64_t assignedId = result[0]["id"].as<int64_t>();
+                    nlohmann::json syncPkt;
+                    syncPkt["header"]["eventType"] = "inventoryItemIdSync";
+                    syncPkt["header"]["clientId"] = 0;
+                    syncPkt["body"]["characterId"] = characterId;
+                    syncPkt["body"]["itemId"] = itemId;
+                    syncPkt["body"]["inventoryItemId"] = assignedId;
+                    networkManager_.sendResponse(chunkSocket,
+                        networkManager_.generateResponseMessage("success", syncPkt));
+                }
             }
         }
         else
         {
-            gameServices_.getDatabase().executeQueryWithTransaction(
-                txn, "delete_player_inventory_item", {characterId, itemId});
+            // quantity == 0: delete the row.
+            if (inventoryItemId > 0)
+            {
+                // Prefer deleting by exact id to avoid affecting other stacks.
+                gameServices_.getDatabase().executeQueryWithTransaction(
+                    txn, "delete_player_inventory_item_by_char_id", {inventoryItemId, characterId});
+            }
+            else
+            {
+                gameServices_.getDatabase().executeQueryWithTransaction(
+                    txn, "delete_player_inventory_item", {characterId, itemId});
+            }
             txn.commit();
         }
         log_->info("[SAVE_INVENTORY] character=" + std::to_string(characterId) +

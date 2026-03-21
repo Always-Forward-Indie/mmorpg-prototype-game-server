@@ -54,8 +54,8 @@ ItemManager::loadItems()
             itemData.vendorPriceBuy = row["vendor_price_buy"].as<int>();
             itemData.vendorPriceSell = row["vendor_price_sell"].as<int>();
             itemData.equipSlot = row["equip_slot"].is_null() ? 0 : row["equip_slot"].as<int>();
-            itemData.equipSlotName = row["equip_slot_name"].as<std::string>();
-            itemData.equipSlotSlug = row["equip_slot_slug"].as<std::string>();
+            itemData.equipSlotName = row["equip_slot_name"].is_null() ? "" : row["equip_slot_name"].as<std::string>();
+            itemData.equipSlotSlug = row["equip_slot_slug"].is_null() ? "" : row["equip_slot_slug"].as<std::string>();
             itemData.levelRequirement = row["level_requirement"].as<int>();
             itemData.isTwoHanded = row["is_two_handed"].as<bool>();
 
@@ -98,7 +98,7 @@ ItemManager::loadItems()
             }
 
             // Social systems (Stage 4, migration 039)
-            itemData.masterySlug = row["mastery_slug"].as<std::string>();
+            itemData.masterySlug = row["mastery_slug"].is_null() ? "" : row["mastery_slug"].as<std::string>();
 
             items_[itemData.id] = itemData;
         }

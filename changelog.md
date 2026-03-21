@@ -1,3 +1,23 @@
+v0.1.1
+21.03.2026
+================
+Improvements:
+EventHandler (SAVE_INVENTORY_CHANGE) — branched logic on `inventoryItemId`:
+  - `inventoryItemId > 0` and `quantity > 0`: performs UPDATE on the existing row (instead of upsert), preventing duplicate row creation.
+  - `quantity == 0` and `inventoryItemId > 0`: deletes by exact id (instead of character_id + item_id), preventing accidental removal of other stacks of the same item.
+  - Upsert and id-sync are kept for the `inventoryItemId == 0` case (new item with no known DB id).
+Database — 2 new prepared queries:
+  - `update_player_inventory_quantity` — UPDATE player_inventory SET quantity = $1 WHERE id = $2 AND character_id = $3.
+  - `delete_player_inventory_item_by_char_id` — DELETE FROM player_inventory WHERE id = $1 AND character_id = $2 (delete by exact id with character safety check).
+Database (GET_TIMED_CHAMPION_TEMPLATES) — query extended with `next_spawn_at` field.
+ItemManager — parses and loads `equip_slot_name`, `equip_slot_slug`, `mastery_slug` fields from item query results.
+
+Bug Fixes:
+Fixed duplicate rows being created in player_inventory when updating quantity for an item with a known DB id (upsert was inserting a new row instead of updating the existing one).
+Fixed wrong item stack being deleted when removing by item_id for a character with multiple stacks of the same item.
+
+---
+
 v0.1.0
 15.03.2026
 ================

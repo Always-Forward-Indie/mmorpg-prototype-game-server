@@ -566,8 +566,19 @@ Database::prepareDefaultQueries()
             "VALUES ($1, $2, $3) "
             " RETURNING id;");
 
+        // Update quantity of an existing inventory row by its primary key.
+        // $1=quantity, $2=inventory_item_id, $3=character_id (safety check)
+        connection_->prepare("update_player_inventory_quantity",
+            "UPDATE player_inventory SET quantity = $1 "
+            "WHERE id = $2 AND character_id = $3;");
+
         connection_->prepare("delete_player_inventory_item",
             "DELETE FROM player_inventory WHERE character_id = $1 AND item_id = $2;");
+
+        // Delete a specific stackable inventory row by id (used when qty reaches 0 and id known).
+        // $1=inventory_item_id, $2=character_id (safety check)
+        connection_->prepare("delete_player_inventory_item_by_char_id",
+            "DELETE FROM player_inventory WHERE id = $1 AND character_id = $2;");
 
         connection_->prepare("get_player_inventory",
             "SELECT pi.id, pi.item_id, pi.quantity, "
@@ -700,7 +711,7 @@ Database::prepareDefaultQueries()
         connection_->prepare("get_timed_champion_templates",
             "SELECT t.id, t.slug, z.id AS game_zone_id, t.mob_template_id, "
             "t.interval_hours, t.window_minutes, "
-            "COALESCE(EXTRACT(EPOCH FROM t.next_spawn_at)::bigint, 0) AS next_spawn_at, "
+            "COALESCE(t.next_spawn_at, 0) AS next_spawn_at, "
             "COALESCE(t.announcement_key, '') AS announce_key "
             "FROM timed_champion_templates t "
             "JOIN zones z ON z.id = t.zone_id;");
