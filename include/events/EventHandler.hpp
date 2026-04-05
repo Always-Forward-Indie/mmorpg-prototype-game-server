@@ -86,6 +86,7 @@ class EventHandler
     void handleSaveReputationEvent(const Event &event);
     void handleGetPlayerMasteriesEvent(const Event &event);
     void handleSaveMasteryEvent(const Event &event);
+    void handleSaveLearnedSkillEvent(const Event &event);
     void handleGetZoneEventTemplatesEvent(const Event &event);
 
     // Experience debt

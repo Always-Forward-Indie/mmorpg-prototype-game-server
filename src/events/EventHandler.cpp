@@ -241,6 +241,7 @@ EventHandler::handleGetCharacterDataEvent(const Event &event)
                            .setBody("race", characterData.characterRace)
                            .setBody("currentExp", characterData.characterExperiencePoints)
                            .setBody("experienceDebt", characterData.experienceDebt)
+                           .setBody("freeSkillPoints", characterData.freeSkillPoints)
                            .setBody("currentHealth", characterData.characterCurrentHealth)
                            .setBody("currentMana", characterData.characterCurrentMana)
                            .setBody("maxHealth", characterData.characterMaxHealth)
@@ -1299,6 +1300,9 @@ EventHandler::dispatchEvent(const Event &event)
     case Event::SAVE_MASTERY:
         handleSaveMasteryEvent(event);
         break;
+    case Event::SAVE_LEARNED_SKILL:
+        handleSaveLearnedSkillEvent(event);
+        break;
     case Event::GET_ZONE_EVENT_TEMPLATES:
         handleGetZoneEventTemplatesEvent(event);
         break;
@@ -1786,7 +1790,10 @@ EventHandler::handleGetNPCsListEvent(const Event &event)
             npcJson["npcType"] = npcData.npcType;
             npcJson["isInteractable"] = npcData.isInteractable;
             npcJson["dialogueId"] = npcData.dialogueId;
-            npcJson["questId"] = npcData.questId;
+            nlohmann::json questSlugsJson = nlohmann::json::array();
+            for (const auto &slug : npcData.questSlugs)
+                questSlugsJson.push_back(slug);
+            npcJson["questSlugs"] = questSlugsJson;
             npcJson["factionSlug"] = npcData.factionSlug;
             npcJson["posX"] = npcData.position.positionX;
             npcJson["posY"] = npcData.position.positionY;
@@ -3646,6 +3653,95 @@ EventHandler::handleSaveMasteryEvent(const Event &event)
     catch (const std::exception &ex)
     {
         gameServices_.getLogger().logError("handleSaveMasteryEvent error: " + std::string(ex.what()));
+    }
+}
+
+// ── SAVE_LEARNED_SKILL ────────────────────────────────────────────────────
+void
+EventHandler::handleSaveLearnedSkillEvent(const Event &event)
+{
+    const auto &data = event.getData();
+    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
+
+    try
+    {
+        if (!std::holds_alternative<nlohmann::json>(data))
+        {
+            log_->error("handleSaveLearnedSkillEvent: unexpected data type");
+            return;
+        }
+        const auto &j = std::get<nlohmann::json>(data);
+        int characterId = j.value("characterId", 0);
+        int clientId = j.value("clientId", 0);
+        std::string skillSlug = j.value("skillSlug", "");
+
+        if (characterId <= 0 || skillSlug.empty())
+        {
+            log_->error("handleSaveLearnedSkillEvent: invalid params char={} slug={}", characterId, skillSlug);
+            return;
+        }
+
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+        gameServices_.getDatabase().executeQueryWithTransaction(
+            txn, "save_learned_skill", {characterId, skillSlug});
+
+        // Query full skill data for the newly learned skill
+        auto rows = gameServices_.getDatabase().executeQueryWithTransaction(
+            txn, "get_character_skills", {characterId});
+        txn.commit();
+
+        // Find the newly learned skill in the results
+        nlohmann::json skillJson = nlohmann::json::object();
+        for (const auto &row : rows)
+        {
+            if (row["skill_slug"].as<std::string>() == skillSlug)
+            {
+                skillJson["skillName"] = row["skill_name"].as<std::string>();
+                skillJson["skillSlug"] = row["skill_slug"].as<std::string>();
+                skillJson["scaleStat"] = row["scale_stat"].as<std::string>();
+                skillJson["school"] = row["school"].as<std::string>();
+                skillJson["skillEffectType"] = row["skill_effect_type"].as<std::string>();
+                skillJson["skillLevel"] = row["skill_level"].is_null() ? 1 : row["skill_level"].as<int>();
+                skillJson["coeff"] = row["coeff"].as<double>(0.0);
+                skillJson["flatAdd"] = row["flat_add"].as<double>(0.0);
+                skillJson["cooldownMs"] = row["cooldown_ms"].as<int>(0);
+                skillJson["gcdMs"] = row["gcd_ms"].as<int>(0);
+                skillJson["castMs"] = row["cast_ms"].as<int>(0);
+                skillJson["costMp"] = row["cost_mp"].as<int>(0);
+                skillJson["maxRange"] = row["max_range"].as<int>(0);
+                skillJson["areaRadius"] = row["area_radius"].as<int>(0);
+                skillJson["swingMs"] = row["swing_ms"].as<int>(300);
+                skillJson["animationName"] = row["animation_name"].as<std::string>("");
+                skillJson["isPassive"] = row["is_passive"].as<bool>();
+                break;
+            }
+        }
+
+        if (skillJson.empty())
+        {
+            log_->error("handleSaveLearnedSkillEvent: skill {} not found after save for char={}", skillSlug, characterId);
+            return;
+        }
+
+        ResponseBuilder builder;
+        nlohmann::json response = builder
+                                      .setHeader("message", "Skill learned")
+                                      .setHeader("hash", "")
+                                      .setHeader("clientId", clientId)
+                                      .setHeader("eventType", "setLearnedSkill")
+                                      .setBody("characterId", characterId)
+                                      .setBody("skillData", skillJson)
+                                      .build();
+
+        networkManager_.sendResponse(clientSocket,
+            networkManager_.generateResponseMessage("success", response));
+
+        log_->info("[SKILL] Saved learned skill slug={} for char={}", skillSlug, characterId);
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("handleSaveLearnedSkillEvent error: " + std::string(ex.what()));
     }
 }
 

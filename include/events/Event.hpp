@@ -94,11 +94,12 @@ class Event
         GET_TIMED_CHAMPION_TEMPLATES,     // Load timed champion templates from DB and send to chunk-server
         TIMED_CHAMPION_KILLED,            // Chunk-server notifies game-server that a timed champion was killed
         // Stage 4 events
-        GET_PLAYER_REPUTATIONS,  // Load character reputation rows from DB and send to chunk-server
-        SAVE_REPUTATION,         // Upsert one faction reputation value for a character
-        GET_PLAYER_MASTERIES,    // Load character mastery rows from DB and send to chunk-server
-        SAVE_MASTERY,            // Upsert one mastery value for a character
-        GET_ZONE_EVENT_TEMPLATES // Load zone_event_templates from DB and send to chunk-server
+        GET_PLAYER_REPUTATIONS,   // Load character reputation rows from DB and send to chunk-server
+        SAVE_REPUTATION,          // Upsert one faction reputation value for a character
+        GET_PLAYER_MASTERIES,     // Load character mastery rows from DB and send to chunk-server
+        SAVE_MASTERY,             // Upsert one mastery value for a character
+        GET_ZONE_EVENT_TEMPLATES, // Load zone_event_templates from DB and send to chunk-server
+        SAVE_LEARNED_SKILL        // Persist a newly learned skill to character_skills
     }; // Define more event types as needed
     Event() = default; // Default constructor
     Event(EventType type, int clientID, const EventData data, std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket);

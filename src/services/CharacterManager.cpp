@@ -93,6 +93,7 @@ CharacterManager::getBasicCharacterDataFromDatabase(Database &db, int accountId,
             characterData.characterCurrentMana = row[7].as<int>();
             characterData.classId = row["class_id"].as<int>();
             characterData.experienceDebt = row["experience_debt"].as<int>(0);
+            characterData.freeSkillPoints = row["free_skill_points"].as<int>(0);
 
             auto expResult = db.executeQueryWithTransaction(txn, "get_character_exp_for_next_level", {characterData.characterLevel});
             characterData.expForNextLevel = expResult[0][0].as<int>();
@@ -120,6 +121,7 @@ CharacterManager::getCharacterPositionFromDatabase(Database &db, int accountId, 
             pos.positionX = result[0][0].as<float>();
             pos.positionY = result[0][1].as<float>();
             pos.positionZ = result[0][2].as<float>();
+            pos.rotationZ = result[0][3].as<float>(0.0f);
         }
         txn.commit();
     }
@@ -257,7 +259,7 @@ CharacterManager::updateCharacterPosition(Database &db, int accountId, int chara
     {
         auto _dbConn = db.getConnectionLocked();
         pqxx::work txn(_dbConn.get());
-        db.executeQueryWithTransaction(txn, "set_character_position", {position.positionX, position.positionY, position.positionZ, characterId});
+        db.executeQueryWithTransaction(txn, "set_character_position", {position.positionX, position.positionY, position.positionZ, position.rotationZ, characterId});
         txn.commit();
         log_->info("Character position updated successfully");
     }

@@ -66,7 +66,8 @@ Database::prepareDefaultQueries()
             "COALESCE(ccs.current_health, 1) as character_current_health, "
             "COALESCE(ccs.current_mana, 1) as character_current_mana, "
             "character_class.id as class_id, "
-            "COALESCE(characters.experience_debt, 0) as experience_debt "
+            "COALESCE(characters.experience_debt, 0) as experience_debt, "
+            "COALESCE(characters.free_skill_points, 0) as free_skill_points "
             "FROM characters "
             "JOIN character_class ON characters.class_id = character_class.id "
             "JOIN race on characters.race_id = race.id "
@@ -232,14 +233,22 @@ Database::prepareDefaultQueries()
             "current_mana = EXCLUDED.current_mana, updated_at = now();");
         connection_->prepare("set_character_exp", "UPDATE characters "
                                                   "SET experience_points = $2 WHERE id = $1;");
-        connection_->prepare("set_character_exp_level", "UPDATE characters "
-                                                        "SET experience_points = $2, level = $3 WHERE id = $1;");
+        connection_->prepare("set_character_exp_level",
+            "UPDATE characters "
+            "SET experience_points = $2, level = $3, "
+            "free_skill_points = free_skill_points + GREATEST(0, $3::integer - level) "
+            "WHERE id = $1;");
+
+        connection_->prepare("save_learned_skill",
+            "INSERT INTO character_skills (character_id, skill_id, current_level) "
+            "SELECT $1, s.id, 1 FROM skills s WHERE s.slug = $2 "
+            "ON CONFLICT (character_id, skill_id) DO NOTHING;");
 
         connection_->prepare("set_character_experience_debt",
             "UPDATE characters SET experience_debt = $2 WHERE id = $1;");
 
-        connection_->prepare("get_character_position", "SELECT x, y, z FROM character_position WHERE character_id = $1 LIMIT 1;");
-        connection_->prepare("set_character_position", "UPDATE character_position SET x = $1, y = $2, z = $3 WHERE character_id = $4;");
+        connection_->prepare("get_character_position", "SELECT x, y, z, rot_z FROM character_position WHERE character_id = $1 LIMIT 1;");
+        connection_->prepare("set_character_position", "UPDATE character_position SET x = $1, y = $2, z = $3, rot_z = $4 WHERE character_id = $5;");
 
         // get mob spawn zone data — join spawn_zone_mobs (many-to-many) for mob_id, spawn_count, respawn_time
         // One row per (zone, mob) pair; szm_id is the unique key for the map.
@@ -458,6 +467,12 @@ Database::prepareDefaultQueries()
                                                "LEFT JOIN skill_properties_mapping spm ON spm.skill_id = s.id AND spm.skill_level=cs.current_level "
                                                "LEFT JOIN skill_properties sp ON sp.id = spm.property_id "
                                                "GROUP BY s.id, s.name, s.slug, s.animation_name, sst.slug, ss.slug, seft.slug, spm.skill_level;");
+
+        // get quest slugs for a given NPC (both giver and turn-in roles)
+        connection_->prepare("get_npc_quests",
+            "SELECT slug FROM quest "
+            "WHERE giver_npc_id = $1 OR turnin_npc_id = $1 "
+            "ORDER BY id;");
 
         // --- Dialogue queries ---
         connection_->prepare("get_dialogues",

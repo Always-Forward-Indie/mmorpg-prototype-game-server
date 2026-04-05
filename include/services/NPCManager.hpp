@@ -108,6 +108,14 @@ class NPCManager
     PositionStruct loadNPCPosition(pqxx::work &transaction, int npcId, int &zoneId);
 
     /**
+     * @brief Load quest slugs for which this NPC is the giver or turn-in target.
+     * @param transaction Database transaction
+     * @param npcId NPC identifier
+     * @return Vector of quest slug strings
+     */
+    std::vector<std::string> loadNPCQuests(pqxx::work &transaction, int npcId);
+
+    /**
      * @brief Calculate max health from attributes
      * @param attributes Vector of NPC attributes
      * @return Max health value

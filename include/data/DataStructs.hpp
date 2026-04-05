@@ -187,6 +187,7 @@ struct CharacterDataStruct
     int characterMaxMana = 0;
     int expForNextLevel = 0;
     int experienceDebt = 0;
+    int freeSkillPoints = 0;
     std::string characterName = "";
     std::string characterClass = "";
     std::string characterRace = "";
@@ -323,11 +324,11 @@ struct NPCDataStruct
     PositionStruct position;
 
     // NPC specific properties
-    std::string npcType = ""; // "vendor", "quest_giver", "general", etc.
+    std::string npcType = ""; // "vendor", "quest_giver", "blacksmith", "guard", "trainer", "general"
     bool isInteractable = true;
     int dialogueId = 0;
-    int questId = 0;
-    std::string factionSlug; ///< faction this NPC belongs to (Stage 4, migration 039)
+    std::vector<std::string> questSlugs; ///< Slugs of quests this NPC gives or accepts turn-in for
+    std::string factionSlug;             ///< faction this NPC belongs to (Stage 4, migration 039)
 
     // Define the equality operator
     bool operator==(const NPCDataStruct &other) const

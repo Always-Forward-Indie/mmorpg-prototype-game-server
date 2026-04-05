@@ -25,7 +25,7 @@ EventDispatcher::dispatch(const std::string &eventType,
     // so concurrent io_context threads cannot race on it.
     std::lock_guard<std::mutex> dispatchLock(dispatchMutex_);
 
-    if (eventType == "joinGame")
+    if (eventType == "joinGame" || eventType == "joinGameClient")
     {
         handleJoinGame(payload, socket);
     }
@@ -176,6 +176,10 @@ EventDispatcher::dispatch(const std::string &eventType,
     else if (eventType == "saveMastery")
     {
         handleSaveMastery(payload, socket);
+    }
+    else if (eventType == "saveLearnedSkill")
+    {
+        handleSaveLearnedSkill(payload, socket);
     }
     else
     {
@@ -896,5 +900,25 @@ EventDispatcher::handleSaveMastery(
     catch (const std::exception &ex)
     {
         logger_.logError("handleSaveMastery parse error: " + std::string(ex.what()));
+    }
+}
+
+void
+EventDispatcher::handleSaveLearnedSkill(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    try
+    {
+        auto j = nlohmann::json::parse(payload.rawMessage);
+        const auto &body = j["body"];
+        Event saveEvent(Event::SAVE_LEARNED_SKILL, 0, body, socket);
+        eventsBatch_.push_back(saveEvent);
+        eventQueue_.pushBatch(eventsBatch_);
+        eventsBatch_.clear();
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleSaveLearnedSkill parse error: " + std::string(ex.what()));
     }
 }

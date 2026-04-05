@@ -84,6 +84,9 @@ NPCManager::loadNPCs()
             // loadNPCPosition also fills npcData.zoneId from the placement row
             npcData.position = loadNPCPosition(transaction, npcData.id, npcData.zoneId);
 
+            // Load quest slugs for which this NPC is giver or turn-in target
+            npcData.questSlugs = loadNPCQuests(transaction, npcData.id);
+
             // Calculate derived values
             npcData.maxHealth = calculateMaxHealth(npcData.attributes);
             npcData.maxMana = calculateMaxMana(npcData.attributes);
@@ -308,4 +311,27 @@ NPCManager::calculateMaxMana(const std::vector<NPCAttributeStruct> &attributes) 
         { return attr.slug == "max_mana"; });
 
     return (it != attributes.end()) ? it->value : 50; // Default mana
+}
+
+std::vector<std::string>
+NPCManager::loadNPCQuests(pqxx::work &transaction, int npcId)
+{
+    std::vector<std::string> slugs;
+
+    try
+    {
+        pqxx::result result = database_.executeQueryWithTransaction(
+            transaction,
+            "get_npc_quests",
+            {npcId});
+
+        for (const auto &row : result)
+            slugs.push_back(row["slug"].as<std::string>());
+    }
+    catch (const std::exception &e)
+    {
+        logger_.logError("Error loading quests for NPC ID " + std::to_string(npcId) + ": " + std::string(e.what()));
+    }
+
+    return slugs;
 }

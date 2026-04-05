@@ -1,3 +1,22 @@
+v0.1.2
+05.04.2026
+================
+New:
+SAVE_LEARNED_SKILL event — `EventDispatcher::handleSaveLearnedSkill()` → `EventHandler::handleSaveLearnedSkillEvent()`: persists a newly learned skill via `save_learned_skill` prepared statement, then queries `get_character_skills` for the full skill row and returns a `setLearnedSkill` response packet to the chunk-server client socket. Includes all skill fields required to build `SkillStruct` on the chunk server.
+Database — `save_learned_skill` prepared statement: `INSERT INTO character_skills (character_id, skill_id, current_level) SELECT $1, s.id, 1 FROM skills s WHERE s.slug = $2 ON CONFLICT DO NOTHING`.
+Database — `get_npc_quests` prepared statement: returns all quest slugs where the NPC is giver or turn-in target — `SELECT slug FROM quest WHERE giver_npc_id=$1 OR turnin_npc_id=$1 ORDER BY id`.
+Database — `get_character_position` prepared statement: `SELECT x, y, z, rot_z FROM character_position WHERE character_id=$1 LIMIT 1`.
+Database — `set_character_position` prepared statement: `UPDATE character_position SET x=$1, y=$2, z=$3, rot_z=$4 WHERE character_id=$5` (replaces the previous variant that did not persist `rot_z`).
+NPCManager — `loadNPCQuests(txn, npcId)`: loads quest slugs for giver/turn-in NPC roles and stores them in `NPCDataStruct::questSlugs`. Called during NPC data load at startup. `questSlugs` included in the NPC data packet sent to chunk server.
+NPCDataStruct — new field `questSlugs` (`std::vector<std::string>`).
+
+Improvements:
+Database — `set_character_exp_level` prepared statement updated: now atomically awards skill points on level-up — `free_skill_points = free_skill_points + GREATEST(0, new_level - old_level)`. Characters gain exactly 1 SP per level gained, even when multiple levels are crossed in one grant.
+CharacterManager — character data load now reads `free_skill_points` column from DB and stores it in `CharacterDataStruct::freeSkillPoints`. `freeSkillPoints` is included in the character data response body sent to the chunk server (`"freeSkillPoints"` field).
+config.json — server host changed to `0.0.0.0` (listen on all interfaces, not only loopback).
+
+---
+
 v0.1.1
 21.03.2026
 ================
