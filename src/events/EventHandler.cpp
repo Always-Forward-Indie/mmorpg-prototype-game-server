@@ -523,6 +523,10 @@ EventHandler::handleJoinChunkServerEvent(const Event &event)
             Event vendorDataEvent(Event::GET_VENDOR_DATA, clientID, ClientDataStruct(), clientSocket);
             dispatchEvent(vendorDataEvent);
 
+            // load trainer NPC skill lists
+            Event trainerDataEvent(Event::GET_TRAINER_DATA, clientID, ClientDataStruct(), clientSocket);
+            dispatchEvent(trainerDataEvent);
+
             // load respawn zones
             Event respawnZonesEvent(Event::GET_RESPAWN_ZONES, clientID, ClientDataStruct(), clientSocket);
             dispatchEvent(respawnZonesEvent);
@@ -1231,6 +1235,9 @@ EventHandler::dispatchEvent(const Event &event)
         break;
     case Event::GET_VENDOR_DATA:
         handleGetVendorDataEvent(event);
+        break;
+    case Event::GET_TRAINER_DATA:
+        handleGetTrainerDataEvent(event);
         break;
     case Event::SAVE_DURABILITY_CHANGE:
         handleSaveDurabilityChangeEvent(event);
@@ -2696,6 +2703,72 @@ EventHandler::handleGetVendorDataEvent(const Event &event)
     catch (const std::exception &e)
     {
         gameServices_.getLogger().logError("handleGetVendorDataEvent error: " + std::string(e.what()));
+    }
+}
+
+void
+EventHandler::handleGetTrainerDataEvent(const Event &event)
+{
+    auto clientSocket = event.getClientSocket();
+    int clientID = event.getClientID();
+
+    try
+    {
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+
+        auto npcRows = gameServices_.getDatabase().executeQueryWithTransaction(txn, "get_trainer_npcs", {});
+
+        nlohmann::json trainerList = nlohmann::json::array();
+        for (const auto &npcRow : npcRows)
+        {
+            int npcId = npcRow["npc_id"].as<int>();
+
+            auto skillRows = gameServices_.getDatabase().executeQueryWithTransaction(
+                txn, "get_trainer_skills", {npcId});
+
+            nlohmann::json skills = nlohmann::json::array();
+            for (const auto &row : skillRows)
+            {
+                nlohmann::json skill;
+                skill["skillId"] = row["skill_id"].as<int>();
+                skill["skillSlug"] = row["skill_slug"].as<std::string>();
+                skill["skillName"] = row["skill_name"].as<std::string>();
+                skill["isPassive"] = row["is_passive"].as<bool>();
+                skill["requiredLevel"] = row["required_level"].as<int>();
+                skill["spCost"] = row["sp_cost"].as<int>();
+                skill["goldCost"] = row["gold_cost"].as<int>();
+                skill["requiresBook"] = row["requires_book"].as<bool>();
+                skill["bookItemId"] = row["book_item_id"].as<int>();
+                skill["prerequisiteSkillSlug"] = row["prerequisite_skill_slug"].as<std::string>();
+                skills.push_back(std::move(skill));
+            }
+
+            nlohmann::json trainer;
+            trainer["npcId"] = npcId;
+            trainer["skills"] = std::move(skills);
+            trainerList.push_back(std::move(trainer));
+        }
+        txn.commit();
+
+        ResponseBuilder builder;
+        nlohmann::json response = builder
+                                      .setHeader("message", "Trainer data loaded")
+                                      .setHeader("hash", "")
+                                      .setHeader("clientId", clientID)
+                                      .setHeader("eventType", "setTrainerData")
+                                      .setBody("trainers", trainerList)
+                                      .build();
+
+        networkManager_.sendResponse(clientSocket,
+            networkManager_.generateResponseMessage("success", response));
+
+        gameServices_.getLogger().log("[EH] Sent trainer data: " +
+                                      std::to_string(trainerList.size()) + " trainers.");
+    }
+    catch (const std::exception &e)
+    {
+        gameServices_.getLogger().logError("handleGetTrainerDataEvent error: " + std::string(e.what()));
     }
 }
 

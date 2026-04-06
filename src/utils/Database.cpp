@@ -624,6 +624,29 @@ Database::prepareDefaultQueries()
             "COALESCE(price_override, 0) AS price_override_sell "
             "FROM vendor_inventory WHERE vendor_npc_id = $1;");
 
+        // --- Trainer queries ---
+        connection_->prepare("get_trainer_npcs",
+            "SELECT npc_id FROM public.npc_trainer_class ORDER BY npc_id;");
+
+        connection_->prepare("get_trainer_skills",
+            "SELECT "
+            "  s.id          AS skill_id, "
+            "  s.slug        AS skill_slug, "
+            "  s.name        AS skill_name, "
+            "  s.is_passive  AS is_passive, "
+            "  COALESCE(cst.required_level, 1) AS required_level, "
+            "  COALESCE(cst.skill_point_cost, 1) AS sp_cost, "
+            "  COALESCE(cst.gold_cost, 0) AS gold_cost, "
+            "  COALESCE(cst.requires_book, false) AS requires_book, "
+            "  COALESCE(cst.skill_book_item_id, 0) AS book_item_id, "
+            "  COALESCE(prereq.slug, '') AS prerequisite_skill_slug "
+            "FROM public.npc_trainer_class ntc "
+            "JOIN public.class_skill_tree cst ON cst.class_id = ntc.class_id "
+            "JOIN public.skills s ON s.id = cst.skill_id "
+            "LEFT JOIN public.skills prereq ON prereq.id = cst.prerequisite_skill_id "
+            "WHERE ntc.npc_id = $1 "
+            "ORDER BY cst.required_level, s.id;");
+
         // Update durability_current for a specific inventory item
         connection_->prepare("update_durability_current",
             "UPDATE player_inventory SET durability_current = $1 "

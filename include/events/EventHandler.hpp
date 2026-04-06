@@ -58,6 +58,7 @@ class EventHandler
 
     // Vendor / durability
     void handleGetVendorDataEvent(const Event &event);
+    void handleGetTrainerDataEvent(const Event &event);
     void handleSaveDurabilityChangeEvent(const Event &event);
     void handleSaveItemKillCountEvent(const Event &event);
     void handleTransferInventoryItemEvent(const Event &event);

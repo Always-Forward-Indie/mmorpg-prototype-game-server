@@ -75,6 +75,7 @@ class Event
         UPDATE_PLAYER_FLAG,               // Persist player flag to DB
         GET_GAME_CONFIG,                  // Load game_config and send to chunk-server
         GET_VENDOR_DATA,                  // Load vendor NPC inventory and send to chunk
+        GET_TRAINER_DATA,                 // Load trainer NPC skill lists and send to chunk
         SAVE_DURABILITY_CHANGE,           // Persist durability_current to player_inventory
         SAVE_CURRENCY_TRANSACTION,        // Persist vendor/repair transaction log
         SAVE_EQUIPMENT_CHANGE,            // Persist equip/unequip to character_equipment

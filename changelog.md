@@ -1,5 +1,15 @@
+v0.1.3
+06.04.2026
+================
+New:
+`GET_TRAINER_DATA` event — `EventDispatcher::handleGetTrainerData()` → `EventHandler::handleGetTrainerDataEvent()`: при подключении chunk-сервера выполняет два запроса к БД — `get_trainer_npcs` (список NPC-тренеров с привязкой к классу) и `get_trainer_skills` (полный `class_skill_tree` для каждого тренера: slug, name, required_level, sp_cost, gold_cost, requires_book, book_item_id, prerequisite_skill_slug). Формирует JSON-массив `trainers[]` и отправляет chunk-серверу пакет `setTrainerData`.
+Database — `get_trainer_npcs` prepared statement: `SELECT n.id AS npc_id, n.slug AS npc_slug, nct.class_id FROM npcs n JOIN npc_trainer_class nct ON nct.npc_id = n.id`.
+Database — `get_trainer_skills` prepared statement: запрашивает все записи `class_skill_tree` с JOIN на `skills` и `items` (книга навыка), возвращает поля `npc_id`, `skill_slug`, `skill_name`, `required_level`, `skill_point_cost`, `gold_cost`, `requires_book`, `book_item_id`, `prerequisite_skill_slug`.
+`GET_TRAINER_DATA` dispatch — вызывается при подключении chunk-сервера сразу после `GET_VENDOR_DATA`, гарантируя что данные тренеров загружаются вместе с остальными статическими данными.
+
+---
+
 v0.1.2
-05.04.2026
 ================
 New:
 SAVE_LEARNED_SKILL event — `EventDispatcher::handleSaveLearnedSkill()` → `EventHandler::handleSaveLearnedSkillEvent()`: persists a newly learned skill via `save_learned_skill` prepared statement, then queries `get_character_skills` for the full skill row and returns a `setLearnedSkill` response packet to the chunk-server client socket. Includes all skill fields required to build `SkillStruct` on the chunk server.
