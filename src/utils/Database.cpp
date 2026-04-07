@@ -781,6 +781,26 @@ Database::prepareDefaultQueries()
             "VALUES($1, $2, $3) "
             "ON CONFLICT(character_id, mastery_slug) DO UPDATE SET value = EXCLUDED.value;");
 
+        // Title system
+        connection_->prepare("get_title_definitions",
+            "SELECT id, slug, display_name, description, earn_condition, bonuses::text "
+            "FROM title_definitions "
+            "ORDER BY id;");
+
+        connection_->prepare("get_player_titles",
+            "SELECT title_slug, equipped "
+            "FROM character_titles "
+            "WHERE character_id = $1;");
+
+        connection_->prepare("upsert_player_title",
+            "INSERT INTO character_titles(character_id, title_slug, equipped) "
+            "VALUES($1, $2, $3) "
+            "ON CONFLICT(character_id, title_slug) DO UPDATE SET equipped = EXCLUDED.equipped;");
+
+        connection_->prepare("set_character_equipped_title",
+            "UPDATE character_titles SET equipped = (title_slug = $2) "
+            "WHERE character_id = $1;");
+
         // Stage 4: Zone event templates
         connection_->prepare("get_zone_event_templates",
             "SELECT id, slug, game_zone_id, trigger_type, duration_sec, "

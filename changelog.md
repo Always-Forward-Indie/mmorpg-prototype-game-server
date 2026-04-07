@@ -1,3 +1,17 @@
+v0.1.4
+07.04.2026
+================
+New:
+`GET_TITLE_DEFINITIONS_DATA` / `SET_TITLE_DEFINITIONS_DATA` event — при подключении chunk-сервера game-сервер выполняет запрос `get_title_definitions` к БД и отправляет chunk-серверу пакет `setTitleDefinitionsData` с полным каталогом титулов (slug, display_name, description, earn_condition, bonuses JSONB). Запускается вместе с остальными статическими данными (зоны, квесты, тренеры).
+`GET_PLAYER_TITLES_DATA` / `SET_PLAYER_TITLES_DATA` event — по запросу chunk-сервера читает `character_titles` для персонажа (title_slug, equipped), возвращает `setPlayerTitlesData` пакет со списком заработанных титулов.
+`SAVE_PLAYER_TITLE` event — upsert записи в `character_titles`: `INSERT ... ON CONFLICT (character_id, title_slug) DO UPDATE SET equipped = EXCLUDED.equipped`. Используется при `equipTitle` от клиента.
+Database — `get_title_definitions` prepared statement: `SELECT id, slug, display_name, description, earn_condition, bonuses::text FROM title_definitions ORDER BY id`.
+Database — `get_player_titles` prepared statement: `SELECT title_slug, equipped FROM character_titles WHERE character_id = $1`.
+Database — `save_player_title` prepared statement: upsert по (character_id, title_slug) с обновлением `equipped`.
+DB Migration 049 — таблицы `title_definitions` (id, slug, display_name, description, earn_condition, bonuses JSONB) и `character_titles` (character_id FK → characters, title_slug FK → title_definitions, equipped, earned_at); индекс `idx_char_titles_char`; seed из 4 тестовых титулов. Миграция применена; дамп обновлён.
+
+---
+
 v0.1.3
 06.04.2026
 ================

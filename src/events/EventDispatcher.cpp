@@ -181,6 +181,18 @@ EventDispatcher::dispatch(const std::string &eventType,
     {
         handleSaveLearnedSkill(payload, socket);
     }
+    else if (eventType == "getTitleDefinitionsData")
+    {
+        handleGetTitleDefinitionsData(payload, socket);
+    }
+    else if (eventType == "getPlayerTitlesData")
+    {
+        handleGetPlayerTitlesData(payload, socket);
+    }
+    else if (eventType == "savePlayerTitle")
+    {
+        handleSavePlayerTitle(payload, socket);
+    }
     else
     {
         log_->error("Unknown event type: " + eventType);
@@ -920,5 +932,59 @@ EventDispatcher::handleSaveLearnedSkill(
     catch (const std::exception &ex)
     {
         logger_.logError("handleSaveLearnedSkill parse error: " + std::string(ex.what()));
+    }
+}
+
+// ── Title system ──────────────────────────────────────────────────────────
+
+void
+EventDispatcher::handleGetTitleDefinitionsData(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    // No characterId needed — loads the global catalog
+    Event ev(Event::GET_TITLE_DEFINITIONS, 0, 0, socket);
+    eventsBatch_.push_back(ev);
+    eventQueue_.pushBatch(eventsBatch_);
+    eventsBatch_.clear();
+}
+
+void
+EventDispatcher::handleGetPlayerTitlesData(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    try
+    {
+        auto j = nlohmann::json::parse(payload.rawMessage);
+        int characterId = j["body"].value("characterId", 0);
+        Event ev(Event::GET_PLAYER_TITLES, characterId, static_cast<int>(characterId), socket);
+        eventsBatch_.push_back(ev);
+        eventQueue_.pushBatch(eventsBatch_);
+        eventsBatch_.clear();
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleGetPlayerTitlesData parse error: " + std::string(ex.what()));
+    }
+}
+
+void
+EventDispatcher::handleSavePlayerTitle(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    try
+    {
+        auto j = nlohmann::json::parse(payload.rawMessage);
+        const auto &body = j["body"];
+        Event saveEvent(Event::SAVE_PLAYER_TITLE, 0, body, socket);
+        eventsBatch_.push_back(saveEvent);
+        eventQueue_.pushBatch(eventsBatch_);
+        eventsBatch_.clear();
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleSavePlayerTitle parse error: " + std::string(ex.what()));
     }
 }

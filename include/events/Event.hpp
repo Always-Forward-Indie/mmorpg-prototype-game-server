@@ -100,7 +100,11 @@ class Event
         GET_PLAYER_MASTERIES,     // Load character mastery rows from DB and send to chunk-server
         SAVE_MASTERY,             // Upsert one mastery value for a character
         GET_ZONE_EVENT_TEMPLATES, // Load zone_event_templates from DB and send to chunk-server
-        SAVE_LEARNED_SKILL        // Persist a newly learned skill to character_skills
+        SAVE_LEARNED_SKILL,       // Persist a newly learned skill to character_skills
+        // Title system events
+        GET_TITLE_DEFINITIONS, // Load global title catalog from DB and send to chunk-server
+        GET_PLAYER_TITLES,     // Load character's earned/equipped titles and send to chunk-server
+        SAVE_PLAYER_TITLE      // Upsert earned title or update equipped title in DB
     }; // Define more event types as needed
     Event() = default; // Default constructor
     Event(EventType type, int clientID, const EventData data, std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket);

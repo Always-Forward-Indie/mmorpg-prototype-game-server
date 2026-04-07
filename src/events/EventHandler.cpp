@@ -546,6 +546,10 @@ EventHandler::handleJoinChunkServerEvent(const Event &event)
             // load zone event templates (Stage 4 — world events)
             Event zoneEventTemplatesEvent(Event::GET_ZONE_EVENT_TEMPLATES, clientID, ClientDataStruct(), clientSocket);
             dispatchEvent(zoneEventTemplatesEvent);
+
+            // load title definitions (global catalog — same lifetime as zone templates)
+            Event titleDefsEvent(Event::GET_TITLE_DEFINITIONS, clientID, 0, clientSocket);
+            dispatchEvent(titleDefsEvent);
         }
 
         // Add the message to the response
@@ -1312,6 +1316,17 @@ EventHandler::dispatchEvent(const Event &event)
         break;
     case Event::GET_ZONE_EVENT_TEMPLATES:
         handleGetZoneEventTemplatesEvent(event);
+        break;
+
+    // Title system
+    case Event::GET_TITLE_DEFINITIONS:
+        handleGetTitleDefinitionsEvent(event);
+        break;
+    case Event::GET_PLAYER_TITLES:
+        handleGetPlayerTitlesEvent(event);
+        break;
+    case Event::SAVE_PLAYER_TITLE:
+        handleSavePlayerTitleEvent(event);
         break;
 
     // chunk server events
@@ -3871,5 +3886,161 @@ EventHandler::handleGetZoneEventTemplatesEvent(const Event &event)
     catch (const std::exception &ex)
     {
         gameServices_.getLogger().logError("handleGetZoneEventTemplatesEvent error: " + std::string(ex.what()));
+    }
+}
+
+// ── GET_TITLE_DEFINITIONS ──────────────────────────────────────────────────
+// Sends the global title catalog to the requesting chunk-server connection.
+// Called once on chunk-server startup (no characterId needed).
+void
+EventHandler::handleGetTitleDefinitionsEvent(const Event &event)
+{
+    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
+    int clientID = event.getClientID();
+
+    try
+    {
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+        auto result = gameServices_.getDatabase().executeQueryWithTransaction(
+            txn, "get_title_definitions", {});
+
+        nlohmann::json titlesJson = nlohmann::json::array();
+        for (const auto &row : result)
+        {
+            nlohmann::json t;
+            t["id"] = row["id"].as<int>();
+            t["slug"] = row["slug"].as<std::string>();
+            t["displayName"] = row["display_name"].as<std::string>();
+            t["description"] = row["description"].as<std::string>();
+            t["earnCondition"] = row["earn_condition"].as<std::string>();
+            // bonuses column is JSONB — parse it back to a JSON array
+            try
+            {
+                t["bonuses"] = nlohmann::json::parse(row["bonuses"].as<std::string>());
+            }
+            catch (...)
+            {
+                t["bonuses"] = nlohmann::json::array();
+            }
+            titlesJson.push_back(std::move(t));
+        }
+
+        ResponseBuilder builder;
+        nlohmann::json response = builder
+                                      .setHeader("message", "Title definitions")
+                                      .setHeader("hash", "")
+                                      .setHeader("clientId", clientID)
+                                      .setHeader("eventType", "setTitleDefinitionsData")
+                                      .setBody("titles", titlesJson)
+                                      .build();
+        networkManager_.sendResponse(clientSocket,
+            networkManager_.generateResponseMessage("success", response));
+
+        log_->info("[TITLE] Sent {} title definitions to chunk server", titlesJson.size());
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("handleGetTitleDefinitionsEvent error: " + std::string(ex.what()));
+    }
+}
+
+// ── GET_PLAYER_TITLES ──────────────────────────────────────────────────────
+void
+EventHandler::handleGetPlayerTitlesEvent(const Event &event)
+{
+    const auto &data = event.getData();
+    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
+
+    try
+    {
+        if (!std::holds_alternative<int>(data))
+        {
+            log_->error("handleGetPlayerTitlesEvent: unexpected data type");
+            return;
+        }
+        int characterId = std::get<int>(data);
+
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+        auto result = gameServices_.getDatabase().executeQueryWithTransaction(
+            txn, "get_player_titles", {characterId});
+
+        std::string equippedSlug;
+        nlohmann::json earnedSlugs = nlohmann::json::array();
+        for (const auto &row : result)
+        {
+            std::string slug = row["title_slug"].as<std::string>();
+            earnedSlugs.push_back(slug);
+            if (row["equipped"].as<bool>())
+                equippedSlug = slug;
+        }
+
+        ResponseBuilder builder;
+        nlohmann::json response = builder
+                                      .setHeader("message", "Player titles")
+                                      .setHeader("hash", "")
+                                      .setHeader("clientId", characterId)
+                                      .setHeader("eventType", "setPlayerTitlesData")
+                                      .setBody("characterId", characterId)
+                                      .setBody("earnedSlugs", earnedSlugs)
+                                      .setBody("equippedSlug", equippedSlug)
+                                      .build();
+        networkManager_.sendResponse(clientSocket,
+            networkManager_.generateResponseMessage("success", response));
+
+        log_->info("[TITLE] Sent {} earned titles for characterId={}", earnedSlugs.size(), characterId);
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("handleGetPlayerTitlesEvent error: " + std::string(ex.what()));
+    }
+}
+
+// ── SAVE_PLAYER_TITLE ──────────────────────────────────────────────────────
+// Body: { "eventType":"savePlayerTitle", "characterId":7, "titleSlug":"wolf_slayer", "equipped":true }
+void
+EventHandler::handleSavePlayerTitleEvent(const Event &event)
+{
+    const auto &data = event.getData();
+
+    try
+    {
+        if (!std::holds_alternative<nlohmann::json>(data))
+        {
+            log_->error("handleSavePlayerTitleEvent: unexpected data type");
+            return;
+        }
+        const auto &j = std::get<nlohmann::json>(data);
+        int characterId = j.value("characterId", 0);
+        std::string titleSlug = j.value("titleSlug", "");
+        bool equipped = j.value("equipped", false);
+
+        if (characterId <= 0 || titleSlug.empty())
+        {
+            log_->error("[TITLE] handleSavePlayerTitleEvent: invalid payload char={} slug={}", characterId, titleSlug);
+            return;
+        }
+
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+
+        // Upsert the earned row (creates it if new, updates equipped flag)
+        gameServices_.getDatabase().executeQueryWithTransaction(
+            txn, "upsert_player_title", {characterId, titleSlug, equipped});
+
+        // If equipping, clear equipped flag on all other titles first
+        if (equipped)
+        {
+            gameServices_.getDatabase().executeQueryWithTransaction(
+                txn, "set_character_equipped_title", {characterId, titleSlug});
+        }
+
+        txn.commit();
+        log_->info("[TITLE] Saved char={} title={} equipped={}", characterId, titleSlug, equipped);
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("handleSavePlayerTitleEvent error: " + std::string(ex.what()));
     }
 }

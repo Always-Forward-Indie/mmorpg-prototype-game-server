@@ -89,6 +89,10 @@ class EventHandler
     void handleSaveMasteryEvent(const Event &event);
     void handleSaveLearnedSkillEvent(const Event &event);
     void handleGetZoneEventTemplatesEvent(const Event &event);
+    // Title system
+    void handleGetTitleDefinitionsEvent(const Event &event);
+    void handleGetPlayerTitlesEvent(const Event &event);
+    void handleSavePlayerTitleEvent(const Event &event);
 
     // Experience debt
     void handleSaveExperienceDebtEvent(const Event &event);
