@@ -3771,8 +3771,21 @@ EventHandler::handleSaveLearnedSkillEvent(const Event &event)
 
         auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
         pqxx::work txn(_dbConn.get());
+
+        // Persist the skill
         gameServices_.getDatabase().executeQueryWithTransaction(
             txn, "save_learned_skill", {characterId, skillSlug});
+
+        // Deduct SP cost atomically in the same transaction
+        auto costRows = gameServices_.getDatabase().executeQueryWithTransaction(
+            txn, "get_skill_sp_cost", {skillSlug});
+        if (!costRows.empty() && !costRows[0]["skill_point_cost"].is_null())
+        {
+            int spCost = costRows[0]["skill_point_cost"].as<int>(0);
+            if (spCost > 0)
+                gameServices_.getDatabase().executeQueryWithTransaction(
+                    txn, "decrement_skill_points", {characterId, spCost});
+        }
 
         // Query full skill data for the newly learned skill
         auto rows = gameServices_.getDatabase().executeQueryWithTransaction(
@@ -4013,31 +4026,39 @@ EventHandler::handleSavePlayerTitleEvent(const Event &event)
         }
         const auto &j = std::get<nlohmann::json>(data);
         int characterId = j.value("characterId", 0);
-        std::string titleSlug = j.value("titleSlug", "");
-        bool equipped = j.value("equipped", false);
+        std::string equippedSlug = j.value("equippedSlug", "");
+        nlohmann::json earnedSlugsArr = j.value("earnedSlugs", nlohmann::json::array());
 
-        if (characterId <= 0 || titleSlug.empty())
+        if (characterId <= 0)
         {
-            log_->error("[TITLE] handleSavePlayerTitleEvent: invalid payload char={} slug={}", characterId, titleSlug);
+            log_->error("[TITLE] handleSavePlayerTitleEvent: invalid payload char={}", characterId);
             return;
         }
 
         auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
         pqxx::work txn(_dbConn.get());
 
-        // Upsert the earned row (creates it if new, updates equipped flag)
-        gameServices_.getDatabase().executeQueryWithTransaction(
-            txn, "upsert_player_title", {characterId, titleSlug, equipped});
-
-        // If equipping, clear equipped flag on all other titles first
-        if (equipped)
+        // Upsert all earned titles; equipped flag is true only for the currently selected one
+        for (const auto &slugVal : earnedSlugsArr)
         {
+            if (!slugVal.is_string())
+                continue;
+            std::string slug = slugVal.get<std::string>();
+            bool equipped = (!equippedSlug.empty() && slug == equippedSlug);
             gameServices_.getDatabase().executeQueryWithTransaction(
-                txn, "set_character_equipped_title", {characterId, titleSlug});
+                txn, "upsert_player_title", {characterId, slug, equipped});
         }
 
+        // Ensure at most one title has equipped=true (clear all, then re-flag the chosen one)
+        if (!equippedSlug.empty())
+            gameServices_.getDatabase().executeQueryWithTransaction(
+                txn, "set_character_equipped_title", {characterId, equippedSlug});
+
         txn.commit();
-        log_->info("[TITLE] Saved char={} title={} equipped={}", characterId, titleSlug, equipped);
+        log_->info("[TITLE] Saved char={} titles={} equipped='{}'",
+            characterId,
+            earnedSlugsArr.size(),
+            equippedSlug);
     }
     catch (const std::exception &ex)
     {

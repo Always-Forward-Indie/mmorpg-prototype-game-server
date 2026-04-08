@@ -244,6 +244,9 @@ Database::prepareDefaultQueries()
             "SELECT $1, s.id, 1 FROM skills s WHERE s.slug = $2 "
             "ON CONFLICT (character_id, skill_id) DO NOTHING;");
 
+        connection_->prepare("decrement_skill_points",
+            "UPDATE characters SET free_skill_points = GREATEST(0, free_skill_points - $2) WHERE id = $1;");
+
         connection_->prepare("set_character_experience_debt",
             "UPDATE characters SET experience_debt = $2 WHERE id = $1;");
 
@@ -646,6 +649,14 @@ Database::prepareDefaultQueries()
             "LEFT JOIN public.skills prereq ON prereq.id = cst.prerequisite_skill_id "
             "WHERE ntc.npc_id = $1 "
             "ORDER BY cst.required_level, s.id;");
+
+        // Look up SP cost for a given skill slug (used when persisting skill purchase)
+        connection_->prepare("get_skill_sp_cost",
+            "SELECT COALESCE(cst.skill_point_cost, 1) AS skill_point_cost "
+            "FROM public.class_skill_tree cst "
+            "JOIN public.skills s ON s.id = cst.skill_id "
+            "WHERE s.slug = $1 "
+            "LIMIT 1;");
 
         // Update durability_current for a specific inventory item
         connection_->prepare("update_durability_current",
