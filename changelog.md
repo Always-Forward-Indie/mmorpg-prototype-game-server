@@ -1,3 +1,16 @@
+v0.1.6
+11.04.2026
+================
+Bug Fixes:
+`SAVE_LEARNED_SKILL` — SP теперь списывается атомарно в той же транзакции, что и вставка скила (`save_learned_skill` + `get_skill_sp_cost` + `decrement_skill_points`). Ранее `free_skill_points` убывало только в памяти chunk-сервера; рестарт после изучения скила возвращал SP без отката самого скила.
+`SAVE_PLAYER_TITLE` — полная переработка логики сохранения: новый формат пейлоада `{ earnedSlugs[], equippedSlug }` вместо одиночного `{ titleSlug, equipped }`. Все заработанные тайтлы bulk-upsert-ятся в одной транзакции, затем атомарно сбрасывается флаг `equipped` у всех и выставляется только у выбранного. Ранее сохранялся только последний экипированный тайтл — все остальные заработанные терялись при рестарте.
+
+New:
+`decrement_skill_points` prepared statement — `UPDATE characters SET free_skill_points = GREATEST(0, free_skill_points - $2) WHERE id = $1`. Защита от ухода в отрицательные значения через GREATEST(0, ...).
+`get_skill_sp_cost` prepared statement — получает `skill_point_cost` из `class_skill_tree JOIN skills WHERE slug = $1`. Используется при сохранении изученного скила для атомарного списания SP.
+
+---
+
 v0.1.5
 08.04.2026
 ================
