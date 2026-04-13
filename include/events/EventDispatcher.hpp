@@ -57,10 +57,14 @@ class EventDispatcher
     void handleGetPlayerMasteriesData(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
     void handleSaveMastery(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
     void handleSaveLearnedSkill(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
+    void handleSaveSkillBarSlot(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
     // Title system
     void handleGetTitleDefinitionsData(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
     void handleGetPlayerTitlesData(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
     void handleSavePlayerTitle(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
+    // Emote system
+    void handleGetEmoteDefinitionsData(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
+    void handleGetPlayerEmotesData(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
 
     // Dialogue & Quest
     void handleGetPlayerQuests(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);

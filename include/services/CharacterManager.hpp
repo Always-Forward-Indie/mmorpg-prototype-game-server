@@ -29,6 +29,7 @@ class CharacterManager
     PositionStruct getCharacterPositionFromDatabase(Database &db, int accountId, int characterId);
     std::vector<CharacterAttributeStruct> getCharacterAttributesFromDatabase(Database &db, int characterId);
     std::vector<SkillStruct> getCharacterSkillsFromDatabase(Database &db, int characterId);
+    std::vector<SkillBarSlotStruct> getCharacterSkillBarFromDatabase(Database &db, int characterId);
     std::vector<SkillStruct> getMobSkillsFromDatabase(Database &db, int mobId);
     CharacterDataStruct getBasicCharacterDataFromDatabase(Database &db, int accountId, int characterId);
 

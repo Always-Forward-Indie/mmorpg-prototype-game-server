@@ -1,3 +1,15 @@
+v0.1.7
+13.04.2026
+================
+New:
+`GET_EMOTE_DEFINITIONS` / `SET_EMOTE_DEFINITIONS_DATA` event — при подключении chunk-сервера game-сервер выполняет запрос `get_emote_definitions` к БД и отправляет chunk-серверу пакет `setEmoteDefinitionsData` с полным каталогом эмоций (id, slug, display_name, animation_name, category, is_default, sort_order). Запускается вместе с `GET_TITLE_DEFINITIONS` при подключении.
+`GET_PLAYER_EMOTES` / `SET_PLAYER_EMOTES_DATA` event — по запросу chunk-сервера (`getPlayerEmotesData`) автоматически выдаёт дефолтные эмоции новым персонажам (`grant_default_emotes` — идемпотентный INSERT ON CONFLICT DO NOTHING), читает `character_emotes` для персонажа, возвращает `setPlayerEmotesData` пакет со списком разблокированных slugs.
+Database — три новых prepared statement: `get_emote_definitions` (`SELECT ... FROM emote_definitions ORDER BY sort_order, id`), `get_player_emotes` (`SELECT emote_slug FROM character_emotes WHERE character_id = $1`), `grant_default_emotes` (INSERT дефолтных эмоций для персонажа ON CONFLICT DO NOTHING).
+`GET_EMOTE_DEFINITIONS`, `GET_PLAYER_EMOTES` — два новых типа событий в `Event.hpp` (game-server).
+`EventDispatcher` (game-server) — роутинг `getEmoteDefinitionsData` → `handleGetEmoteDefinitionsData()` и `getPlayerEmotesData` → `handleGetPlayerEmotesData()`.
+
+---
+
 v0.1.6
 11.04.2026
 ================

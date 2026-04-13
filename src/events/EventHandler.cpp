@@ -226,6 +226,16 @@ EventHandler::handleGetCharacterDataEvent(const Event &event)
                 skills.push_back(skillData);
             }
 
+            // Create skill bar slots array
+            nlohmann::json skillBarData = nlohmann::json::array();
+            for (const auto &slot : characterData.skillBarSlots)
+            {
+                nlohmann::json slotJson;
+                slotJson["slotIndex"] = slot.slotIndex;
+                slotJson["skillSlug"] = slot.skillSlug;
+                skillBarData.push_back(slotJson);
+            }
+
             // Add the message to the response
             response = builder
                            .setHeader("message", "Join Game Character success for Client!")
@@ -252,6 +262,7 @@ EventHandler::handleGetCharacterDataEvent(const Event &event)
                            .setBody("rotZ", characterData.characterPosition.rotationZ)
                            .setBody("attributesData", attributes)
                            .setBody("skillsData", skills)
+                           .setBody("skillBarData", skillBarData)
                            .build();
             // Prepare a response message
             std::string responseData = networkManager_.generateResponseMessage("success", response);
@@ -550,6 +561,10 @@ EventHandler::handleJoinChunkServerEvent(const Event &event)
             // load title definitions (global catalog — same lifetime as zone templates)
             Event titleDefsEvent(Event::GET_TITLE_DEFINITIONS, clientID, 0, clientSocket);
             dispatchEvent(titleDefsEvent);
+
+            // load emote definitions (global catalog)
+            Event emoteDefsEvent(Event::GET_EMOTE_DEFINITIONS, clientID, 0, clientSocket);
+            dispatchEvent(emoteDefsEvent);
         }
 
         // Add the message to the response
@@ -1314,6 +1329,9 @@ EventHandler::dispatchEvent(const Event &event)
     case Event::SAVE_LEARNED_SKILL:
         handleSaveLearnedSkillEvent(event);
         break;
+    case Event::SAVE_SKILL_BAR_SLOT:
+        handleSaveSkillBarSlotEvent(event);
+        break;
     case Event::GET_ZONE_EVENT_TEMPLATES:
         handleGetZoneEventTemplatesEvent(event);
         break;
@@ -1327,6 +1345,14 @@ EventHandler::dispatchEvent(const Event &event)
         break;
     case Event::SAVE_PLAYER_TITLE:
         handleSavePlayerTitleEvent(event);
+        break;
+
+    // Emote system
+    case Event::GET_EMOTE_DEFINITIONS:
+        handleGetEmoteDefinitionsEvent(event);
+        break;
+    case Event::GET_PLAYER_EMOTES:
+        handleGetPlayerEmotesEvent(event);
         break;
 
     // chunk server events
@@ -3846,6 +3872,53 @@ EventHandler::handleSaveLearnedSkillEvent(const Event &event)
     }
 }
 
+// ── SAVE_SKILL_BAR_SLOT ────────────────────────────────────────────────────
+void
+EventHandler::handleSaveSkillBarSlotEvent(const Event &event)
+{
+    const auto &data = event.getData();
+
+    try
+    {
+        if (!std::holds_alternative<nlohmann::json>(data))
+        {
+            log_->error("handleSaveSkillBarSlotEvent: unexpected data type");
+            return;
+        }
+        const auto &j = std::get<nlohmann::json>(data);
+        int characterId = j.value("characterId", 0);
+        int slotIndex = j.value("slotIndex", -1);
+        std::string skillSlug = j.value("skillSlug", "");
+
+        if (characterId <= 0 || slotIndex < 0 || slotIndex >= 12)
+        {
+            log_->error("handleSaveSkillBarSlotEvent: invalid params char={} slot={}", characterId, slotIndex);
+            return;
+        }
+
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+
+        if (skillSlug.empty())
+        {
+            gameServices_.getDatabase().executeQueryWithTransaction(
+                txn, "clear_skill_bar_slot", {characterId, slotIndex});
+        }
+        else
+        {
+            gameServices_.getDatabase().executeQueryWithTransaction(
+                txn, "save_skill_bar_slot", {characterId, slotIndex, skillSlug});
+        }
+        txn.commit();
+
+        log_->info("[SKILL_BAR] slot={} slug='{}' saved for char={}", slotIndex, skillSlug, characterId);
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("handleSaveSkillBarSlotEvent error: " + std::string(ex.what()));
+    }
+}
+
 // ── GET_ZONE_EVENT_TEMPLATES ───────────────────────────────────────────────
 void
 EventHandler::handleGetZoneEventTemplatesEvent(const Event &event)
@@ -4063,5 +4136,104 @@ EventHandler::handleSavePlayerTitleEvent(const Event &event)
     catch (const std::exception &ex)
     {
         gameServices_.getLogger().logError("handleSavePlayerTitleEvent error: " + std::string(ex.what()));
+    }
+}
+
+// ── GET_EMOTE_DEFINITIONS ──────────────────────────────────────────────────
+void
+EventHandler::handleGetEmoteDefinitionsEvent(const Event &event)
+{
+    int clientID = event.getClientID();
+    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
+
+    try
+    {
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+        auto result = gameServices_.getDatabase().executeQueryWithTransaction(
+            txn, "get_emote_definitions", {});
+
+        nlohmann::json emotesJson = nlohmann::json::array();
+        for (const auto &row : result)
+        {
+            nlohmann::json e;
+            e["id"] = row["id"].as<int>();
+            e["slug"] = row["slug"].as<std::string>();
+            e["displayName"] = row["display_name"].as<std::string>();
+            e["animationName"] = row["animation_name"].as<std::string>();
+            e["category"] = row["category"].as<std::string>();
+            e["isDefault"] = row["is_default"].as<bool>();
+            e["sortOrder"] = row["sort_order"].as<int>();
+            emotesJson.push_back(std::move(e));
+        }
+
+        ResponseBuilder builder;
+        nlohmann::json response = builder
+                                      .setHeader("message", "Emote definitions")
+                                      .setHeader("hash", "")
+                                      .setHeader("clientId", clientID)
+                                      .setHeader("eventType", "setEmoteDefinitionsData")
+                                      .setBody("emotes", emotesJson)
+                                      .build();
+        networkManager_.sendResponse(clientSocket,
+            networkManager_.generateResponseMessage("success", response));
+
+        log_->info("[EMOTE] Sent {} emote definitions to chunk server", emotesJson.size());
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("handleGetEmoteDefinitionsEvent error: " + std::string(ex.what()));
+    }
+}
+
+// ── GET_PLAYER_EMOTES ──────────────────────────────────────────────────────
+void
+EventHandler::handleGetPlayerEmotesEvent(const Event &event)
+{
+    const auto &data = event.getData();
+    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
+
+    try
+    {
+        if (!std::holds_alternative<int>(data))
+        {
+            log_->error("handleGetPlayerEmotesEvent: unexpected data type");
+            return;
+        }
+        int characterId = std::get<int>(data);
+
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+
+        // Auto-grant default emotes for new characters (idempotent)
+        gameServices_.getDatabase().executeQueryWithTransaction(
+            txn, "grant_default_emotes", {characterId});
+
+        auto result = gameServices_.getDatabase().executeQueryWithTransaction(
+            txn, "get_player_emotes", {characterId});
+
+        nlohmann::json slugsJson = nlohmann::json::array();
+        for (const auto &row : result)
+            slugsJson.push_back(row["emote_slug"].as<std::string>());
+
+        txn.commit();
+
+        ResponseBuilder builder;
+        nlohmann::json response = builder
+                                      .setHeader("message", "Player emotes")
+                                      .setHeader("hash", "")
+                                      .setHeader("clientId", characterId)
+                                      .setHeader("eventType", "setPlayerEmotesData")
+                                      .setBody("characterId", characterId)
+                                      .setBody("emotes", slugsJson)
+                                      .build();
+        networkManager_.sendResponse(clientSocket,
+            networkManager_.generateResponseMessage("success", response));
+
+        log_->info("[EMOTE] Sent {} emotes for charId={}", slugsJson.size(), characterId);
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("handleGetPlayerEmotesEvent error: " + std::string(ex.what()));
     }
 }

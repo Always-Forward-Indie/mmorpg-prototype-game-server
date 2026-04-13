@@ -60,6 +60,7 @@ CharacterManager::loadCharacterFromDatabase(Database &db, int accountId, int cha
     character.characterPosition = getCharacterPositionFromDatabase(db, accountId, characterId);
     character.attributes = getCharacterAttributesFromDatabase(db, characterId);
     character.skills = getCharacterSkillsFromDatabase(db, characterId);
+    character.skillBarSlots = getCharacterSkillBarFromDatabase(db, characterId);
     addOrUpdateCharacter(character);
     return character;
 }
@@ -202,6 +203,31 @@ CharacterManager::getCharacterSkillsFromDatabase(Database &db, int characterId)
         db.handleDatabaseError(e);
     }
     return skills;
+}
+
+std::vector<SkillBarSlotStruct>
+CharacterManager::getCharacterSkillBarFromDatabase(Database &db, int characterId)
+{
+    std::vector<SkillBarSlotStruct> slots;
+    try
+    {
+        auto _dbConn = db.getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+        auto result = db.executeQueryWithTransaction(txn, "get_character_skill_bar", {characterId});
+        for (const auto &row : result)
+        {
+            SkillBarSlotStruct slot;
+            slot.slotIndex = row["slot_index"].as<int>();
+            slot.skillSlug = row["skill_slug"].as<std::string>();
+            slots.push_back(slot);
+        }
+        txn.commit();
+    }
+    catch (const std::exception &e)
+    {
+        db.handleDatabaseError(e);
+    }
+    return slots;
 }
 
 std::vector<SkillStruct>

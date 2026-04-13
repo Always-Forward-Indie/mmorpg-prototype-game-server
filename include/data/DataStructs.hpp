@@ -54,6 +54,13 @@ struct CharacterAttributeStruct
     int value = 0;
 };
 
+/// One hotbar slot assignment (loaded from character_skill_bar on join)
+struct SkillBarSlotStruct
+{
+    int slotIndex = -1;
+    std::string skillSlug = "";
+};
+
 // Runtime buff/debuff applied to a character
 struct ActiveEffectStruct
 {
@@ -195,6 +202,7 @@ struct CharacterDataStruct
     PositionStruct characterPosition;
     std::vector<CharacterAttributeStruct> attributes;
     std::vector<SkillStruct> skills;
+    std::vector<SkillBarSlotStruct> skillBarSlots; ///< hotbar assignments (loaded on join, sent to chunk server)
 };
 
 struct ClientDataStruct

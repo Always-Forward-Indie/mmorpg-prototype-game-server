@@ -181,6 +181,10 @@ EventDispatcher::dispatch(const std::string &eventType,
     {
         handleSaveLearnedSkill(payload, socket);
     }
+    else if (eventType == "saveSkillBarSlot")
+    {
+        handleSaveSkillBarSlot(payload, socket);
+    }
     else if (eventType == "getTitleDefinitionsData")
     {
         handleGetTitleDefinitionsData(payload, socket);
@@ -188,6 +192,14 @@ EventDispatcher::dispatch(const std::string &eventType,
     else if (eventType == "getPlayerTitlesData")
     {
         handleGetPlayerTitlesData(payload, socket);
+    }
+    else if (eventType == "getEmoteDefinitionsData")
+    {
+        handleGetEmoteDefinitionsData(payload, socket);
+    }
+    else if (eventType == "getPlayerEmotesData")
+    {
+        handleGetPlayerEmotesData(payload, socket);
     }
     else if (eventType == "savePlayerTitle")
     {
@@ -935,6 +947,28 @@ EventDispatcher::handleSaveLearnedSkill(
     }
 }
 
+// ── Skill Bar ─────────────────────────────────────────────────────────────
+
+void
+EventDispatcher::handleSaveSkillBarSlot(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    try
+    {
+        auto j = nlohmann::json::parse(payload.rawMessage);
+        const auto &body = j["body"];
+        Event saveEvent(Event::SAVE_SKILL_BAR_SLOT, 0, body, socket);
+        eventsBatch_.push_back(saveEvent);
+        eventQueue_.pushBatch(eventsBatch_);
+        eventsBatch_.clear();
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleSaveSkillBarSlot parse error: " + std::string(ex.what()));
+    }
+}
+
 // ── Title system ──────────────────────────────────────────────────────────
 
 void
@@ -966,6 +1000,38 @@ EventDispatcher::handleGetPlayerTitlesData(
     catch (const std::exception &ex)
     {
         logger_.logError("handleGetPlayerTitlesData parse error: " + std::string(ex.what()));
+    }
+}
+
+void
+EventDispatcher::handleGetEmoteDefinitionsData(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    // No characterId needed — loads the global catalog
+    Event ev(Event::GET_EMOTE_DEFINITIONS, 0, 0, socket);
+    eventsBatch_.push_back(ev);
+    eventQueue_.pushBatch(eventsBatch_);
+    eventsBatch_.clear();
+}
+
+void
+EventDispatcher::handleGetPlayerEmotesData(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    try
+    {
+        auto j = nlohmann::json::parse(payload.rawMessage);
+        int characterId = j["body"].value("characterId", 0);
+        Event ev(Event::GET_PLAYER_EMOTES, characterId, static_cast<int>(characterId), socket);
+        eventsBatch_.push_back(ev);
+        eventQueue_.pushBatch(eventsBatch_);
+        eventsBatch_.clear();
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleGetPlayerEmotesData parse error: " + std::string(ex.what()));
     }
 }
 

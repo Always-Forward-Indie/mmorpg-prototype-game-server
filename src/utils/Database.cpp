@@ -247,6 +247,22 @@ Database::prepareDefaultQueries()
         connection_->prepare("decrement_skill_points",
             "UPDATE characters SET free_skill_points = GREATEST(0, free_skill_points - $2) WHERE id = $1;");
 
+        // ── Skill Bar (migration 051) ─────────────────────────────────────────
+        connection_->prepare("get_character_skill_bar",
+            "SELECT slot_index, skill_slug "
+            "FROM character_skill_bar "
+            "WHERE character_id = $1 "
+            "ORDER BY slot_index;");
+
+        connection_->prepare("save_skill_bar_slot",
+            "INSERT INTO character_skill_bar (character_id, slot_index, skill_slug) "
+            "VALUES ($1, $2, $3) "
+            "ON CONFLICT (character_id, slot_index) DO UPDATE SET skill_slug = EXCLUDED.skill_slug;");
+
+        connection_->prepare("clear_skill_bar_slot",
+            "DELETE FROM character_skill_bar "
+            "WHERE character_id = $1 AND slot_index = $2;");
+
         connection_->prepare("set_character_experience_debt",
             "UPDATE characters SET experience_debt = $2 WHERE id = $1;");
 
@@ -811,6 +827,20 @@ Database::prepareDefaultQueries()
         connection_->prepare("set_character_equipped_title",
             "UPDATE character_titles SET equipped = (title_slug = $2) "
             "WHERE character_id = $1;");
+
+        // Emote system
+        connection_->prepare("get_emote_definitions",
+            "SELECT id, slug, display_name, animation_name, category, is_default, sort_order "
+            "FROM emote_definitions "
+            "ORDER BY sort_order, id;");
+
+        connection_->prepare("get_player_emotes",
+            "SELECT emote_slug FROM character_emotes WHERE character_id = $1;");
+
+        connection_->prepare("grant_default_emotes",
+            "INSERT INTO character_emotes(character_id, emote_slug) "
+            "SELECT $1, slug FROM emote_definitions WHERE is_default = TRUE "
+            "ON CONFLICT DO NOTHING;");
 
         // Stage 4: Zone event templates
         connection_->prepare("get_zone_event_templates",
