@@ -1,3 +1,20 @@
+v0.1.8
+14.04.2026
+================
+Bug Fixes:
+
+Пассивные скилы не возвращались в `get_character_skills` — запрос использовал только `JOIN` к таблицам `skill_effect_instances`, `skill_effects_mapping`, `skill_damage_formulas`, `skill_damage_types`, которые для пассивных скилов пусты. Passive-скилы полностью пропадали из `SET_PLAYER_SKILLS` после перезапуска. Фикс: все четыре `JOIN` переведены в `LEFT JOIN`; `COALESCE(seft.slug, '')` защищает nullable `skill_effect_type`; `COALESCE(spm.skill_level, cs.current_level)` как значение по умолчанию для `skill_level` когда `skill_properties_mapping` пуст; `GROUP BY` дополнен соответствующим `COALESCE`-выражением.
+
+`handleGetCharacterDataEvent` зажимал `characterCurrentMana` до базового `characterMaxMana` — это уничтожало ману, накопленную выше базового предела за счёт пассивного скила `mana_shield` (постоянный `max_mana`-бонус). Фикс: клэмп по `characterMaxMana` для маны убран; HP-клэмп сохранён как защита от мусора из БД (у HP нет пассивных бонусов выше базового).
+
+`handleSaveLearnedSkillEvent` не включал пассивные модификаторы в ответ чанк-серверу — chunk-сервер получал `setLearnedSkill` без поля `effects` для пассивных скилов и не мог применить `ActiveEffectStruct` немедленно (только после реконнекта). Фикс: если `skillJson["isPassive"] == true`, game-сервер дополнительно выполняет запрос `get_passive_skill_modifiers_by_slug` и вкладывает результат в `skillJson["effects"]` перед отправкой ответа.
+
+New:
+
+Новый prepared statement `get_passive_skill_modifiers_by_slug` — возвращает строки `(effect_slug, attribute_slug, value, modifier_type)` для пассивного скила по его `slug` из таблицы `passive_skill_modifiers`; используется в `handleSaveLearnedSkillEvent` при сохранении изученного пассивного скила.
+
+---
+
 v0.1.7
 13.04.2026
 ================

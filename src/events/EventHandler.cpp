@@ -191,13 +191,15 @@ EventHandler::handleGetCharacterDataEvent(const Event &event)
                 attributes.push_back(attributeData);
             }
 
-            // Cap current HP/MP to their respective max values.
-            // Stale DB data (e.g. test value 999) can exceed the computed max,
-            // which would produce nonsense like "999/197" on the client.
+            // Cap current HP to base max as a sanity guard against stale test data.
+            // HP currently has no permanent passive effects that raise it above base.
             if (characterData.characterMaxHealth > 0)
                 characterData.characterCurrentHealth = std::min(characterData.characterCurrentHealth, characterData.characterMaxHealth);
-            if (characterData.characterMaxMana > 0)
-                characterData.characterCurrentMana = std::min(characterData.characterCurrentMana, characterData.characterMaxMana);
+            // NOTE: Do NOT clamp mana here with base characterMaxMana.
+            // Passive skills (e.g. mana_shield) can legitimately raise effective max_mana
+            // well above the base attribute value.  The chunk server already enforces the
+            // correct effective cap (base + passive bonuses) during regen and healing.
+            // Clamping to the base value here would silently discard legitimately saved mana.
 
             // Create skills array
             nlohmann::json skills = nlohmann::json::array();
@@ -3849,6 +3851,35 @@ EventHandler::handleSaveLearnedSkillEvent(const Event &event)
         {
             log_->error("handleSaveLearnedSkillEvent: skill {} not found after save for char={}", skillSlug, characterId);
             return;
+        }
+
+        // For passive skills, include the passive_skill_modifiers so the chunk server can
+        // apply ActiveEffects immediately in handleSetLearnedSkillEvent without an extra
+        // stats reload round-trip.
+        if (skillJson.value("isPassive", false))
+        {
+            nlohmann::json effectsArr = nlohmann::json::array();
+            try
+            {
+                auto effRows = gameServices_.getDatabase().executeQueryWithTransaction(
+                    txn, "get_passive_skill_modifiers_by_slug", {skillSlug});
+                for (const auto &row : effRows)
+                {
+                    nlohmann::json eff;
+                    eff["effectSlug"] = row["effect_slug"].as<std::string>();
+                    eff["effectTypeSlug"] = std::string("passive");
+                    eff["attributeSlug"] = row["attribute_slug"].as<std::string>();
+                    eff["value"] = row["value"].as<float>();
+                    eff["durationSeconds"] = 0;
+                    eff["tickMs"] = 0;
+                    effectsArr.push_back(std::move(eff));
+                }
+            }
+            catch (const std::exception &effEx)
+            {
+                log_->warn("[SKILL] Could not load passive modifiers for skill {}: {}", skillSlug, effEx.what());
+            }
+            skillJson["effects"] = std::move(effectsArr);
         }
 
         ResponseBuilder builder;
