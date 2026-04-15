@@ -97,6 +97,8 @@ class EventHandler
     // Emote system
     void handleGetEmoteDefinitionsEvent(const Event &event);
     void handleGetPlayerEmotesEvent(const Event &event);
+    // NPC Ambient Speech system
+    void handleGetNPCAmbientSpeechEvent(const Event &event);
 
     // Experience debt
     void handleSaveExperienceDebtEvent(const Event &event);

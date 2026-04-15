@@ -855,6 +855,15 @@ Database::prepareDefaultQueries()
             "SELECT $1, slug FROM emote_definitions WHERE is_default = TRUE "
             "ON CONFLICT DO NOTHING;");
 
+        // NPC Ambient Speech system
+        connection_->prepare("get_npc_ambient_speech",
+            "SELECT c.npc_id, c.min_interval_sec, c.max_interval_sec, "
+            "       l.id AS line_id, l.line_key, l.trigger_type, l.trigger_radius, "
+            "       l.priority, l.weight, l.cooldown_sec, l.condition_group "
+            "FROM npc_ambient_speech_configs c "
+            "JOIN npc_ambient_speech_lines l ON l.npc_id = c.npc_id "
+            "ORDER BY c.npc_id, l.priority DESC, l.id;");
+
         // Stage 4: Zone event templates
         connection_->prepare("get_zone_event_templates",
             "SELECT id, slug, game_zone_id, trigger_type, duration_sec, "

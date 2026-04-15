@@ -567,6 +567,10 @@ EventHandler::handleJoinChunkServerEvent(const Event &event)
             // load emote definitions (global catalog)
             Event emoteDefsEvent(Event::GET_EMOTE_DEFINITIONS, clientID, 0, clientSocket);
             dispatchEvent(emoteDefsEvent);
+
+            // load NPC ambient speech configs + lines
+            Event ambientSpeechEvent(Event::GET_NPC_AMBIENT_SPEECH, clientID, 0, clientSocket);
+            dispatchEvent(ambientSpeechEvent);
         }
 
         // Add the message to the response
@@ -1355,6 +1359,11 @@ EventHandler::dispatchEvent(const Event &event)
         break;
     case Event::GET_PLAYER_EMOTES:
         handleGetPlayerEmotesEvent(event);
+        break;
+
+    // NPC Ambient Speech system
+    case Event::GET_NPC_AMBIENT_SPEECH:
+        handleGetNPCAmbientSpeechEvent(event);
         break;
 
     // chunk server events
@@ -4266,5 +4275,90 @@ EventHandler::handleGetPlayerEmotesEvent(const Event &event)
     catch (const std::exception &ex)
     {
         gameServices_.getLogger().logError("handleGetPlayerEmotesEvent error: " + std::string(ex.what()));
+    }
+}
+
+// ── GET_NPC_AMBIENT_SPEECH ─────────────────────────────────────────────────
+void
+EventHandler::handleGetNPCAmbientSpeechEvent(const Event &event)
+{
+    int clientID = event.getClientID();
+    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
+
+    try
+    {
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+        auto result = gameServices_.getDatabase().executeQueryWithTransaction(
+            txn, "get_npc_ambient_speech", {});
+        txn.commit();
+
+        // Group rows by npc_id into a map to build the nested JSON structure
+        // map<npc_id, {minSec, maxSec, lines[]}>
+        std::map<int, nlohmann::json> configMap;
+
+        for (const auto &row : result)
+        {
+            int npcId = row["npc_id"].as<int>();
+            if (configMap.find(npcId) == configMap.end())
+            {
+                nlohmann::json cfg;
+                cfg["npcId"] = npcId;
+                cfg["minIntervalSec"] = row["min_interval_sec"].as<int>();
+                cfg["maxIntervalSec"] = row["max_interval_sec"].as<int>();
+                cfg["lines"] = nlohmann::json::array();
+                configMap[npcId] = std::move(cfg);
+            }
+
+            nlohmann::json line;
+            line["id"] = row["line_id"].as<int>();
+            line["lineKey"] = row["line_key"].as<std::string>();
+            line["triggerType"] = row["trigger_type"].as<std::string>();
+            line["triggerRadius"] = row["trigger_radius"].as<int>();
+            line["priority"] = row["priority"].as<int>();
+            line["weight"] = row["weight"].as<int>();
+            line["cooldownSec"] = row["cooldown_sec"].as<int>();
+
+            // condition_group is stored as JSON text in DB; parse or leave null
+            if (!row["condition_group"].is_null())
+            {
+                try
+                {
+                    line["conditionGroup"] = nlohmann::json::parse(
+                        row["condition_group"].as<std::string>());
+                }
+                catch (...)
+                {
+                    line["conditionGroup"] = nullptr;
+                }
+            }
+            else
+            {
+                line["conditionGroup"] = nullptr;
+            }
+
+            configMap[npcId]["lines"].push_back(std::move(line));
+        }
+
+        nlohmann::json ambientArray = nlohmann::json::array();
+        for (auto &[npcId, cfg] : configMap)
+            ambientArray.push_back(std::move(cfg));
+
+        ResponseBuilder builder;
+        nlohmann::json response = builder
+                                      .setHeader("message", "NPC ambient speech configs")
+                                      .setHeader("hash", "")
+                                      .setHeader("clientId", clientID)
+                                      .setHeader("eventType", "setNPCAmbientSpeech")
+                                      .setBody("ambientSpeech", ambientArray)
+                                      .build();
+        networkManager_.sendResponse(clientSocket,
+            networkManager_.generateResponseMessage("success", response));
+
+        log_->info("[AMBIENT] Sent ambient speech for {} NPCs to chunk server", ambientArray.size());
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("handleGetNPCAmbientSpeechEvent error: " + std::string(ex.what()));
     }
 }

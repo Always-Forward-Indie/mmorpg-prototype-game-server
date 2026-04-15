@@ -1,3 +1,15 @@
+v0.1.9
+15.04.2026
+================
+New:
+
+`GET_NPC_AMBIENT_SPEECH` / `setNPCAmbientSpeech` event — при подключении chunk-сервера game-сервер выполняет запрос `get_npc_ambient_speech` к БД и отправляет chunk-серверу пакет `setNPCAmbientSpeech` со всеми конфигурациями ambient speech. Запускается в той же последовательности что `GET_EMOTE_DEFINITIONS`, `GET_TITLE_DEFINITIONS` и прочие startup-события при `JOIN_CHUNK_SERVER`.
+Database — новый prepared statement `get_npc_ambient_speech`: `SELECT c.npc_id, c.min_interval_sec, c.max_interval_sec, l.id AS line_id, l.line_key, l.trigger_type, l.trigger_radius, l.priority, l.weight, l.cooldown_sec, l.condition_group FROM npc_ambient_speech_configs c JOIN npc_ambient_speech_lines l ON l.npc_id = c.npc_id ORDER BY c.npc_id, l.priority DESC, l.id`.
+`GET_NPC_AMBIENT_SPEECH` — новый тип события в `Event.hpp`.
+`EventHandler::handleGetNPCAmbientSpeechEvent()` — новый обработчик: читает результат запроса, группирует строки по `npc_id` в map, парсит `condition_group` как JSONB→JSON, собирает JSON-массив `ambientSpeech[]` и отправляет chunk-серверу пакет `setNPCAmbientSpeech`.
+
+---
+
 v0.1.8
 14.04.2026
 ================

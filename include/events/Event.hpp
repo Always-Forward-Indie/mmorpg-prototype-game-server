@@ -108,7 +108,9 @@ class Event
         SAVE_PLAYER_TITLE,     // Upsert earned title or update equipped title in DB
         // Emote system events
         GET_EMOTE_DEFINITIONS, // Load global emote catalog from DB and send to chunk-server
-        GET_PLAYER_EMOTES      // Load character's unlocked emotes and send to chunk-server
+        GET_PLAYER_EMOTES,     // Load character's unlocked emotes and send to chunk-server
+        // NPC Ambient Speech events
+        GET_NPC_AMBIENT_SPEECH // Load npc_ambient_speech_configs+lines from DB and send to chunk-server
     }; // Define more event types as needed
     Event() = default; // Default constructor
     Event(EventType type, int clientID, const EventData data, std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket);
