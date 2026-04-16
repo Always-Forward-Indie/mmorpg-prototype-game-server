@@ -99,8 +99,12 @@ Database::prepareDefaultQueries()
             "), "
             "dura_config AS ( "
             "  SELECT "
-            "    (SELECT value::float FROM game_config WHERE key = 'durability.warning_threshold_pct') AS threshold, "
-            "    (SELECT value::float FROM game_config WHERE key = 'durability.warning_penalty_pct')   AS penalty "
+            "    (SELECT value::float FROM game_config WHERE key = 'durability.tier1_threshold_pct') AS t1, "
+            "    (SELECT value::float FROM game_config WHERE key = 'durability.tier1_penalty_pct')   AS p1, "
+            "    (SELECT value::float FROM game_config WHERE key = 'durability.tier2_threshold_pct') AS t2, "
+            "    (SELECT value::float FROM game_config WHERE key = 'durability.tier2_penalty_pct')   AS p2, "
+            "    (SELECT value::float FROM game_config WHERE key = 'durability.tier3_threshold_pct') AS t3, "
+            "    (SELECT value::float FROM game_config WHERE key = 'durability.tier3_penalty_pct')   AS p3 "
             "), "
             "equip_bonus AS ( "
             "  SELECT iam.attribute_id, "
@@ -109,8 +113,12 @@ Database::prepareDefaultQueries()
             "        WHEN i.is_durable = false THEN iam.value "
             "        WHEN i.durability_max = 0 THEN iam.value "
             "        WHEN COALESCE(pi.durability_current, i.durability_max) = 0 THEN 0 "
-            "        WHEN COALESCE(pi.durability_current, i.durability_max)::float / i.durability_max < dc.threshold "
-            "          THEN ROUND(iam.value::float * (1.0 - dc.penalty))::int "
+            "        WHEN COALESCE(pi.durability_current, i.durability_max)::float / i.durability_max < dc.t3 "
+            "          THEN ROUND(iam.value::float * (1.0 - dc.p3))::int "
+            "        WHEN COALESCE(pi.durability_current, i.durability_max)::float / i.durability_max < dc.t2 "
+            "          THEN ROUND(iam.value::float * (1.0 - dc.p2))::int "
+            "        WHEN COALESCE(pi.durability_current, i.durability_max)::float / i.durability_max < dc.t1 "
+            "          THEN ROUND(iam.value::float * (1.0 - dc.p1))::int "
             "        ELSE iam.value "
             "      END "
             "    )::int AS bonus "
@@ -535,7 +543,10 @@ Database::prepareDefaultQueries()
             "SELECT id, slug, min_level, repeatable, cooldown_sec, "
             "COALESCE(giver_npc_id, 0) AS giver_npc_id, "
             "COALESCE(turnin_npc_id, 0) AS turnin_npc_id, "
-            "COALESCE(client_quest_key, '') AS client_quest_key "
+            "COALESCE(client_quest_key, '') AS client_quest_key, "
+            "COALESCE(reputation_faction_slug, '') AS reputation_faction_slug, "
+            "COALESCE(reputation_on_complete, 0) AS reputation_on_complete, "
+            "COALESCE(reputation_on_fail, 0) AS reputation_on_fail "
             "FROM quest ORDER BY id;");
 
         connection_->prepare("get_quest_steps",
@@ -823,7 +834,7 @@ Database::prepareDefaultQueries()
 
         // Title system
         connection_->prepare("get_title_definitions",
-            "SELECT id, slug, display_name, description, earn_condition, bonuses::text "
+            "SELECT id, slug, display_name, description, earn_condition, bonuses::text, condition_params::text "
             "FROM title_definitions "
             "ORDER BY id;");
 

@@ -4049,6 +4049,15 @@ EventHandler::handleGetTitleDefinitionsEvent(const Event &event)
             {
                 t["bonuses"] = nlohmann::json::array();
             }
+            // conditionParams is JSONB — parse it back to a JSON object
+            try
+            {
+                t["conditionParams"] = nlohmann::json::parse(row["condition_params"].as<std::string>());
+            }
+            catch (...)
+            {
+                t["conditionParams"] = nlohmann::json::object();
+            }
             titlesJson.push_back(std::move(t));
         }
 

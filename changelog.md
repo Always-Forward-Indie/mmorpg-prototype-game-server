@@ -1,3 +1,34 @@
+v0.2.1
+17.04.2026
+================
+New:
+
+**Поддержка `condition_params` в системе титулов.**
+- `Database::get_title_definitions` — добавлена колонка `condition_params::text` в SELECT-запрос.
+- `EventHandler::handleGetTitleDefinitionsEvent` — парсит `condition_params` из результата запроса и передаёт в пакете `setTitleDefinitions` на chunk-сервер. При ошибке парсинга JSONB подставляется пустой объект `{}`.
+
+---
+
+v0.2.0
+16.04.2026
+================
+New:
+
+**Migration 041 — Weapon Mastery, Quest Reputation, 3-tier Durability.**
+- `Database::get_quests` — добавлены три колонки: `reputation_faction_slug`, `reputation_on_complete`, `reputation_on_fail`.
+- `Database::get_character_attributes` — CTE `dura_config` заменена: вместо одного `threshold`/`penalty` теперь шесть параметров `t1/p1`, `t2/p2`, `t3/p3`. CTE `equip_bonus` использует трёхуровневый CASE по соотношению `durability_current/durability_max`:
+  - ratio < t3 (0.25): `value * (1 - p3)` = −30%
+  - ratio < t2 (0.50): `value * (1 - p2)` = −15%
+  - ratio < t1 (0.75): `value * (1 - p1)` = −5%
+  - иначе: без штрафа
+  Клиент получает атрибуты уже с применённым штрафом — не нужно рассчитывать на стороне клиента.
+- `DialogueQuestManager::getAllQuestsJson` — сериализует три новых поля репутации в квест JSON для chunk-сервера.
+- DB: `items.mastery_slug` заполнен для `iron_sworld` (sword_mastery) и `wooden_staff` (staff_mastery).
+- DB: `quest` — три новых колонки (`reputation_faction_slug VARCHAR(64)`, `reputation_on_complete INT`, `reputation_on_fail INT`).
+- DB: конфигурация `durability.warning_threshold_pct` и `durability.warning_penalty_pct` удалены; добавлены `durability.tier1_threshold_pct=0.75`, `tier1_penalty_pct=0.05`, `tier2_threshold_pct=0.50`, `tier2_penalty_pct=0.15`, `tier3_threshold_pct=0.25`, `tier3_penalty_pct=0.30`.
+
+---
+
 v0.1.9
 15.04.2026
 ================

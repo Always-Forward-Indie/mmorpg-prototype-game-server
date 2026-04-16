@@ -148,6 +148,9 @@ DialogueQuestManager::getAllQuestsJson()
         q["giverNpcId"] = row["giver_npc_id"].as<long long>();
         q["turninNpcId"] = row["turnin_npc_id"].as<long long>();
         q["clientQuestKey"] = row["client_quest_key"].as<std::string>();
+        q["reputationFactionSlug"] = row["reputation_faction_slug"].as<std::string>();
+        q["reputationOnComplete"] = row["reputation_on_complete"].as<int>();
+        q["reputationOnFail"] = row["reputation_on_fail"].as<int>();
         q["steps"] = nlohmann::json::array();
         q["rewards"] = nlohmann::json::array();
 
