@@ -109,6 +109,9 @@ class EventHandler
     // World Interactive Objects (migration 043)
     void handleGetWorldObjectsEvent(const Event &event);
 
+    // Analytics system (migration 058)
+    void handleSaveAnalyticsEventEvent(const Event &event);
+
     NetworkManager &networkManager_;
     GameServices &gameServices_;
     std::shared_ptr<spdlog::logger> log_;

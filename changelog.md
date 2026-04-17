@@ -1,3 +1,16 @@
+v0.2.3
+17.04.2026
+================
+New:
+
+**Игровая аналитика — сохранение событий в БД.**
+- `Event::SAVE_ANALYTICS_EVENT` — новый тип события.
+- `EventDispatcher::handleSaveAnalyticsEvent` — принимает пакет `analyticsEvent` от chunk-сервера, создаёт событие `SAVE_ANALYTICS_EVENT` и передаёт в очередь.
+- `EventHandler::handleSaveAnalyticsEventEvent` — выполняет `txn.exec_params` с `INSERT INTO game_analytics (event_type, character_id, session_id, level, zone_id, payload) VALUES ($1, NULLIF($2,0), $3, $4, $5, $6::jsonb)`. `character_id = 0` → NULL через `NULLIF` (FK безопасен). Fire-and-forget, ответ chunk-серверу не отправляется.
+- Роутинг `"analyticsEvent"` добавлен в `EventDispatcher.cpp`.
+
+---
+
 v0.2.2
 16.04.2026
 ================

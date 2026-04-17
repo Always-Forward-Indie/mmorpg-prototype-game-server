@@ -1375,6 +1375,11 @@ EventHandler::dispatchEvent(const Event &event)
         handleGetWorldObjectsEvent(event);
         break;
 
+    // Analytics system (migration 058)
+    case Event::SAVE_ANALYTICS_EVENT:
+        handleSaveAnalyticsEventEvent(event);
+        break;
+
     // chunk server events
     case Event::JOIN_CHUNK_SERVER:
         handleJoinChunkServerEvent(event);
@@ -4449,5 +4454,59 @@ EventHandler::handleGetWorldObjectsEvent(const Event &event)
     catch (const std::exception &ex)
     {
         gameServices_.getLogger().logError("handleGetWorldObjectsEvent error: " + std::string(ex.what()));
+    }
+}
+
+// Analytics system (migration 058)
+// Inserts one row into game_analytics. Fire-and-forget — no reply to chunk server.
+// Body fields: analyticsType, characterId, sessionId, level, zoneId, payload (JSON object).
+void
+EventHandler::handleSaveAnalyticsEventEvent(const Event &event)
+{
+    const auto &data = event.getData();
+    if (!std::holds_alternative<nlohmann::json>(data))
+    {
+        log_->error("handleSaveAnalyticsEventEvent: unexpected data type");
+        return;
+    }
+
+    try
+    {
+        const auto &j = std::get<nlohmann::json>(data);
+        std::string eventType = j.value("analyticsType", "");
+        int charId = j.value("characterId", 0);
+        std::string sessionId = j.value("sessionId", "");
+        int level = j.value("level", 0);
+        int zoneId = j.value("zoneId", 0);
+        std::string payload = j.contains("payload") ? j["payload"].dump() : "{}";
+
+        if (eventType.empty())
+        {
+            log_->warn("handleSaveAnalyticsEventEvent: empty analyticsType, skipping");
+            return;
+        }
+
+        auto sc = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(sc.get());
+
+        // Use exec_params with inline SQL — analytics INSERT does not need a reusable
+        // prepared statement because each call is already serialised through the event queue.
+        txn.exec_params(
+            "INSERT INTO game_analytics (event_type, character_id, session_id, level, zone_id, payload) "
+            "VALUES ($1, NULLIF($2, 0), $3, $4, $5, $6::jsonb)",
+            eventType,
+            charId,
+            sessionId,
+            level,
+            zoneId,
+            payload);
+
+        txn.commit();
+
+        log_->debug("[ANALYTICS] {} char={} session={} lvl={} zone={}", eventType, charId, sessionId, level, zoneId);
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("handleSaveAnalyticsEventEvent error: " + std::string(ex.what()));
     }
 }

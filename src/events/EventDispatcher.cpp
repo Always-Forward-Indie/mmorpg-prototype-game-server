@@ -205,6 +205,10 @@ EventDispatcher::dispatch(const std::string &eventType,
     {
         handleSavePlayerTitle(payload, socket);
     }
+    else if (eventType == "analyticsEvent")
+    {
+        handleSaveAnalyticsEvent(payload, socket);
+    }
     else
     {
         log_->error("Unknown event type: " + eventType);
@@ -1052,5 +1056,28 @@ EventDispatcher::handleSavePlayerTitle(
     catch (const std::exception &ex)
     {
         logger_.logError("handleSavePlayerTitle parse error: " + std::string(ex.what()));
+    }
+}
+
+// Analytics system (migration 058)
+// Fire-and-forget: parse the raw JSON body and push a SAVE_ANALYTICS_EVENT.
+// No response is sent back to the chunk server.
+void
+EventDispatcher::handleSaveAnalyticsEvent(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    try
+    {
+        auto j = nlohmann::json::parse(payload.rawMessage);
+        const auto &body = j["body"];
+        Event saveEvent(Event::SAVE_ANALYTICS_EVENT, 0, body, socket);
+        eventsBatch_.push_back(saveEvent);
+        eventQueue_.pushBatch(eventsBatch_);
+        eventsBatch_.clear();
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleSaveAnalyticsEvent parse error: " + std::string(ex.what()));
     }
 }

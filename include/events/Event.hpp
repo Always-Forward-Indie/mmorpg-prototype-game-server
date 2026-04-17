@@ -114,7 +114,9 @@ class Event
         // NPC Ambient Speech events
         GET_NPC_AMBIENT_SPEECH, // Load npc_ambient_speech_configs+lines from DB and send to chunk-server
         // World Interactive Objects events (migration 043)
-        GET_WORLD_OBJECTS // Load world_objects + world_object_states from DB and send to chunk-server
+        GET_WORLD_OBJECTS, // Load world_objects + world_object_states from DB and send to chunk-server
+        // Analytics events (migration 058)
+        SAVE_ANALYTICS_EVENT // Persist a game analytics event from chunk-server to game_analytics table
     }; // Define more event types as needed
     Event() = default; // Default constructor
     Event(EventType type, int clientID, const EventData data, std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket);

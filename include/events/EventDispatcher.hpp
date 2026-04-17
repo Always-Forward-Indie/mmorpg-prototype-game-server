@@ -74,6 +74,9 @@ class EventDispatcher
     void handleUpdatePlayerQuestProgress(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
     void handleUpdatePlayerFlag(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
 
+    // Analytics system (migration 058)
+    void handleSaveAnalyticsEvent(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
+
     EventQueue &eventQueue_;
     EventQueue &eventQueuePing_;
     GameServer *gameServer_;
