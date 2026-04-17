@@ -344,3 +344,31 @@ struct NPCDataStruct
         return id == other.id;
     }
 };
+
+// ============= WORLD INTERACTIVE OBJECTS (migration 043) =============
+
+/// Static definition of a World Interactive Object loaded from DB and pushed to chunk-server.
+struct WorldObjectDataStruct
+{
+    int id = 0;
+    std::string slug = "";
+    std::string nameKey = "";         ///< Localisation key sent to client
+    std::string objectType = "";      ///< "examine" | "search" | "activate" | "use_with_item" | "channeled"
+    std::string scope = "per_player"; ///< "per_player" | "global"
+    PositionStruct position;
+    int zoneId = 0;
+    int dialogueId = 0;     ///< 0 = no dialogue
+    int lootTableId = 0;    ///< 0 = no loot (search type only)
+    int requiredItemId = 0; ///< 0 = no item required
+    float interactionRadius = 250.0f;
+    int channelTimeSec = 0; ///< 0 = instant interaction
+    int respawnSec = 0;     ///< 0 = no respawn (permanent or one-shot)
+    bool isActiveByDefault = true;
+    int minLevel = 0;
+    std::string conditionGroupJson = "null"; ///< Serialised JSON condition_group string
+
+    bool operator==(const WorldObjectDataStruct &other) const
+    {
+        return id == other.id;
+    }
+};

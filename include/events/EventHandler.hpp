@@ -106,6 +106,9 @@ class EventHandler
     // Active status effects
     void handleSaveActiveEffectEvent(const Event &event);
 
+    // World Interactive Objects (migration 043)
+    void handleGetWorldObjectsEvent(const Event &event);
+
     NetworkManager &networkManager_;
     GameServices &gameServices_;
     std::shared_ptr<spdlog::logger> log_;

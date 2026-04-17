@@ -1,3 +1,16 @@
+v0.2.2
+16.04.2026
+================
+New:
+
+**WIO — World Interactive Objects (загрузка и форвардинг на chunk-server).**
+- `WorldObjectDataStruct` — новая структура данных (аналог `NpcTemplateStruct`): все поля таблицы `world_objects` включая `conditionGroup` (JSONB → `nlohmann::json`). Поле `meshId` отсутствует — UE5 binds mesh по `slug` самостоятельно.
+- `Database::get_world_objects` — новый prepared statement: `SELECT wo.id, wo.slug, wo.name_key, wo.object_type, wo.scope, wo.pos_x, wo.pos_y, wo.pos_z, wo.rot_z, wo.zone_id, wo.dialogue_id, wo.loot_table_id, wo.required_item_id, wo.interaction_radius, wo.channel_time_sec, wo.respawn_sec, wo.is_active_by_default, wo.min_level, wo.condition_group::text, COALESCE(ws.state, CASE WHEN wo.is_active_by_default THEN 'active' ELSE 'disabled' END) AS current_state FROM world_objects wo LEFT JOIN world_object_states ws ON ws.object_id = wo.id WHERE wo.id > 0`.
+- `EventHandler::handleGetWorldObjectsEvent` — новый обработчик: выполняет `get_world_objects`, парсит JSONB `condition_group`, собирает вектор `WorldObjectDataStruct` и отправляет chunk-серверу событие `SET_ALL_WORLD_OBJECTS`.
+- Вызов `GET_WORLD_OBJECTS` добавлен в startup-последовательность `JOIN_CHUNK_SERVER` — после `GET_TITLE_DEFINITIONS` и до завершения инициализации.
+
+---
+
 v0.2.1
 17.04.2026
 ================

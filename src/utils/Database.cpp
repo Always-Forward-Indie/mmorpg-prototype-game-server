@@ -886,6 +886,21 @@ Database::prepareDefaultQueries()
             "invasion_mob_template_id, "
             "COALESCE(invasion_wave_count, 0) AS invasion_wave_count "
             "FROM zone_event_templates;");
+
+        // World Interactive Objects (migration 043)
+        connection_->prepare("get_world_objects",
+            "SELECT wo.id, wo.slug, wo.name_key, wo.object_type, wo.scope, "
+            "  wo.pos_x, wo.pos_y, wo.pos_z, wo.rot_z, "
+            "  COALESCE(wo.zone_id, 0) AS zone_id, "
+            "  COALESCE(wo.dialogue_id, 0) AS dialogue_id, "
+            "  COALESCE(wo.loot_table_id, 0) AS loot_table_id, "
+            "  COALESCE(wo.required_item_id, 0) AS required_item_id, "
+            "  wo.interaction_radius, wo.channel_time_sec, wo.respawn_sec, "
+            "  wo.is_active_by_default, wo.min_level, "
+            "  COALESCE(wo.condition_group::text, 'null') AS condition_group, "
+            "  COALESCE(s.state, 'active') AS current_state "
+            "FROM world_objects wo "
+            "LEFT JOIN world_object_states s ON s.object_id = wo.id;");
     }
     else
     {

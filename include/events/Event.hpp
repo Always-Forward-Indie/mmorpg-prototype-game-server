@@ -31,7 +31,9 @@ using EventData = std::variant<
     std::vector<NPCDataStruct>,
     NPCAttributeStruct,
     std::vector<NPCAttributeStruct>,
-    std::vector<CharacterDataStruct>
+    std::vector<CharacterDataStruct>,
+    WorldObjectDataStruct,
+    std::vector<WorldObjectDataStruct>
     /* other types */>;
 
 class Event
@@ -110,7 +112,9 @@ class Event
         GET_EMOTE_DEFINITIONS, // Load global emote catalog from DB and send to chunk-server
         GET_PLAYER_EMOTES,     // Load character's unlocked emotes and send to chunk-server
         // NPC Ambient Speech events
-        GET_NPC_AMBIENT_SPEECH // Load npc_ambient_speech_configs+lines from DB and send to chunk-server
+        GET_NPC_AMBIENT_SPEECH, // Load npc_ambient_speech_configs+lines from DB and send to chunk-server
+        // World Interactive Objects events (migration 043)
+        GET_WORLD_OBJECTS // Load world_objects + world_object_states from DB and send to chunk-server
     }; // Define more event types as needed
     Event() = default; // Default constructor
     Event(EventType type, int clientID, const EventData data, std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket);

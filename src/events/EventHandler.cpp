@@ -571,6 +571,10 @@ EventHandler::handleJoinChunkServerEvent(const Event &event)
             // load NPC ambient speech configs + lines
             Event ambientSpeechEvent(Event::GET_NPC_AMBIENT_SPEECH, clientID, 0, clientSocket);
             dispatchEvent(ambientSpeechEvent);
+
+            // load world interactive objects (migration 043)
+            Event worldObjectsEvent(Event::GET_WORLD_OBJECTS, clientID, 0, clientSocket);
+            dispatchEvent(worldObjectsEvent);
         }
 
         // Add the message to the response
@@ -1364,6 +1368,11 @@ EventHandler::dispatchEvent(const Event &event)
     // NPC Ambient Speech system
     case Event::GET_NPC_AMBIENT_SPEECH:
         handleGetNPCAmbientSpeechEvent(event);
+        break;
+
+    // World Interactive Objects (migration 043)
+    case Event::GET_WORLD_OBJECTS:
+        handleGetWorldObjectsEvent(event);
         break;
 
     // chunk server events
@@ -4369,5 +4378,76 @@ EventHandler::handleGetNPCAmbientSpeechEvent(const Event &event)
     catch (const std::exception &ex)
     {
         gameServices_.getLogger().logError("handleGetNPCAmbientSpeechEvent error: " + std::string(ex.what()));
+    }
+}
+
+// ── GET_WORLD_OBJECTS (migration 043) ─────────────────────────────────────
+void
+EventHandler::handleGetWorldObjectsEvent(const Event &event)
+{
+    int clientID = event.getClientID();
+    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
+
+    try
+    {
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+        auto result = gameServices_.getDatabase().executeQueryWithTransaction(
+            txn, "get_world_objects", {});
+        txn.commit();
+
+        nlohmann::json objectsArray = nlohmann::json::array();
+        for (const auto &row : result)
+        {
+            nlohmann::json obj;
+            obj["id"] = row["id"].as<int>();
+            obj["slug"] = row["slug"].as<std::string>();
+            obj["nameKey"] = row["name_key"].as<std::string>();
+            obj["objectType"] = row["object_type"].as<std::string>();
+            obj["scope"] = row["scope"].as<std::string>();
+            obj["posX"] = row["pos_x"].as<float>();
+            obj["posY"] = row["pos_y"].as<float>();
+            obj["posZ"] = row["pos_z"].as<float>();
+            obj["rotZ"] = row["rot_z"].as<float>();
+            obj["zoneId"] = row["zone_id"].as<int>();
+            obj["dialogueId"] = row["dialogue_id"].as<int>();
+            obj["lootTableId"] = row["loot_table_id"].as<int>();
+            obj["requiredItemId"] = row["required_item_id"].as<int>();
+            obj["interactionRadius"] = row["interaction_radius"].as<float>();
+            obj["channelTimeSec"] = row["channel_time_sec"].as<int>();
+            obj["respawnSec"] = row["respawn_sec"].as<int>();
+            obj["isActiveByDefault"] = row["is_active_by_default"].as<bool>();
+            obj["minLevel"] = row["min_level"].as<int>();
+            obj["currentState"] = row["current_state"].as<std::string>();
+
+            const std::string cgText = row["condition_group"].as<std::string>();
+            try
+            {
+                obj["conditionGroup"] = nlohmann::json::parse(cgText);
+            }
+            catch (...)
+            {
+                obj["conditionGroup"] = nullptr;
+            }
+
+            objectsArray.push_back(std::move(obj));
+        }
+
+        ResponseBuilder builder;
+        nlohmann::json response = builder
+                                      .setHeader("message", "World objects list")
+                                      .setHeader("hash", "")
+                                      .setHeader("clientId", clientID)
+                                      .setHeader("eventType", "setWorldObjects")
+                                      .setBody("worldObjects", objectsArray)
+                                      .build();
+        networkManager_.sendResponse(clientSocket,
+            networkManager_.generateResponseMessage("success", response));
+
+        log_->info("[WIO] Sent {} world objects to chunk server", objectsArray.size());
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("handleGetWorldObjectsEvent error: " + std::string(ex.what()));
     }
 }
