@@ -38,13 +38,26 @@ SpawnZoneManager::loadMobSpawnZones()
             spawnZone.id = row["szm_id"].as<int>();
             spawnZone.zoneId = row["zone_id"].as<int>();
             spawnZone.zoneName = row["zone_name"].as<std::string>();
-            // min_spawn_x/y/z = origin corner, max_spawn_x/y/z = opposite corner
-            spawnZone.posX = row["min_spawn_x"].as<float>();
-            spawnZone.sizeX = row["max_spawn_x"].as<float>();
-            spawnZone.posY = row["min_spawn_y"].as<float>();
-            spawnZone.sizeY = row["max_spawn_y"].as<float>();
-            spawnZone.posZ = row["min_spawn_z"].as<float>();
-            spawnZone.sizeZ = row["max_spawn_z"].as<float>();
+            spawnZone.minX = row["min_spawn_x"].as<float>();
+            spawnZone.maxX = row["max_spawn_x"].as<float>();
+            spawnZone.minY = row["min_spawn_y"].as<float>();
+            spawnZone.maxY = row["max_spawn_y"].as<float>();
+            spawnZone.minZ = row["min_spawn_z"].as<float>();
+            spawnZone.maxZ = row["max_spawn_z"].as<float>();
+            // New geometry fields (migration 061)
+            std::string shapeStr = row["shape_type"].as<std::string>("RECT");
+            if (shapeStr == "CIRCLE")
+                spawnZone.shape = ZoneShape::CIRCLE;
+            else if (shapeStr == "ANNULUS")
+                spawnZone.shape = ZoneShape::ANNULUS;
+            else
+                spawnZone.shape = ZoneShape::RECT;
+            spawnZone.centerX = row["center_x"].as<float>(0.0f);
+            spawnZone.centerY = row["center_y"].as<float>(0.0f);
+            spawnZone.innerRadius = row["inner_radius"].as<float>(0.0f);
+            spawnZone.outerRadius = row["outer_radius"].as<float>(0.0f);
+            if (!row["exclusion_game_zone_id"].is_null())
+                spawnZone.exclusionGameZoneId = row["exclusion_game_zone_id"].as<int>();
             // mob data from spawn_zone_mobs join
             spawnZone.spawnMobId = row["mob_id"].as<int>();
             spawnZone.spawnCount = row["spawn_count"].as<int>();

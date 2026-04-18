@@ -296,6 +296,7 @@ Database::prepareDefaultQueries()
         connection_->prepare("get_mob_spawn_zone_data",
             "SELECT szm.id AS szm_id, sz.zone_id, sz.zone_name, "
             "sz.min_spawn_x, sz.max_spawn_x, sz.min_spawn_y, sz.max_spawn_y, sz.min_spawn_z, sz.max_spawn_z, "
+            "sz.shape_type, sz.center_x, sz.center_y, sz.inner_radius, sz.outer_radius, sz.exclusion_game_zone_id, "
             "szm.mob_id, szm.spawn_count, szm.respawn_time, "
             "m.name AS mob_name, m.level, mr.name AS race "
             "FROM spawn_zones sz "
@@ -753,10 +754,12 @@ Database::prepareDefaultQueries()
         connection_->prepare("get_respawn_zones",
             "SELECT id, name, x, y, z, zone_id, is_default FROM respawn_zones ORDER BY id;");
 
-        // Game zones with AABB world bounds (for zone detection / exploration rewards)
+        // Game zones with shape-aware world bounds (for zone detection / exploration rewards)
         connection_->prepare("get_game_zones",
             "SELECT id, slug, name, min_level, max_level, is_pvp, is_safe_zone, "
-            "       min_x, max_x, min_y, max_y, exploration_xp_reward, "
+            "       min_x, max_x, min_y, max_y, "
+            "       shape_type, center_x, center_y, inner_radius, outer_radius, "
+            "       exploration_xp_reward, "
             "       COALESCE(champion_threshold_kills, 100) AS champion_threshold_kills "
             "FROM   zones "
             "ORDER BY id;");

@@ -1087,26 +1087,59 @@ EventHandler::handleGetSpawnZonesEvent(const Event &event)
     // Get the spawn zones from the database
     std::map<int, SpawnZoneStruct> spawnZones = gameServices_.getSpawnZoneManager().getMobSpawnZones();
 
-    // go thru spawnZones map and format the data to json
+    // Group spawn zone entries by zoneId so multiple mob types in the same zone
+    // are sent as one JSON object with a mobEntries array (multi-mob zone support).
+    // Map: zoneId → zone JSON (geometry set on first entry; mobEntries appended on each).
     nlohmann::json spawnZonesJson;
+    std::map<int, nlohmann::json> zoneMap;
+
+    auto shapeToStr = [](ZoneShape s) -> std::string
+    {
+        switch (s)
+        {
+        case ZoneShape::CIRCLE:
+            return "CIRCLE";
+        case ZoneShape::ANNULUS:
+            return "ANNULUS";
+        default:
+            return "RECT";
+        }
+    };
+
     for (const auto &spawnZone : spawnZones)
     {
-        nlohmann::json spawnZoneJson;
-        spawnZoneJson["id"] = spawnZone.second.zoneId;
-        spawnZoneJson["name"] = spawnZone.second.zoneName;
-        spawnZoneJson["posX"] = spawnZone.second.posX;
-        spawnZoneJson["sizeX"] = spawnZone.second.sizeX;
-        spawnZoneJson["posY"] = spawnZone.second.posY;
-        spawnZoneJson["sizeY"] = spawnZone.second.sizeY;
-        spawnZoneJson["posZ"] = spawnZone.second.posZ;
-        spawnZoneJson["sizeZ"] = spawnZone.second.sizeZ;
-        spawnZoneJson["spawnMobId"] = spawnZone.second.spawnMobId;
-        spawnZoneJson["maxMobSpawnCount"] = spawnZone.second.spawnCount;
-        spawnZoneJson["respawnTime"] = spawnZone.second.respawnTime.count();
-        spawnZoneJson["spawnEnabled"] = true;
+        int zid = spawnZone.second.zoneId;
+        if (zoneMap.find(zid) == zoneMap.end())
+        {
+            nlohmann::json zj;
+            zj["id"] = zid;
+            zj["name"] = spawnZone.second.zoneName;
+            zj["shape"] = shapeToStr(spawnZone.second.shape);
+            zj["minX"] = spawnZone.second.minX;
+            zj["maxX"] = spawnZone.second.maxX;
+            zj["minY"] = spawnZone.second.minY;
+            zj["maxY"] = spawnZone.second.maxY;
+            zj["minZ"] = spawnZone.second.minZ;
+            zj["maxZ"] = spawnZone.second.maxZ;
+            zj["centerX"] = spawnZone.second.centerX;
+            zj["centerY"] = spawnZone.second.centerY;
+            zj["innerRadius"] = spawnZone.second.innerRadius;
+            zj["outerRadius"] = spawnZone.second.outerRadius;
+            zj["exclusionGameZoneId"] = spawnZone.second.exclusionGameZoneId;
+            zj["mobEntries"] = nlohmann::json::array();
+            zoneMap[zid] = std::move(zj);
+        }
 
-        spawnZonesJson.push_back(spawnZoneJson);
+        nlohmann::json mobEntry;
+        mobEntry["szmId"] = spawnZone.second.id;
+        mobEntry["mobId"] = spawnZone.second.spawnMobId;
+        mobEntry["maxCount"] = spawnZone.second.spawnCount;
+        mobEntry["respawnTimeSec"] = spawnZone.second.respawnTime.count();
+        zoneMap[zid]["mobEntries"].push_back(std::move(mobEntry));
     }
+
+    for (const auto &[zid, zj] : zoneMap)
+        spawnZonesJson.push_back(zj);
 
     // Prepare the response message
     try
@@ -3329,6 +3362,11 @@ EventHandler::handleGetGameZonesEvent(const Event &event)
             z["maxX"] = row["max_x"].as<float>();
             z["minY"] = row["min_y"].as<float>();
             z["maxY"] = row["max_y"].as<float>();
+            z["shape"] = row["shape_type"].as<std::string>("RECT");
+            z["centerX"] = row["center_x"].as<float>(0.0f);
+            z["centerY"] = row["center_y"].as<float>(0.0f);
+            z["innerRadius"] = row["inner_radius"].as<float>(0.0f);
+            z["outerRadius"] = row["outer_radius"].as<float>(0.0f);
             z["explorationXpReward"] = row["exploration_xp_reward"].as<int>();
             z["championThresholdKills"] = row["champion_threshold_kills"].as<int>();
             zonesJson.push_back(z);

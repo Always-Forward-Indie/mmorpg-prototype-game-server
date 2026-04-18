@@ -286,23 +286,40 @@ struct MobDataStruct
     }
 };
 
+enum class ZoneShape : uint8_t
+{
+    RECT = 0,
+    CIRCLE = 1,
+    ANNULUS = 2
+};
+
 struct SpawnZoneStruct
 {
-    int id = 0; // surrogate PK from spawn_zones.id
+    int id = 0; ///< spawn_zone_mobs.id (szm surrogate PK, used as map key in GS)
     int zoneId = 0;
-    std::string zoneName = "";
-    float posX = 0;
-    float sizeX = 0;
-    float posY = 0;
-    float sizeY = 0;
-    float posZ = 0;
-    float sizeZ = 0;
+    std::string zoneName;
+
+    // Geometry
+    ZoneShape shape = ZoneShape::RECT;
+    float minX = 0.0f;
+    float maxX = 0.0f;
+    float minY = 0.0f;
+    float maxY = 0.0f;
+    float minZ = 0.0f;
+    float maxZ = 0.0f;
+    float centerX = 0.0f;
+    float centerY = 0.0f;
+    float innerRadius = 0.0f;
+    float outerRadius = 0.0f;
+    int exclusionGameZoneId = 0;
+
+    // Mob entry (one per szm row — aggregated by EventHandler when sending to chunk server)
     int spawnMobId = 0;
     int spawnCount = 0;
     int spawnedMobsCount = 0;
     std::vector<int> spawnedMobsUIDList;
     std::vector<MobDataStruct> spawnedMobsList;
-    std::chrono::seconds respawnTime; // Represents respawn time in seconds
+    std::chrono::seconds respawnTime;
 };
 
 /**

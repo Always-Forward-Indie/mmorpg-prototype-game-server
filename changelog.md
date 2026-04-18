@@ -1,3 +1,18 @@
+v0.2.4
+18.04.2026
+================
+New:
+
+**Zone Shape System — поддержка форм RECT/CIRCLE/ANNULUS для спавн-зон и игровых зон.**
+- `SpawnZoneStruct` (DataStructs.hpp) — синхронизирован с chunk-сервером: добавлены `ZoneShape shape`, `centerX/Y`, `innerRadius`, `outerRadius`; `SpawnZoneMobEntry` заменяет плоские поля моба.
+- `SpawnZoneManager` — обновлён под новую структуру `SpawnZoneStruct` и `SpawnZoneMobEntry`.
+- `Database::get_game_zones` — расширен SELECT: добавлены `shape_type`, `center_x`, `center_y`, `inner_radius`, `outer_radius`.
+- `Database::get_spawn_zones` — расширен SELECT: добавлены `shape_type`, `center_x`, `center_y`, `inner_radius`, `outer_radius`, `mob_entries` (JSON-аггрегат вместо JOIN-строк).
+- `EventHandler::handleGetGameZonesEvent` — сериализует новые поля: `shape`, `centerX`, `centerY`, `innerRadius`, `outerRadius` в пакет `setGameZones` на chunk-сервер.
+- `EventHandler::handleGetSpawnZonesEvent` — сериализует новые поля аналогично в пакет `setSpawnZones`.
+
+---
+
 v0.2.3
 17.04.2026
 ================
