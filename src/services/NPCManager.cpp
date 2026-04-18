@@ -280,7 +280,7 @@ NPCManager::loadNPCPosition(pqxx::work &transaction, int npcId, int &zoneId)
             position.positionY = row["y"].as<float>();
             position.positionZ = row["z"].as<float>();
             position.rotationZ = row["rot_z"].as<float>();
-            // zone_id comes from npc_placements (priority) or npc_position fallback
+            // zone_id comes from npc_placements
             if (!row["zone_id"].is_null())
             {
                 zoneId = row["zone_id"].as<int>();

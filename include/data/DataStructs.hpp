@@ -343,7 +343,7 @@ struct NPCDataStruct
     int currentMana = 0;
     int maxHealth = 0;
     int maxMana = 0;
-    int zoneId = 0; // game zone this NPC belongs to (from npc_placements or npc_position)
+    int zoneId = 0; // game zone this NPC belongs to (from npc_placements)
     std::vector<NPCAttributeStruct> attributes;
     std::vector<SkillStruct> skills;
     PositionStruct position;

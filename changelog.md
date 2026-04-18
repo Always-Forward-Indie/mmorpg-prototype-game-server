@@ -1,3 +1,17 @@
+v0.2.5
+18.04.2026
+================
+Fixes:
+
+**Database — удалена устаревшая таблица `npc_position`.**
+- `get_npc_position` (prepared statement) — убран `LEFT JOIN npc_position npos` и все `COALESCE(np.*, npos.*, 0)`. Запрос теперь читает только из `npc_placements`. `npc_placements` — единственный источник позиций NPC начиная с migration 047.
+- `DataStructs.hpp` — обновлён комментарий к `NPCDataStruct::zoneId`: убрана ссылка на `npc_position`.
+- `NPCManager.cpp` — обновлён комментарий к `loadNPCPosition`.
+- Миграция `063_drop_npc_position.sql` — `DROP TABLE IF EXISTS public.npc_position`.
+- `mmo_prototype_dump.sql` — удалены все секции `npc_position`: TABLE definition, COMMENT, SEQUENCE, TABLE DATA, SEQUENCE SET, PRIMARY KEY, 2 INDEX (`idx_npc_position_npc`, `ix_npc_position_zone`), 2 FK CONSTRAINT (`fk_npc_position_npc`, `fk_npc_position_zone`).
+
+---
+
 v0.2.4
 18.04.2026
 ================

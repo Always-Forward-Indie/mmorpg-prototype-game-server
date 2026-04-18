@@ -441,16 +441,15 @@ Database::prepareDefaultQueries()
         connection_->prepare("get_mob_resistances_all",
             "SELECT mob_id, element_slug FROM mob_resistances ORDER BY mob_id;");
 
-        // get npc position — prefer npc_placements (static placement data), fallback to npc_position
+        // get npc position from npc_placements (single source of truth)
         connection_->prepare("get_npc_position",
-            "SELECT COALESCE(np.x, npos.x, 0) AS x, "
-            "COALESCE(np.y, npos.y, 0) AS y, "
-            "COALESCE(np.z, npos.z, 0) AS z, "
-            "COALESCE(np.rot_z, npos.rot_z, 0) AS rot_z, "
-            "COALESCE(np.zone_id, npos.zone_id) AS zone_id "
+            "SELECT COALESCE(np.x, 0) AS x, "
+            "COALESCE(np.y, 0) AS y, "
+            "COALESCE(np.z, 0) AS z, "
+            "COALESCE(np.rot_z, 0) AS rot_z, "
+            "np.zone_id AS zone_id "
             "FROM npc n "
             "LEFT JOIN npc_placements np ON np.npc_id = n.id "
-            "LEFT JOIN npc_position npos ON npos.npc_id = n.id "
             "WHERE n.id = $1 "
             "LIMIT 1;");
 
