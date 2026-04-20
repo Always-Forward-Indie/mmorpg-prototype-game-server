@@ -1,3 +1,20 @@
+v0.2.6
+19.04.2026
+================
+New:
+
+**Skill System — поддержка активных эффектов (buff/heal/teleport_respawn).**
+- `SkillStructs.hpp` — добавлена структура `SkillEffectDefinitionStruct` (effectSlug, effectTypeSlug, attributeSlug, value, durationSeconds, tickMs); поле `std::vector<SkillEffectDefinitionStruct> effects` добавлено в `SkillStruct`.
+- `Database.cpp` — `get_character_skills`: агрегирует `active_effects` через correlated subquery к `skill_active_effects`; паттерн `CASE WHEN se.slug` расширен на `heal_coeff`/`heal_flat` наравне с `coeff`/`flat_add`. `get_trainer_npcs` теперь возвращает `class_id` вместе с `npc_id`.
+- `CharacterManager.cpp` — `getCharacterSkillsFromDatabase` парсит колонку `active_effects` (JSON) в `skill.effects`.
+- `EventHandler.cpp` — `handleJoinCharacterEvent`: сериализует `effects[]` в skillData JSON; `handleGetTrainerDataEvent`: добавляет `classId` в JSON тренера; `handleSaveLearnedSkillEvent`: включает `active_effects` из DB вместо отдельного запроса для пассивных скилов.
+
+**Trainer class restriction.**
+- `get_trainer_npcs` — расширен: `SELECT npc_id, class_id FROM npc_trainer_class`.
+- `handleGetTrainerDataEvent` — пробрасывает `classId` тренера чанк-серверу.
+
+---
+
 v0.2.5
 18.04.2026
 ================

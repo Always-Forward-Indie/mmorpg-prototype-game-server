@@ -225,6 +225,21 @@ EventHandler::handleGetCharacterDataEvent(const Event &event)
                 skillData["animationName"] = skill.animationName;
                 skillData["isPassive"] = skill.isPassive;
 
+                // Include effect definitions so the chunk server can apply buffs/heals on cast
+                nlohmann::json effectsArr = nlohmann::json::array();
+                for (const auto &eff : skill.effects)
+                {
+                    nlohmann::json effJson;
+                    effJson["effectSlug"] = eff.effectSlug;
+                    effJson["effectTypeSlug"] = eff.effectTypeSlug;
+                    effJson["attributeSlug"] = eff.attributeSlug;
+                    effJson["value"] = eff.value;
+                    effJson["durationSeconds"] = eff.durationSeconds;
+                    effJson["tickMs"] = eff.tickMs;
+                    effectsArr.push_back(std::move(effJson));
+                }
+                skillData["effects"] = std::move(effectsArr);
+
                 skills.push_back(skillData);
             }
 
@@ -1406,6 +1421,14 @@ EventHandler::dispatchEvent(const Event &event)
     // World Interactive Objects (migration 043)
     case Event::GET_WORLD_OBJECTS:
         handleGetWorldObjectsEvent(event);
+        break;
+
+    // Skill cooldown persistence (migration 067)
+    case Event::SAVE_SKILL_COOLDOWN:
+        handleSaveSkillCooldownEvent(event);
+        break;
+    case Event::GET_PLAYER_SKILL_COOLDOWNS:
+        handleGetPlayerSkillCooldownsEvent(event);
         break;
 
     // Analytics system (migration 058)
@@ -2613,6 +2636,9 @@ EventHandler::handleGetPlayerActiveEffectsEvent(const Event &event)
 
         auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
         pqxx::work txn(_dbConn.get());
+        // Prune expired rows first to prevent unbounded table growth.
+        gameServices_.getDatabase().executeQueryWithTransaction(
+            txn, "cleanup_expired_active_effects", {});
         auto result = gameServices_.getDatabase().executeQueryWithTransaction(
             txn, "get_player_active_effects", {characterId});
 
@@ -2822,6 +2848,7 @@ EventHandler::handleGetTrainerDataEvent(const Event &event)
         for (const auto &npcRow : npcRows)
         {
             int npcId = npcRow["npc_id"].as<int>();
+            int classId = npcRow["class_id"].as<int>(0);
 
             auto skillRows = gameServices_.getDatabase().executeQueryWithTransaction(
                 txn, "get_trainer_skills", {npcId});
@@ -2845,6 +2872,7 @@ EventHandler::handleGetTrainerDataEvent(const Event &event)
 
             nlohmann::json trainer;
             trainer["npcId"] = npcId;
+            trainer["classId"] = classId;
             trainer["skills"] = std::move(skills);
             trainerList.push_back(std::move(trainer));
         }
@@ -3904,6 +3932,25 @@ EventHandler::handleSaveLearnedSkillEvent(const Event &event)
                 skillJson["swingMs"] = row["swing_ms"].as<int>(300);
                 skillJson["animationName"] = row["animation_name"].as<std::string>("");
                 skillJson["isPassive"] = row["is_passive"].as<bool>();
+
+                // Include active effects (from skill_active_effects for non-passive skills,
+                // or from passive_skill_modifiers for passive skills)
+                if (!row["active_effects"].is_null())
+                {
+                    try
+                    {
+                        skillJson["effects"] = nlohmann::json::parse(row["active_effects"].as<std::string>());
+                    }
+                    catch (const std::exception &)
+                    {
+                        skillJson["effects"] = nlohmann::json::array();
+                    }
+                }
+                else
+                {
+                    skillJson["effects"] = nlohmann::json::array();
+                }
+
                 break;
             }
         }
@@ -3914,9 +3961,8 @@ EventHandler::handleSaveLearnedSkillEvent(const Event &event)
             return;
         }
 
-        // For passive skills, include the passive_skill_modifiers so the chunk server can
-        // apply ActiveEffects immediately in handleSetLearnedSkillEvent without an extra
-        // stats reload round-trip.
+        // For passive skills also include passive_skill_modifiers so the chunk server can
+        // apply ActiveEffects immediately (permanent stat modifiers).
         if (skillJson.value("isPassive", false))
         {
             nlohmann::json effectsArr = nlohmann::json::array();
@@ -4492,6 +4538,96 @@ EventHandler::handleGetWorldObjectsEvent(const Event &event)
     catch (const std::exception &ex)
     {
         gameServices_.getLogger().logError("handleGetWorldObjectsEvent error: " + std::string(ex.what()));
+    }
+}
+
+// Skill cooldown persistence (migration 067)
+// Upserts one cooldown row for a player skill.
+// Body fields: characterId (int), skillSlug (string), cooldownEndsAtMs (int64 unix ms).
+void
+EventHandler::handleSaveSkillCooldownEvent(const Event &event)
+{
+    const auto &data = event.getData();
+    try
+    {
+        if (!std::holds_alternative<nlohmann::json>(data))
+        {
+            log_->error("handleSaveSkillCooldownEvent: unexpected data type");
+            return;
+        }
+        const auto &j = std::get<nlohmann::json>(data);
+        int characterId = j.value("characterId", 0);
+        std::string skillSlug = j.value("skillSlug", std::string(""));
+        int64_t cooldownEndsAtMs = j.value("cooldownEndsAtMs", int64_t(0));
+
+        if (characterId <= 0 || skillSlug.empty() || cooldownEndsAtMs <= 0)
+            return;
+
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+        using DbParam = std::variant<int, float, double, std::string>;
+        // Pass cooldownEndsAtMs as string to avoid std::to_string(double) producing
+        // "1776627283138.000000" which PostgreSQL cannot cast with ::bigint.
+        std::vector<DbParam> params{characterId, skillSlug, std::to_string(cooldownEndsAtMs)};
+        gameServices_.getDatabase().executeQueryWithTransaction(txn, "upsert_skill_cooldown", params);
+        txn.commit();
+
+        log_->debug("[SAVE_SKILL_COOLDOWN] char={} skill={} endsAt={}", characterId, skillSlug, cooldownEndsAtMs);
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("handleSaveSkillCooldownEvent error: " + std::string(ex.what()));
+    }
+}
+
+// Loads all still-active cooldowns for a character and sends them back to chunk server.
+// Body fields: characterId (int).
+void
+EventHandler::handleGetPlayerSkillCooldownsEvent(const Event &event)
+{
+    const auto &data = event.getData();
+    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
+    try
+    {
+        if (!std::holds_alternative<int>(data))
+        {
+            log_->error("handleGetPlayerSkillCooldownsEvent: unexpected data type");
+            return;
+        }
+        int characterId = std::get<int>(data);
+
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+        auto result = gameServices_.getDatabase().executeQueryWithTransaction(
+            txn, "get_active_skill_cooldowns", {characterId});
+        txn.commit();
+
+        nlohmann::json cooldownsJson = nlohmann::json::array();
+        for (const auto &row : result)
+        {
+            nlohmann::json cd;
+            cd["skillSlug"] = row["skill_slug"].as<std::string>();
+            cd["remainingMs"] = row["remaining_ms"].as<int64_t>();
+            cooldownsJson.push_back(std::move(cd));
+        }
+
+        ResponseBuilder builder;
+        nlohmann::json response = builder
+                                      .setHeader("message", "Player skill cooldowns")
+                                      .setHeader("hash", "")
+                                      .setHeader("clientId", characterId)
+                                      .setHeader("eventType", "setPlayerSkillCooldowns")
+                                      .setBody("characterId", characterId)
+                                      .setBody("cooldowns", cooldownsJson)
+                                      .build();
+        networkManager_.sendResponse(clientSocket,
+            networkManager_.generateResponseMessage("success", response));
+
+        log_->debug("[GET_SKILL_COOLDOWNS] char={} active={}", characterId, cooldownsJson.size());
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("handleGetPlayerSkillCooldownsEvent error: " + std::string(ex.what()));
     }
 }
 

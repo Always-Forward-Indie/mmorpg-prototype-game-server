@@ -205,6 +205,14 @@ EventDispatcher::dispatch(const std::string &eventType,
     {
         handleSavePlayerTitle(payload, socket);
     }
+    else if (eventType == "saveSkillCooldown")
+    {
+        handleSaveSkillCooldown(payload, socket);
+    }
+    else if (eventType == "getPlayerSkillCooldowns")
+    {
+        handleGetPlayerSkillCooldowns(payload, socket);
+    }
     else if (eventType == "analyticsEvent")
     {
         handleSaveAnalyticsEvent(payload, socket);
@@ -1056,6 +1064,48 @@ EventDispatcher::handleSavePlayerTitle(
     catch (const std::exception &ex)
     {
         logger_.logError("handleSavePlayerTitle parse error: " + std::string(ex.what()));
+    }
+}
+
+// Skill cooldown persistence (migration 067)
+void
+EventDispatcher::handleSaveSkillCooldown(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    try
+    {
+        auto j = nlohmann::json::parse(payload.rawMessage);
+        logger_.log("[EventDispatcher] handleSaveSkillCooldown received: " + payload.rawMessage);
+        const auto &body = j["body"];
+        Event ev(Event::SAVE_SKILL_COOLDOWN, 0, body, socket);
+        eventsBatch_.push_back(ev);
+        eventQueue_.pushBatch(eventsBatch_);
+        eventsBatch_.clear();
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleSaveSkillCooldown parse error: " + std::string(ex.what()));
+    }
+}
+
+void
+EventDispatcher::handleGetPlayerSkillCooldowns(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    try
+    {
+        auto j = nlohmann::json::parse(payload.rawMessage);
+        int characterId = j["body"].value("characterId", 0);
+        Event ev(Event::GET_PLAYER_SKILL_COOLDOWNS, characterId, static_cast<int>(characterId), socket);
+        eventsBatch_.push_back(ev);
+        eventQueue_.pushBatch(eventsBatch_);
+        eventsBatch_.clear();
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleGetPlayerSkillCooldowns parse error: " + std::string(ex.what()));
     }
 }
 

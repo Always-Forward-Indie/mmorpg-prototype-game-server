@@ -115,6 +115,9 @@ class Event
         GET_NPC_AMBIENT_SPEECH, // Load npc_ambient_speech_configs+lines from DB and send to chunk-server
         // World Interactive Objects events (migration 043)
         GET_WORLD_OBJECTS, // Load world_objects + world_object_states from DB and send to chunk-server
+        // Skill cooldown persistence (migration 067)
+        SAVE_SKILL_COOLDOWN,        // Upsert one cooldown row for a player skill
+        GET_PLAYER_SKILL_COOLDOWNS, // Load active cooldowns for a character and send to chunk-server
         // Analytics events (migration 058)
         SAVE_ANALYTICS_EVENT // Persist a game analytics event from chunk-server to game_analytics table
     }; // Define more event types as needed

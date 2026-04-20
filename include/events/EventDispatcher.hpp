@@ -74,6 +74,10 @@ class EventDispatcher
     void handleUpdatePlayerQuestProgress(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
     void handleUpdatePlayerFlag(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
 
+    // Skill cooldown persistence (migration 067)
+    void handleSaveSkillCooldown(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
+    void handleGetPlayerSkillCooldowns(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
+
     // Analytics system (migration 058)
     void handleSaveAnalyticsEvent(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
 

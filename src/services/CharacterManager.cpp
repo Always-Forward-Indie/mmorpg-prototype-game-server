@@ -1,6 +1,7 @@
 #include "services/CharacterManager.hpp"
 #include "utils/Database.hpp"
 #include <iostream>
+#include <nlohmann/json.hpp>
 #include <pqxx/pqxx>
 #include <random>
 #include <spdlog/logger.h>
@@ -194,6 +195,32 @@ CharacterManager::getCharacterSkillsFromDatabase(Database &db, int characterId)
             skill.swingMs = row["swing_ms"].as<int>();
             skill.animationName = row["animation_name"].as<std::string>();
             skill.isPassive = row["is_passive"].as<bool>(false);
+
+            // Parse active effects (buff/heal/dot/hot effects for non-passive active skills)
+            if (!row["active_effects"].is_null())
+            {
+                try
+                {
+                    auto effsArr = nlohmann::json::parse(row["active_effects"].as<std::string>());
+                    for (const auto &eff : effsArr)
+                    {
+                        SkillEffectDefinitionStruct ed;
+                        ed.effectSlug      = eff.value("effectSlug",      "");
+                        ed.effectTypeSlug  = eff.value("effectTypeSlug",  "");
+                        ed.attributeSlug   = eff.value("attributeSlug",   "");
+                        ed.value           = eff.value("value",           0.0f);
+                        ed.durationSeconds = eff.value("durationSeconds", 0);
+                        ed.tickMs          = eff.value("tickMs",          0);
+                        if (!ed.effectSlug.empty())
+                            skill.effects.push_back(std::move(ed));
+                    }
+                }
+                catch (const std::exception &)
+                {
+                    // JSON parse failure — skip effects for this skill
+                }
+            }
+
             skills.push_back(skill);
         }
         txn.commit();

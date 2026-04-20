@@ -172,8 +172,8 @@ Database::prepareDefaultQueries()
                                                      "COALESCE(seft.slug, '') as skill_effect_type, "
                                                      "COALESCE(spm.skill_level, cs.current_level) as skill_level, "
 
-                                                     "coalesce(MAX(CASE WHEN se.slug='coeff'     THEN sem.value END),0) AS coeff, "
-                                                     "coalesce(MAX(CASE WHEN se.slug='flat_add'  THEN sem.value END),0) AS flat_add, "
+                                                     "coalesce(MAX(CASE WHEN se.slug IN ('coeff','heal_coeff') THEN sem.value END),0) AS coeff, "
+                                                     "coalesce(MAX(CASE WHEN se.slug IN ('flat_add','heal_flat') THEN sem.value END),0) AS flat_add, "
 
                                                      "coalesce(MAX(CASE WHEN sp.slug='cooldown_ms' THEN spm.property_value END),0) AS cooldown_ms, "
                                                      "coalesce(MAX(CASE WHEN sp.slug='gcd_ms'      THEN spm.property_value END),0) AS gcd_ms, "
@@ -183,7 +183,22 @@ Database::prepareDefaultQueries()
                                                      "coalesce(MAX(CASE WHEN sp.slug='area_radius' THEN spm.property_value END),0) AS area_radius, "
                                                      "coalesce(MAX(CASE WHEN sp.slug='swing_ms'    THEN spm.property_value END),300)::integer AS swing_ms, "
                                                      "COALESCE(s.animation_name, '') AS animation_name, "
-                                                     "COALESCE(s.is_passive, FALSE) AS is_passive "
+                                                     "COALESCE(s.is_passive, FALSE) AS is_passive, "
+                                                     "COALESCE("
+                                                     "  (SELECT json_agg("
+                                                     "      json_build_object("
+                                                     "        'effectSlug',      sae.effect_slug,"
+                                                     "        'effectTypeSlug',  sae.effect_type_slug,"
+                                                     "        'attributeSlug',   sae.attribute_slug,"
+                                                     "        'value',           sae.value::float,"
+                                                     "        'durationSeconds', sae.duration_seconds,"
+                                                     "        'tickMs',          sae.tick_ms"
+                                                     "      ) ORDER BY sae.id"
+                                                     "    )"
+                                                     "    FROM skill_active_effects sae"
+                                                     "    WHERE sae.skill_id = s.id"
+                                                     "  ), '[]'::json"
+                                                     ") AS active_effects "
 
                                                      "FROM cs "
                                                      "JOIN skills s ON s.id=cs.skill_id "
@@ -369,8 +384,8 @@ Database::prepareDefaultQueries()
                                                "seft.slug as skill_effect_type, "
                                                "spm.skill_level, "
 
-                                               "coalesce(MAX(CASE WHEN se.slug='coeff'     THEN sem.value END),0) AS coeff, "
-                                               "coalesce(MAX(CASE WHEN se.slug='flat_add'  THEN sem.value END),0) AS flat_add, "
+                                               "coalesce(MAX(CASE WHEN se.slug IN ('coeff','heal_coeff') THEN sem.value END),0) AS coeff, "
+                                               "coalesce(MAX(CASE WHEN se.slug IN ('flat_add','heal_flat') THEN sem.value END),0) AS flat_add, "
 
                                                "coalesce(MAX(CASE WHEN sp.slug='cooldown_ms' THEN spm.property_value END),0) AS cooldown_ms, "
                                                "coalesce(MAX(CASE WHEN sp.slug='gcd_ms'      THEN spm.property_value END),0) AS gcd_ms, "
@@ -483,8 +498,8 @@ Database::prepareDefaultQueries()
                                                "seft.slug as skill_effect_type, "
                                                "spm.skill_level, "
 
-                                               "coalesce(MAX(CASE WHEN se.slug='coeff'     THEN sem.value END),0) AS coeff, "
-                                               "coalesce(MAX(CASE WHEN se.slug='flat_add'  THEN sem.value END),0) AS flat_add, "
+                                               "coalesce(MAX(CASE WHEN se.slug IN ('coeff','heal_coeff') THEN sem.value END),0) AS coeff, "
+                                               "coalesce(MAX(CASE WHEN se.slug IN ('flat_add','heal_flat') THEN sem.value END),0) AS flat_add, "
 
                                                "coalesce(MAX(CASE WHEN sp.slug='cooldown_ms' THEN spm.property_value END),0) AS cooldown_ms, "
                                                "coalesce(MAX(CASE WHEN sp.slug='gcd_ms'      THEN spm.property_value END),0) AS gcd_ms, "
@@ -584,6 +599,11 @@ Database::prepareDefaultQueries()
             "FROM player_flag WHERE player_id = $1;");
 
         // --- Player active effects ---
+        // Purge expired rows first (keeps the table lean; safe to run each load).
+        connection_->prepare("cleanup_expired_active_effects",
+            "DELETE FROM player_active_effect "
+            "WHERE expires_at IS NOT NULL AND expires_at < NOW();");
+
         connection_->prepare("get_player_active_effects",
             "SELECT pae.id, pae.status_effect_id AS effect_id, se.slug AS effect_slug, "
             "se.category AS effect_type_slug, "
@@ -611,6 +631,28 @@ Database::prepareDefaultQueries()
             "  to_timestamp($6), "
             "  $7) "
             "RETURNING id;");
+
+        // --- Skill cooldown persistence (migration 067) ---
+        // Upsert a cooldown row when a player uses a skill.
+        // $1=character_id, $2=skill_slug, $3=cooldown_ends_at (unix ms)
+        connection_->prepare("upsert_skill_cooldown",
+            "INSERT INTO player_skill_cooldown (character_id, skill_slug, cooldown_ends_at) "
+            "VALUES ($1, $2, to_timestamp($3::bigint / 1000.0)) "
+            "ON CONFLICT (character_id, skill_slug) DO UPDATE "
+            "  SET cooldown_ends_at = EXCLUDED.cooldown_ends_at;");
+
+        // Load still-active cooldowns for a character on login; also prunes expired rows.
+        // $1=character_id
+        connection_->prepare("get_active_skill_cooldowns",
+            "WITH cleanup AS ( "
+            "  DELETE FROM player_skill_cooldown "
+            "  WHERE character_id = $1 AND cooldown_ends_at <= NOW() "
+            ") "
+            "SELECT skill_slug, "
+            "  GREATEST(0, EXTRACT(EPOCH FROM (cooldown_ends_at - NOW()))::bigint * 1000)::bigint AS remaining_ms "
+            "FROM player_skill_cooldown "
+            "WHERE character_id = $1 AND cooldown_ends_at > NOW();");
+        ;
 
         connection_->prepare("upsert_player_flag",
             "INSERT INTO player_flag (player_id, flag_key, int_value, bool_value, updated_at) "
@@ -669,7 +711,7 @@ Database::prepareDefaultQueries()
 
         // --- Trainer queries ---
         connection_->prepare("get_trainer_npcs",
-            "SELECT npc_id FROM public.npc_trainer_class ORDER BY npc_id;");
+            "SELECT npc_id, class_id FROM public.npc_trainer_class ORDER BY npc_id;");
 
         connection_->prepare("get_trainer_skills",
             "SELECT "

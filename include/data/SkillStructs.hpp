@@ -2,6 +2,24 @@
 #include <string>
 #include <vector>
 
+/**
+ * @brief Definition of a single effect applied by an active skill on cast.
+ *
+ * For buff/debuff skills these are loaded from the skill_active_effects table.
+ * For passive skills they come from passive_skill_modifiers.
+ * Damage/heal skills typically have an empty effects list (handled by the
+ * combat calculator via coeff/flatAdd).
+ */
+struct SkillEffectDefinitionStruct
+{
+    std::string effectSlug;       ///< unique slug, e.g. "battle_cry_phys_atk"
+    std::string effectTypeSlug;   ///< "buff" | "debuff" | "dot" | "hot" | "passive"
+    std::string attributeSlug;    ///< target attribute, e.g. "physical_attack"
+    float value = 0.0f;           ///< stat modifier or per-tick amount
+    int durationSeconds = 0;      ///< 0 = permanent; >0 = timed
+    int tickMs = 0;               ///< 0 = non-tick; >0 = DoT/HoT interval in ms
+};
+
 // Структура для скила персонажа/моба
 struct SkillStruct
 {
@@ -29,6 +47,16 @@ struct SkillStruct
     // Passive skill flag: if true the skill is always-on and never cast actively.
     // Its modifiers arrive as ActiveEffectStruct entries (sourceType="skill_passive", expiresAt=0).
     bool isPassive = false;
+
+    /**
+     * @brief Effects applied on cast (buff/debuff/dot/hot for active skills;
+     *        stat modifiers for passive skills, loaded from passive_skill_modifiers).
+     *
+     * For active skills: populated from skill_active_effects at character join/skill-learn.
+     * For passive skills: populated from passive_skill_modifiers at skill-learn.
+     * For damage/heal skills: typically empty — CombatCalculator handles value via coeff/flatAdd.
+     */
+    std::vector<SkillEffectDefinitionStruct> effects;
 };
 
 // Структура для атрибута entity (персонажа или моба)

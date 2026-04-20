@@ -109,6 +109,10 @@ class EventHandler
     // World Interactive Objects (migration 043)
     void handleGetWorldObjectsEvent(const Event &event);
 
+    // Skill cooldown persistence (migration 067)
+    void handleSaveSkillCooldownEvent(const Event &event);
+    void handleGetPlayerSkillCooldownsEvent(const Event &event);
+
     // Analytics system (migration 058)
     void handleSaveAnalyticsEventEvent(const Event &event);
 
