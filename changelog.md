@@ -1,3 +1,14 @@
+v0.2.7
+23.04.2026
+================
+Fixes:
+
+**EventHandler — новые персонажи получают корректные начальные HP/MP.**
+- `EventHandler::handleGetCharacterDataEvent` — добавлено определение первого входа нового персонажа: level=1, XP=0, HP=1, MP=1, maxHealth>1 одновременно. При совпадении всех условий HP/MP выставляются в `floor(maxHealth × character.starting_hp_pct)` и `floor(maxMana × character.starting_mp_pct)` (default 50%). Ранее персонаж входил в игру с 1 HP и 1 MP, что блокировало первое взаимодействие с миром.
+- Config keys: `character.starting_hp_pct` (float, default `0.50`), `character.starting_mp_pct` (float, default `0.50`).
+
+---
+
 v0.2.6
 19.04.2026
 ================

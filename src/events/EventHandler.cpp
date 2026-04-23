@@ -201,6 +201,35 @@ EventHandler::handleGetCharacterDataEvent(const Event &event)
             // correct effective cap (base + passive bonuses) during regen and healing.
             // Clamping to the base value here would silently discard legitimately saved mana.
 
+            // New character detection: level 1, no XP, HP/MP at the init default of 1.
+            // On first login, set HP/MP to the configured starting percentage of max.
+            // Condition is strict enough (all four fields) to avoid affecting real characters.
+            if (characterData.characterLevel == 1 &&
+                characterData.characterExperiencePoints == 0 &&
+                characterData.characterCurrentHealth == 1 &&
+                characterData.characterCurrentMana == 1 &&
+                characterData.characterMaxHealth > 1)
+            {
+                const auto &cfgMap = gameServices_.getGameConfigService().getAll();
+                auto cfgGet = [&cfgMap](const std::string &key, float def) -> float
+                {
+                    auto it = cfgMap.find(key);
+                    return (it != cfgMap.end()) ? std::stof(it->second) : def;
+                };
+                const float startHpPct = cfgGet("character.starting_hp_pct", 0.50f);
+                const float startMpPct = cfgGet("character.starting_mp_pct", 0.50f);
+                characterData.characterCurrentHealth = std::max(1, static_cast<int>(characterData.characterMaxHealth * startHpPct));
+                characterData.characterCurrentMana = std::max(0, static_cast<int>(characterData.characterMaxMana * startMpPct));
+                log_->info("[JOIN] New character {}: starting HP={}/{} MP={}/{} (pct={}/{})",
+                    characterData.characterId,
+                    characterData.characterCurrentHealth,
+                    characterData.characterMaxHealth,
+                    characterData.characterCurrentMana,
+                    characterData.characterMaxMana,
+                    startHpPct,
+                    startMpPct);
+            }
+
             // Create skills array
             nlohmann::json skills = nlohmann::json::array();
 
