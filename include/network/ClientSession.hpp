@@ -9,6 +9,8 @@
 #include "events/EventQueue.hpp"
 #include "utils/Logger.hpp"
 
+#include <functional>
+
 class GameServer;
 class EventDispatcher; // ✅ Forward declare EventDispatcher
 class MessageHandler;  // ✅ Forward declare MessageHandler
@@ -26,6 +28,7 @@ class ClientSession : public std::enable_shared_from_this<ClientSession>
         MessageHandler &messageHandler);
 
     void start();
+    void setDisconnectCallback(std::function<void(std::shared_ptr<ClientSession>)> callback);
 
   private:
     void doRead();
@@ -42,4 +45,5 @@ class ClientSession : public std::enable_shared_from_this<ClientSession>
     GameServer *gameServer_;
     EventDispatcher &eventDispatcher_;
     MessageHandler &messageHandler_;
+    std::function<void(std::shared_ptr<ClientSession>)> disconnectCallback_;
 };

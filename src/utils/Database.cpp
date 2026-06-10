@@ -697,17 +697,21 @@ Database::prepareDefaultQueries()
 
         // --- Vendor queries ---
         connection_->prepare("get_vendor_npcs",
-            "SELECT DISTINCT vendor_npc_id AS npc_id FROM vendor_inventory;");
+            "SELECT DISTINCT vn.npc_id "
+            "FROM vendor_inventory vi "
+            "JOIN vendor_npc vn ON vn.id = vi.vendor_npc_id;");
 
         connection_->prepare("get_vendor_inventory",
-            "SELECT item_id, "
-            "COALESCE(stock_count, -1) AS stock_current, "
-            "COALESCE(stock_max, -1) AS stock_max, "
-            "COALESCE(restock_amount, 0) AS restock_amount, "
-            "COALESCE(restock_interval_sec, 3600) AS restock_interval_sec, "
-            "COALESCE(price_override, 0) AS price_override_buy, "
-            "COALESCE(price_override, 0) AS price_override_sell "
-            "FROM vendor_inventory WHERE vendor_npc_id = $1;");
+            "SELECT vi.item_id, "
+            "COALESCE(vi.stock_count, -1) AS stock_current, "
+            "COALESCE(vi.stock_max, -1) AS stock_max, "
+            "COALESCE(vi.restock_amount, 0) AS restock_amount, "
+            "COALESCE(vi.restock_interval_sec, 3600) AS restock_interval_sec, "
+            "COALESCE(vi.price_override, 0) AS price_override_buy, "
+            "COALESCE(vi.price_override, 0) AS price_override_sell "
+            "FROM vendor_inventory vi "
+            "JOIN vendor_npc vn ON vn.id = vi.vendor_npc_id "
+            "WHERE vn.npc_id = $1;");
 
         // --- Trainer queries ---
         connection_->prepare("get_trainer_npcs",
@@ -791,9 +795,21 @@ Database::prepareDefaultQueries()
             "DELETE FROM character_equipment "
             "WHERE character_id = $1 AND inventory_item_id = $2;");
 
-        // Respawn zones
+        // Respawn zones (with area bounds for random point selection)
         connection_->prepare("get_respawn_zones",
-            "SELECT id, name, x, y, z, zone_id, is_default FROM respawn_zones ORDER BY id;");
+            "SELECT id, name, x, y, z, zone_id, is_default, "
+            "min_x, max_x, min_y, max_y, min_z, max_z, "
+            "shape_type, center_x, center_y, inner_radius, outer_radius "
+            "FROM respawn_zones ORDER BY id;");
+
+        // Class spawn zones (starting zones for new characters by class)
+        connection_->prepare("get_class_spawn_zones",
+            "SELECT csz.id, csz.class_id, cc.name AS class_name, csz.zone_id, "
+            "csz.min_x, csz.max_x, csz.min_y, csz.max_y, csz.min_z, csz.max_z, "
+            "csz.shape_type, csz.center_x, csz.center_y, csz.inner_radius, csz.outer_radius "
+            "FROM class_spawn_zones csz "
+            "JOIN character_class cc ON cc.id = csz.class_id "
+            "ORDER BY csz.id;");
 
         // Game zones with shape-aware world bounds (for zone detection / exploration rewards)
         connection_->prepare("get_game_zones",
@@ -921,8 +937,11 @@ Database::prepareDefaultQueries()
 
         // Stage 4: Zone event templates
         connection_->prepare("get_zone_event_templates",
-            "SELECT id, slug, game_zone_id, trigger_type, duration_sec, "
-            "loot_multiplier, spawn_rate_multiplier, mob_speed_multiplier, "
+            "SELECT id, slug, COALESCE(game_zone_id, 0) AS game_zone_id, trigger_type, "
+            "COALESCE(duration_sec, 0) AS duration_sec, "
+            "COALESCE(loot_multiplier, 1.0) AS loot_multiplier, "
+            "COALESCE(spawn_rate_multiplier, 1.0) AS spawn_rate_multiplier, "
+            "COALESCE(mob_speed_multiplier, 1.0) AS mob_speed_multiplier, "
             "COALESCE(announce_key, '') AS announce_key, "
             "COALESCE(interval_hours, 0) AS interval_hours, "
             "COALESCE(random_chance_per_hour, 0.0) AS random_chance_per_hour, "

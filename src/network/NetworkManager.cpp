@@ -51,9 +51,26 @@ NetworkManager::startAccept()
             boost::asio::ip::tcp::endpoint remoteEndpoint = clientSocket->remote_endpoint();
             std::string clientIP = remoteEndpoint.address().to_string();
             std::string portNumber = std::to_string(remoteEndpoint.port());
+
+            short maxClients = std::get<1>(configs_).max_clients;
+            {
+                std::lock_guard<std::mutex> lock(sessionsMutex_);
+                if (activeSessions_.size() >= static_cast<size_t>(maxClients))
+                {
+                    log_->warn("Max clients reached (" + std::to_string(maxClients) +
+                               "), rejecting connection from " + clientIP + ":" + portNumber);
+                    boost::system::error_code closeEc;
+                    clientSocket->close(closeEc);
+                    startAccept();
+                    return;
+                }
+            }
+
             log_->info("New Client with IP: " + clientIP + " Port: " + portNumber + " - connected!");
             // Pass the shared pointer to the ClientSession
             auto session = std::make_shared<ClientSession>(clientSocket, gameServer_, logger_, eventQueue_, eventQueuePing_, *eventDispatcher_, *messageHandler_);
+            session->setDisconnectCallback([this](std::shared_ptr<ClientSession> s) { removeActiveSession(s); });
+            addActiveSession(session);
             session->start();
         }
         else{
@@ -215,4 +232,18 @@ NetworkManager::setGameServer(GameServer *gameServer)
 
     eventDispatcher_ = std::make_unique<EventDispatcher>(eventQueue_, eventQueuePing_, gameServer_, logger_, jsonParser_);
     messageHandler_ = std::make_unique<MessageHandler>(jsonParser_);
+}
+
+void
+NetworkManager::addActiveSession(std::shared_ptr<ClientSession> session)
+{
+    std::lock_guard<std::mutex> lock(sessionsMutex_);
+    activeSessions_.insert(session);
+}
+
+void
+NetworkManager::removeActiveSession(std::shared_ptr<ClientSession> session)
+{
+    std::lock_guard<std::mutex> lock(sessionsMutex_);
+    activeSessions_.erase(session);
 }

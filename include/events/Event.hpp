@@ -88,6 +88,7 @@ class Event
         NULLIFY_ITEM_OWNER,               // Item dropped to ground: SET character_id = NULL
         DELETE_INVENTORY_ITEM,            // Ground item expired: DELETE the row
         GET_RESPAWN_ZONES,                // Load respawn zones from DB and send to chunk-server
+        GET_CLASS_SPAWN_ZONES,           // Load class-specific spawn zones and send to chunk-server
         GET_STATUS_EFFECT_TEMPLATES,      // Load status effect templates from DB and send to chunk-server
         GET_GAME_ZONES,                   // Load game zones (with AABB bounds) from DB and send to chunk-server
         GET_PLAYER_PITY,                  // Load pity counters from DB and send to chunk-server

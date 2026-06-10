@@ -69,6 +69,7 @@ class EventHandler
 
     // Respawn zones
     void handleGetRespawnZonesEvent(const Event &event);
+    void handleGetClassSpawnZonesEvent(const Event &event);
     void handleGetStatusEffectTemplatesEvent(const Event &event);
     void handleGetGameZonesEvent(const Event &event);
 

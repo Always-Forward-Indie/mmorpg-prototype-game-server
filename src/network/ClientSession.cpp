@@ -30,6 +30,12 @@ ClientSession::start()
 }
 
 void
+ClientSession::setDisconnectCallback(std::function<void(std::shared_ptr<ClientSession>)> callback)
+{
+    disconnectCallback_ = std::move(callback);
+}
+
+void
 ClientSession::doRead()
 {
     auto self(shared_from_this());
@@ -112,6 +118,9 @@ ClientSession::processMessage(const std::string &message)
 void
 ClientSession::handleClientDisconnect()
 {
+    if (disconnectCallback_)
+        disconnectCallback_(shared_from_this());
+
     if (socket_->is_open())
     {
         boost::system::error_code ec;

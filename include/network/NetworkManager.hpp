@@ -8,6 +8,7 @@
 #include <string>
 #include <thread>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "data/DataStructs.hpp"
@@ -32,6 +33,8 @@ class NetworkManager
     std::string generateResponseMessage(const std::string &status, const nlohmann::json &message);
     std::string generateResponseMessage(const std::string &status, const nlohmann::json &message, const TimestampStruct &timestamps);
     void setGameServer(GameServer *GameServer);
+    void addActiveSession(std::shared_ptr<ClientSession> session);
+    void removeActiveSession(std::shared_ptr<ClientSession> session);
 
   private:
     // Per-socket write state: ensures async_write calls are serialised per socket
@@ -70,4 +73,7 @@ class NetworkManager
     // These are declared but NOT initialized here!
     std::unique_ptr<EventDispatcher> eventDispatcher_;
     std::unique_ptr<MessageHandler> messageHandler_;
+
+    std::unordered_set<std::shared_ptr<ClientSession>> activeSessions_;
+    std::mutex sessionsMutex_;
 };

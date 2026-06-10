@@ -1,3 +1,55 @@
+v0.2.8
+10.06.2026
+================
+New:
+
+**Class spawn zones — стартовые зоны для классов.**
+- `include/services/ClassSpawnZoneManager.hpp` + `.cpp` — новый сервис: загружает `class_spawn_zones` из БД (`get_all_class_spawn_zones`), хранит map `classId → ClassSpawnZoneStruct`, метод `getSpawnZoneForClass(classId)`.
+- `DataStructs.hpp` — структура `ClassSpawnZoneStruct` (id, classId, className, zoneId, shape+bounds: min/max/center/radius).
+- `include/services/GameServices.hpp` — добавлен `ClassSpawnZoneManager classSpawnZoneManager_`.
+- `include/events/Event.hpp` — новый тип `Event::GET_CLASS_SPAWN_ZONES`.
+- `include/events/EventHandler.hpp` — `handleGetClassSpawnZonesEvent()`.
+- `src/events/EventHandler.cpp` — `handleJoinChunkServerEvent`: после `GET_RESPAWN_ZONES` отправляет `GET_CLASS_SPAWN_ZONES`; `handleGetClassSpawnZonesEvent`: читает зоны из `ClassSpawnZoneManager`, сериализует в JSON с shape+bounds, отправляет чанк-серверу как `setClassSpawnZonesList`.
+- `src/events/EventHandler.cpp::dispatchEvent()` — case `GET_CLASS_SPAWN_ZONES`.
+- `src/events/EventHandler.cpp::handleGetCharacterDataEvent` — для новых персонажей позиция переопределяется случайной точкой в class spawn zone через `ClassSpawnZoneManager::getRandomPointInZone()`, с сохранением в БД.
+- `src/utils/Database.cpp` — новый prepared statement `get_class_spawn_zones`.
+
+**Respawn zones — area bounds, случайная точка вместо фиксированной.**
+- `DataStructs.hpp` — `RespawnZoneStruct` расширен полями: `shape`, `minX/maxX/minY/maxY/minZ/maxZ`, `centerX/centerY`, `innerRadius/outerRadius`, метод `isAreaDefined()`.
+- `src/utils/Database.cpp` — `get_respawn_zones` расширен: SELECT теперь включает `min_x, max_x, min_y, max_y, min_z, max_z, shape_type, center_x, center_y, inner_radius, outer_radius`.
+- `src/events/EventHandler.cpp::handleGetRespawnZonesEvent` — сериализует новые поля в JSON для чанк-сервера.
+
+**Build system — Debug/Release, Docker prod/dev разделение.**
+- `CMakeLists.txt` — убран хардкод `CMAKE_BUILD_TYPE Debug`. Тип сборки задаётся через `-DCMAKE_BUILD_TYPE=Debug|Release`.
+- `CMakeLists.txt` — убран избыточный `pq` из `target_link_libraries` (libpqxx линкует его транзитивно).
+- `Dockerfile` → переименован в `Dockerfile.dev` — dev-образ с Debug-сборкой, Rust/watchexec, gdb, ccache.
+- Новый `Dockerfile` — production-образ: Release-сборка, stripped binary, минимальные apt-пакеты, без watchexec, прямой `CMD`.
+- `docker-compose.yml` → переименован в `docker-compose.dev.yml` — dev compose с volume mounts, hot-reload, `dockerfile: Dockerfile.dev`.
+- Новый `docker-compose.yml` (по умолчанию) — production compose без volume mounts, с `deploy.resources.limits`.
+- `watch_and_run.sh` — в cmake добавлен `-DCMAKE_BUILD_TYPE=Debug`.
+
+**JSON_ASSERT fix — защита от битого JSON в Release.**
+- `include/utils/JsonAssertFix.hpp` — переопределяет `JSON_ASSERT` на `std::abort()` вместо `assert()`, который удаляется в Release/NDEBUG.
+- `include/utils/Config.hpp` — добавлен `#include "JsonAssertFix.hpp"` перед `nlohmann/json.hpp`.
+
+**Connection limits — лимит подключений из config.json.**
+- `include/network/NetworkManager.hpp` — добавлены `std::unordered_set<shared_ptr<ClientSession>> activeSessions_`, `std::mutex sessionsMutex_`, public-методы `addActiveSession()` / `removeActiveSession()`.
+- `src/network/NetworkManager.cpp::startAccept()` — при превышении `GameServerConfig.max_clients` новые подключения отклоняются. Ранее `max_clients` использовался только для TCP backlog.
+- `src/network/NetworkManager.cpp` — реализованы `addActiveSession()` / `removeActiveSession()`.
+- `include/network/ClientSession.hpp` — добавлены `std::function disconnectCallback_` и `setDisconnectCallback()`.
+- `src/network/ClientSession.cpp` — `handleClientDisconnect()` вызывает callback для удаления сессии из трекинга.
+
+Fixes:
+
+**Vendor NPC queries — правильные JOIN'ы.**
+- `src/utils/Database.cpp` — `get_vendor_npcs`: `SELECT DISTINCT vn.npc_id FROM vendor_inventory vi JOIN vendor_npc vn ON vn.id = vi.vendor_npc_id` (ранее брал `vendor_npc_id` напрямую без джойна).
+- `src/utils/Database.cpp` — `get_vendor_inventory`: добавлен `JOIN vendor_npc vn ON vn.id = vi.vendor_npc_id`, WHERE изменён с `vendor_npc_id = $1` на `vn.npc_id = $1`.
+
+**Zone event templates — COALESCE для nullable полей.**
+- `src/utils/Database.cpp` — `get_zone_event_templates`: `game_zone_id`, `duration_sec`, `loot_multiplier`, `spawn_rate_multiplier`, `mob_speed_multiplier` обёрнуты в COALESCE для предотвращения ошибок `null to int/float`.
+
+---
+
 v0.2.7
 23.04.2026
 ================

@@ -323,6 +323,30 @@ struct SpawnZoneStruct
 };
 
 /**
+ * @brief Class spawn zone structure
+ * Defines a spawn area for a specific character class, used when a new character
+ * enters the game for the first time. A random point within the zone bounds is selected.
+ */
+struct ClassSpawnZoneStruct
+{
+    int id = 0;
+    int classId = 0;
+    std::string className;
+    int zoneId = 0;
+    ZoneShape shape = ZoneShape::RECT;
+    float minX = 0.0f;
+    float maxX = 0.0f;
+    float minY = 0.0f;
+    float maxY = 0.0f;
+    float minZ = 0.0f;
+    float maxZ = 0.0f;
+    float centerX = 0.0f;
+    float centerY = 0.0f;
+    float innerRadius = 0.0f;
+    float outerRadius = 0.0f;
+};
+
+/**
  * @brief Experience level entry structure
  * Contains experience points required for a specific level
  */

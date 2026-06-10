@@ -6,12 +6,7 @@ project(MMOGameServer)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Set compiler flags for debug mode (remove when compiling for production)
-set(CMAKE_BUILD_TYPE Debug)
-# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=thread -g")
-# set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=thread")
-#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address,undefined -g")
-#set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address,undefined")
+# Build type is set via -DCMAKE_BUILD_TYPE=Debug|Release (defaults to none if omitted)
 
 # Define your project's source files
 set(SOURCE_FILES
@@ -23,6 +18,7 @@ set(SOURCE_FILES
     src/services/CharacterManager.cpp
     src/services/SpawnZoneManager.cpp
     src/services/SpawnManager.cpp
+    src/services/ClassSpawnZoneManager.cpp
     src/services/NPCManager.cpp
     src/services/MobManager.cpp
     src/services/ItemManager.cpp
@@ -58,6 +54,7 @@ set(HEADER_FILES
     include/services/CharacterManager.hpp
     include/services/SpawnZoneManager.hpp
     include/services/SpawnManager.hpp
+    include/services/ClassSpawnZoneManager.hpp
     include/services/MobManager.hpp
     include/services/ItemManager.hpp
     include/services/NPCManager.hpp
@@ -100,5 +97,4 @@ find_package(spdlog REQUIRED)
 # Create the executable
 add_executable(${PROJECT_NAME} ${SOURCE_FILES} ${HEADER_FILES})
 
-# Link against libpqxx and PostgreSQL
-target_link_libraries(${PROJECT_NAME} PkgConfig::libpqxx pq spdlog::spdlog_header_only)
+target_link_libraries(${PROJECT_NAME} PkgConfig::libpqxx spdlog::spdlog_header_only)

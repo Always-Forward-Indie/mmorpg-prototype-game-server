@@ -1,6 +1,7 @@
 #pragma once
 #include "services/CharacterManager.hpp"
 #include "services/ChunkManager.hpp"
+#include "services/ClassSpawnZoneManager.hpp"
 #include "services/ClientManager.hpp"
 #include "services/DialogueQuestManager.hpp"
 #include "services/GameConfigService.hpp"
@@ -22,6 +23,7 @@ class GameServices
           npcManager_(database_, logger_),
           spawnZoneManager_(mobManager_, database_, logger_),
           characterManager_(logger_),
+          classSpawnZoneManager_(database_, logger_),
           clientManager_(logger_),
           chunkManager_(logger_),
           dialogueQuestManager_(database_, logger_),
@@ -57,6 +59,10 @@ class GameServices
     {
         return characterManager_;
     }
+    ClassSpawnZoneManager &getClassSpawnZoneManager()
+    {
+        return classSpawnZoneManager_;
+    }
     ClientManager &getClientManager()
     {
         return clientManager_;
@@ -82,6 +88,7 @@ class GameServices
     NPCManager npcManager_;
     SpawnZoneManager spawnZoneManager_;
     CharacterManager characterManager_;
+    ClassSpawnZoneManager classSpawnZoneManager_;
     ClientManager clientManager_;
     ChunkManager chunkManager_;
     DialogueQuestManager dialogueQuestManager_;

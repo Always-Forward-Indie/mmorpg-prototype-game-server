@@ -228,6 +228,33 @@ EventHandler::handleGetCharacterDataEvent(const Event &event)
                     characterData.characterMaxMana,
                     startHpPct,
                     startMpPct);
+
+                // Override position with class-specific spawn zone for new characters.
+                // A random point within the zone bounds is selected so each new character
+                // of the same class spawns at a different location.
+                const auto *spawnZone = gameServices_.getClassSpawnZoneManager().getSpawnZoneForClass(characterData.classId);
+                if (spawnZone)
+                {
+                    PositionStruct spawnPos = ClassSpawnZoneManager::getRandomPointInZone(*spawnZone);
+                    characterData.characterPosition.positionX = spawnPos.positionX;
+                    characterData.characterPosition.positionY = spawnPos.positionY;
+                    characterData.characterPosition.positionZ = spawnPos.positionZ;
+                    // Persist the new spawn position to DB so subsequent logins use it.
+                    gameServices_.getCharacterManager().updateCharacterPosition(
+                        gameServices_.getDatabase(), passedClientData.clientId,
+                        characterData.characterId, characterData.characterPosition);
+                    log_->info("[JOIN] New character {} assigned class spawn zone {} at ({},{},{})",
+                        characterData.characterId,
+                        spawnZone->className,
+                        spawnPos.positionX,
+                        spawnPos.positionY,
+                        spawnPos.positionZ);
+                }
+                else
+                {
+                    log_->warn("[JOIN] New character {} class_id={} has no class spawn zone configured",
+                        characterData.characterId, characterData.classId);
+                }
             }
 
             // Create skills array
@@ -587,6 +614,10 @@ EventHandler::handleJoinChunkServerEvent(const Event &event)
             // load respawn zones
             Event respawnZonesEvent(Event::GET_RESPAWN_ZONES, clientID, ClientDataStruct(), clientSocket);
             dispatchEvent(respawnZonesEvent);
+
+            // load class spawn zones
+            Event classSpawnZonesEvent(Event::GET_CLASS_SPAWN_ZONES, clientID, ClientDataStruct(), clientSocket);
+            dispatchEvent(classSpawnZonesEvent);
 
             // load game zones (AABB bounds + exploration XP)
             Event gameZonesEvent(Event::GET_GAME_ZONES, clientID, ClientDataStruct(), clientSocket);
@@ -1356,6 +1387,9 @@ EventHandler::dispatchEvent(const Event &event)
         break;
     case Event::GET_RESPAWN_ZONES:
         handleGetRespawnZonesEvent(event);
+        break;
+    case Event::GET_CLASS_SPAWN_ZONES:
+        handleGetClassSpawnZonesEvent(event);
         break;
     case Event::GET_STATUS_EFFECT_TEMPLATES:
         handleGetStatusEffectTemplatesEvent(event);
@@ -3084,6 +3118,18 @@ EventHandler::handleGetRespawnZonesEvent(const Event &event)
             z["z"] = row["z"].as<float>();
             z["zoneId"] = row["zone_id"].as<int>();
             z["isDefault"] = row["is_default"].as<bool>();
+            // Area bounds for random point selection
+            z["minX"] = row["min_x"].as<float>();
+            z["maxX"] = row["max_x"].as<float>();
+            z["minY"] = row["min_y"].as<float>();
+            z["maxY"] = row["max_y"].as<float>();
+            z["minZ"] = row["min_z"].as<float>();
+            z["maxZ"] = row["max_z"].as<float>();
+            z["shapeType"] = row["shape_type"].as<std::string>();
+            z["centerX"] = row["center_x"].as<float>();
+            z["centerY"] = row["center_y"].as<float>();
+            z["innerRadius"] = row["inner_radius"].as<float>();
+            z["outerRadius"] = row["outer_radius"].as<float>();
             zonesJson.push_back(z);
         }
 
@@ -3103,6 +3149,59 @@ EventHandler::handleGetRespawnZonesEvent(const Event &event)
     catch (const std::exception &ex)
     {
         gameServices_.getLogger().logError("handleGetRespawnZonesEvent error: " + std::string(ex.what()));
+    }
+}
+
+void
+EventHandler::handleGetClassSpawnZonesEvent(const Event &event)
+{
+    int clientID = event.getClientID();
+    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
+
+    try
+    {
+        const auto &zones = gameServices_.getClassSpawnZoneManager().getAllClassSpawnZones();
+
+        nlohmann::json zonesJson = nlohmann::json::array();
+        for (const auto &pair : zones)
+        {
+            const auto &zone = pair.second;
+            nlohmann::json z;
+            z["id"] = zone.id;
+            z["classId"] = zone.classId;
+            z["className"] = zone.className;
+            z["zoneId"] = zone.zoneId;
+            z["minX"] = zone.minX;
+            z["maxX"] = zone.maxX;
+            z["minY"] = zone.minY;
+            z["maxY"] = zone.maxY;
+            z["minZ"] = zone.minZ;
+            z["maxZ"] = zone.maxZ;
+            z["shapeType"] = (zone.shape == ZoneShape::CIRCLE ? "CIRCLE" :
+                              zone.shape == ZoneShape::ANNULUS ? "ANNULUS" : "RECT");
+            z["centerX"] = zone.centerX;
+            z["centerY"] = zone.centerY;
+            z["innerRadius"] = zone.innerRadius;
+            z["outerRadius"] = zone.outerRadius;
+            zonesJson.push_back(z);
+        }
+
+        ResponseBuilder builder;
+        nlohmann::json response = builder
+                                      .setHeader("message", "Class spawn zones loaded")
+                                      .setHeader("hash", "")
+                                      .setHeader("clientId", clientID)
+                                      .setHeader("eventType", "setClassSpawnZonesList")
+                                      .setBody("classSpawnZonesData", zonesJson)
+                                      .build();
+        std::string responseData = networkManager_.generateResponseMessage("success", response);
+        networkManager_.sendResponse(clientSocket, responseData);
+
+        log_->info("[CLASS_SPAWN_ZONES] Sent " + std::to_string(zonesJson.size()) + " class spawn zones to chunk server");
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("handleGetClassSpawnZonesEvent error: " + std::string(ex.what()));
     }
 }
 
