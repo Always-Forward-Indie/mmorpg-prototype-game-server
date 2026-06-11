@@ -54,6 +54,7 @@ MobManager::loadMobs()
             mobData.attackCooldown = row["attack_cooldown"].as<float>();
             mobData.chaseMultiplier = row["chase_multiplier"].as<float>();
             mobData.patrolSpeed = row["patrol_speed"].as<float>();
+            mobData.patrolRadius = row["patrol_radius"].as<float>();
 
             // Social behaviour (migration 012)
             mobData.isSocial = row["is_social"].as<bool>();

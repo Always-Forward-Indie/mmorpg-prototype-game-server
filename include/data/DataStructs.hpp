@@ -198,6 +198,7 @@ struct CharacterDataStruct
     std::string characterName = "";
     std::string characterClass = "";
     std::string characterRace = "";
+    std::string characterGender = "";
     int classId = 0;
     PositionStruct characterPosition;
     std::vector<CharacterAttributeStruct> attributes;
@@ -243,12 +244,13 @@ struct MobDataStruct
     float aggroRange = 400.0f;    // Aggro detection radius (world units)
     float attackRange = 150.0f;   // Melee/ranged attack range (world units)
     float attackCooldown = 2.0f;  // Seconds between attacks
-    float chaseMultiplier = 2.0f; // aggroRange * chaseMultiplier = max chase distance
+    float chaseMultiplier = 1.5f; // aggroRange * chaseMultiplier = max chase distance (default 400*1.5=600)
     float patrolSpeed = 1.0f;     // Patrol movement speed multiplier
+    float patrolRadius = 350.0f;  // Max distance from spawn during patrol (world units)
 
     // Social and chase behaviour (migration 012)
     bool isSocial = false;       // Group aggro / passive-social enabled
-    float chaseDuration = 30.0f; // Max seconds of pursuit before leashing
+    float chaseDuration = 10.0f; // Max seconds of pursuit before leashing (timer-based, resets on re-attack)
 
     // AI depth (migration 016)
     float fleeHpThreshold = 0.0f;      // 0.0 = never flees; 0.25 = flee at 25% HP

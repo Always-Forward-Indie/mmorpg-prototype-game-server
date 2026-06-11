@@ -1,3 +1,22 @@
+v0.2.9
+11.06.2026
+================
+New:
+
+**Character gender — прокинут slug пола персонажа из БД.**
+- `CharacterDataStruct` — добавлено поле `characterGender` (slug: `"male"` / `"female"`).
+- `CharacterManager::getBasicCharacterDataFromDatabase` — читает `gender_slug` из результата запроса (`COALESCE(cg.name, '')`).
+- `Database::get_character` — `LEFT JOIN character_genders cg ON cg.id = characters.gender`, колонка `gender_slug`.
+- `EventHandler::handleGetCharacterDataEvent` — пробрасывает `"gender"` в ответ чанк-серверу.
+
+**Mob patrol radius — новое поле данных моба.**
+- `MobDataStruct` — добавлено `patrolRadius` (default `350.0f`), `chaseMultiplier` снижен 2.0→1.5, `chaseDuration` 30→10s.
+- `Database::get_mobs` — расширен SELECT: колонка `patrol_radius`.
+- `MobManager::loadMobs` — читает `patrol_radius` из строки БД.
+- `EventHandler::handleGetMobsListEvent` / `handleGetMobDataEvent` — пробрасывают `patrolRadius` в JSON для чанк-сервера.
+
+---
+
 v0.2.8
 10.06.2026
 ================

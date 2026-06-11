@@ -322,6 +322,7 @@ EventHandler::handleGetCharacterDataEvent(const Event &event)
                            .setBody("expForNextLevel", characterData.expForNextLevel)
                            .setBody("name", characterData.characterName)
                            .setBody("race", characterData.characterRace)
+                           .setBody("gender", characterData.characterGender)
                            .setBody("currentExp", characterData.characterExperiencePoints)
                            .setBody("experienceDebt", characterData.experienceDebt)
                            .setBody("freeSkillPoints", characterData.freeSkillPoints)
@@ -841,6 +842,7 @@ EventHandler::handleGetMobsListEvent(const Event &event)
             mobJson["attackCooldown"] = mobData.attackCooldown;
             mobJson["chaseMultiplier"] = mobData.chaseMultiplier;
             mobJson["patrolSpeed"] = mobData.patrolSpeed;
+            mobJson["patrolRadius"] = mobData.patrolRadius;
 
             // Social behaviour (migration 012)
             mobJson["isSocial"] = mobData.isSocial;
@@ -1072,6 +1074,7 @@ EventHandler::handleGetMobDataEvent(const Event &event)
                 mobJson["attackCooldown"] = mobData.attackCooldown;
                 mobJson["chaseMultiplier"] = mobData.chaseMultiplier;
                 mobJson["patrolSpeed"] = mobData.patrolSpeed;
+                mobJson["patrolRadius"] = mobData.patrolRadius;
 
                 // Social behaviour (migration 012)
                 mobJson["isSocial"] = mobData.isSocial;

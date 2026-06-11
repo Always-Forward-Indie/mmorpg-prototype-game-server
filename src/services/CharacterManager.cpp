@@ -96,6 +96,7 @@ CharacterManager::getBasicCharacterDataFromDatabase(Database &db, int accountId,
             characterData.classId = row["class_id"].as<int>();
             characterData.experienceDebt = row["experience_debt"].as<int>(0);
             characterData.freeSkillPoints = row["free_skill_points"].as<int>(0);
+            characterData.characterGender = row["gender_slug"].is_null() ? "" : row["gender_slug"].as<std::string>();
 
             auto expResult = db.executeQueryWithTransaction(txn, "get_character_exp_for_next_level", {characterData.characterLevel});
             characterData.expForNextLevel = expResult[0][0].as<int>();

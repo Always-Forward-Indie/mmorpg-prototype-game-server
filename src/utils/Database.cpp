@@ -67,11 +67,13 @@ Database::prepareDefaultQueries()
             "COALESCE(ccs.current_mana, 1) as character_current_mana, "
             "character_class.id as class_id, "
             "COALESCE(characters.experience_debt, 0) as experience_debt, "
-            "COALESCE(characters.free_skill_points, 0) as free_skill_points "
+            "COALESCE(characters.free_skill_points, 0) as free_skill_points, "
+            "COALESCE(cg.name, '') as gender_slug "
             "FROM characters "
             "JOIN character_class ON characters.class_id = character_class.id "
             "JOIN race on characters.race_id = race.id "
             "LEFT JOIN character_current_state ccs ON ccs.character_id = characters.id "
+            "LEFT JOIN character_genders cg ON cg.id = characters.gender "
             "WHERE characters.owner_id = $1 AND characters.id = $2 LIMIT 1;");
 
         // get character attributes — base (class formula) + permanent modifiers + equipment bonuses
@@ -325,7 +327,7 @@ Database::prepareDefaultQueries()
             "SELECT m.id, m.name, m.slug, m.level, m.spawn_health, m.spawn_mana, "
             "m.is_aggressive, m.is_dead, m.radius, m.base_xp, m.rank_id, "
             "mr.name AS race, mrk.code AS rank_code, mrk.mult AS rank_mult, "
-            "m.aggro_range, m.attack_range, m.attack_cooldown, m.chase_multiplier, m.patrol_speed, "
+            "m.aggro_range, m.attack_range, m.attack_cooldown, m.chase_multiplier, m.patrol_speed, m.patrol_radius, "
             "m.is_social, m.chase_duration, "
             "m.flee_hp_threshold, m.ai_archetype, "
             "COALESCE(m.can_evolve, FALSE) AS can_evolve, "
