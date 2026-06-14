@@ -117,6 +117,8 @@ class EventHandler
     // Analytics system (migration 058)
     void handleSaveAnalyticsEventEvent(const Event &event);
 
+    void handleSavePlayTimeEvent(const Event &event);
+
     NetworkManager &networkManager_;
     GameServices &gameServices_;
     std::shared_ptr<spdlog::logger> log_;

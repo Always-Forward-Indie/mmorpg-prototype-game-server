@@ -1,3 +1,37 @@
+v0.2.11
+15.06.2026
+================
+New:
+
+**Трекинг времени игры персонажа.**
+- `CharacterDataStruct` — новые поля `totalPlayTimeSec`, `lastSessionPlayTimeSec` (int64_t).
+- `CharacterManager::getBasicCharacterDataFromDatabase` — читает `total_play_time_sec`, `last_session_play_time_sec` из БД.
+- `Database::get_character` — SELECT дополнен `COALESCE(characters.total_play_time_sec, 0)`, `COALESCE(characters.last_session_play_time_sec, 0)`.
+
+**Онлайн-статус персонажа в БД.**
+- `CharacterManager::setCharacterOnline` — `UPDATE characters SET is_online = true` при входе.
+- `CharacterManager::resetAllOnline` — `UPDATE characters SET is_online = false WHERE is_online = true` при старте сервера (краш-восстановление).
+- `main.cpp` — вызов `characterManager.resetAllOnline(database)` после инициализации БД.
+- `EventHandler::handleGetCharacterDataEvent` — вызов `setCharacterOnline` после загрузки персонажа.
+
+**Сохранение времени игры (периодическое + при выходе).**
+- Новый тип события `Event::SAVE_PLAY_TIME`.
+- `PlayTimeDataStruct` — структура для передачи данных (characterId, sessionPlayTimeSec, lastSessionPlayTimeSec, isDisconnect).
+- `EventDispatcher::handleSavePlayTime` — парсит JSON-пакет `savePlayTime` от чанк-сервера, создаёт событие.
+- `EventHandler::handleSavePlayTimeEvent` — вызывает `CharacterManager::updatePlayTime`.
+- `CharacterManager::updatePlayTime` — при дисконнекте: `total_play_time_sec += delta`, `last_session_play_time_sec = full`, `last_online_at = NOW()`, `is_online = false`. Периодически: только `total_play_time_sec += delta`.
+
+DB:
+
+- `Database::set_character_online` — `UPDATE characters SET is_online = true WHERE id = $1`.
+- `Database::save_character_playtime` — `UPDATE characters SET total_play_time_sec = total_play_time_sec + $2 WHERE id = $1`.
+- `Database::save_character_playtime_disconnect` — `UPDATE ... total_play_time_sec += $2, last_session_play_time_sec = $3, last_online_at = NOW(), is_online = false WHERE id = $1`.
+- `Database::reset_all_online` — `UPDATE characters SET is_online = false WHERE is_online = true`.
+
+Chore:
+
+- `Database::executeQueryWithTransaction` — сигнатура расширена: `std::variant<int, int64_t, float, double, std::string>` (добавлен `int64_t`).
+
 v0.2.10
 14.06.2026
 ================

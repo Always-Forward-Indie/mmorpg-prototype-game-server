@@ -33,7 +33,8 @@ using EventData = std::variant<
     std::vector<NPCAttributeStruct>,
     std::vector<CharacterDataStruct>,
     WorldObjectDataStruct,
-    std::vector<WorldObjectDataStruct>
+    std::vector<WorldObjectDataStruct>,
+    PlayTimeDataStruct
     /* other types */>;
 
 class Event
@@ -120,7 +121,9 @@ class Event
         SAVE_SKILL_COOLDOWN,        // Upsert one cooldown row for a player skill
         GET_PLAYER_SKILL_COOLDOWNS, // Load active cooldowns for a character and send to chunk-server
         // Analytics events (migration 058)
-        SAVE_ANALYTICS_EVENT // Persist a game analytics event from chunk-server to game_analytics table
+        SAVE_ANALYTICS_EVENT, // Persist a game analytics event from chunk-server to game_analytics table
+        // Play time tracking
+        SAVE_PLAY_TIME // Persist play time from chunk-server to characters.total_play_time_sec
     }; // Define more event types as needed
     Event() = default; // Default constructor
     Event(EventType type, int clientID, const EventData data, std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket);

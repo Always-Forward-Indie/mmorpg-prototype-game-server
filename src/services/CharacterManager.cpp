@@ -1,5 +1,6 @@
 #include "services/CharacterManager.hpp"
 #include "utils/Database.hpp"
+#include <cstdint>
 #include <iostream>
 #include <nlohmann/json.hpp>
 #include <pqxx/pqxx>
@@ -97,6 +98,8 @@ CharacterManager::getBasicCharacterDataFromDatabase(Database &db, int accountId,
             characterData.experienceDebt = row["experience_debt"].as<int>(0);
             characterData.freeSkillPoints = row["free_skill_points"].as<int>(0);
             characterData.characterGender = row["gender_slug"].is_null() ? "" : row["gender_slug"].as<std::string>();
+            characterData.totalPlayTimeSec = row["total_play_time_sec"].as<int64_t>(0);
+            characterData.lastSessionPlayTimeSec = row["last_session_play_time_sec"].as<int64_t>(0);
 
             auto expResult = db.executeQueryWithTransaction(txn, "get_character_exp_for_next_level", {characterData.characterLevel});
             characterData.expForNextLevel = expResult[0][0].as<int>();
@@ -379,6 +382,57 @@ CharacterManager::saveCharacterHpMana(Database &db, int characterId, int current
         auto _dbConn = db.getConnectionLocked();
         pqxx::work txn(_dbConn.get());
         db.executeQueryWithTransaction(txn, "upsert_character_current_state", {characterId, currentHp, currentMana});
+        txn.commit();
+    }
+    catch (const std::exception &e)
+    {
+        db.handleDatabaseError(e);
+    }
+}
+
+void
+CharacterManager::setCharacterOnline(Database &db, int characterId)
+{
+    try
+    {
+        auto _dbConn = db.getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+        db.executeQueryWithTransaction(txn, "set_character_online", {characterId});
+        txn.commit();
+    }
+    catch (const std::exception &e)
+    {
+        db.handleDatabaseError(e);
+    }
+}
+
+void
+CharacterManager::updatePlayTime(Database &db, int characterId, int64_t sessionPlayTimeSec, int64_t lastSessionPlayTimeSec, bool isDisconnect)
+{
+    try
+    {
+        auto _dbConn = db.getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+        if (isDisconnect)
+            db.executeQueryWithTransaction(txn, "save_character_playtime_disconnect", {characterId, sessionPlayTimeSec, lastSessionPlayTimeSec});
+        else
+            db.executeQueryWithTransaction(txn, "save_character_playtime", {characterId, sessionPlayTimeSec});
+        txn.commit();
+    }
+    catch (const std::exception &e)
+    {
+        db.handleDatabaseError(e);
+    }
+}
+
+void
+CharacterManager::resetAllOnline(Database &db)
+{
+    try
+    {
+        auto _dbConn = db.getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+        txn.exec_prepared("reset_all_online");
         txn.commit();
     }
     catch (const std::exception &e)

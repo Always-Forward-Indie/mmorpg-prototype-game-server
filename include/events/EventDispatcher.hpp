@@ -81,6 +81,9 @@ class EventDispatcher
     // Analytics system (migration 058)
     void handleSaveAnalyticsEvent(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
 
+    // Play time tracking
+    void handleSavePlayTime(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
+
     EventQueue &eventQueue_;
     EventQueue &eventQueuePing_;
     GameServer *gameServer_;

@@ -3,6 +3,7 @@
 
 #include "utils/Config.hpp"
 #include "utils/Logger.hpp"
+#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <pqxx/pqxx>
@@ -52,7 +53,7 @@ class Database
     pqxx::result executeQueryWithTransaction(
         pqxx::work &transaction,
         const std::string &preparedQueryName,
-        const std::vector<std::variant<int, float, double, std::string>> &parameters);
+        const std::vector<std::variant<int, int64_t, float, double, std::string>> &parameters);
 
   private:
     // Database connection

@@ -41,6 +41,10 @@ class CharacterManager
     /// ARCH-4: Persist current HP and Mana for a single character — called by periodic save task.
     void saveCharacterHpMana(Database &db, int characterId, int currentHp, int currentMana);
 
+    void setCharacterOnline(Database &db, int characterId);
+    void updatePlayTime(Database &db, int characterId, int64_t sessionPlayTimeSec, int64_t lastSessionPlayTimeSec, bool isDisconnect);
+    void resetAllOnline(Database &db);
+
   private:
     Logger &logger_;
     std::shared_ptr<spdlog::logger> log_;

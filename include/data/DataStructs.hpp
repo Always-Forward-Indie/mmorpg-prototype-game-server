@@ -200,10 +200,20 @@ struct CharacterDataStruct
     std::string characterRace = "";
     std::string characterGender = "";
     int classId = 0;
+    int64_t totalPlayTimeSec = 0;
+    int64_t lastSessionPlayTimeSec = 0;
     PositionStruct characterPosition;
     std::vector<CharacterAttributeStruct> attributes;
     std::vector<SkillStruct> skills;
     std::vector<SkillBarSlotStruct> skillBarSlots; ///< hotbar assignments (loaded on join, sent to chunk server)
+};
+
+struct PlayTimeDataStruct
+{
+    int characterId = 0;
+    int64_t sessionPlayTimeSec = 0;
+    int64_t lastSessionPlayTimeSec = 0;
+    bool isDisconnect = false;
 };
 
 struct ClientDataStruct

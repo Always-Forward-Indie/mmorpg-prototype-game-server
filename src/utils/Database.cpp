@@ -68,7 +68,9 @@ Database::prepareDefaultQueries()
             "character_class.id as class_id, "
             "COALESCE(characters.experience_debt, 0) as experience_debt, "
             "COALESCE(characters.free_skill_points, 0) as free_skill_points, "
-            "COALESCE(cg.name, '') as gender_slug "
+            "COALESCE(cg.name, '') as gender_slug, "
+            "COALESCE(characters.total_play_time_sec, 0) as total_play_time_sec, "
+            "COALESCE(characters.last_session_play_time_sec, 0) as last_session_play_time_sec "
             "FROM characters "
             "JOIN character_class ON characters.class_id = character_class.id "
             "JOIN race on characters.race_id = race.id "
@@ -306,6 +308,17 @@ Database::prepareDefaultQueries()
 
         connection_->prepare("get_character_position", "SELECT x, y, z, rot_z FROM character_position WHERE character_id = $1 LIMIT 1;");
         connection_->prepare("set_character_position", "UPDATE character_position SET x = $1, y = $2, z = $3, rot_z = $4 WHERE character_id = $5;");
+
+        connection_->prepare("reset_all_online",
+            "UPDATE characters SET is_online = false WHERE is_online = true;");
+        connection_->prepare("set_character_online",
+            "UPDATE characters SET is_online = true WHERE id = $1;");
+        connection_->prepare("save_character_playtime",
+            "UPDATE characters SET total_play_time_sec = total_play_time_sec + $2 WHERE id = $1;");
+        connection_->prepare("save_character_playtime_disconnect",
+            "UPDATE characters SET total_play_time_sec = total_play_time_sec + $2, "
+            "last_session_play_time_sec = $3, last_online_at = NOW(), is_online = false "
+            "WHERE id = $1;");
 
         // get mob spawn zone data — join spawn_zone_mobs (many-to-many) for mob_id, spawn_count, respawn_time
         // One row per (zone, mob) pair; szm_id is the unique key for the map.
@@ -1032,7 +1045,7 @@ pqxx::result
 Database::executeQueryWithTransaction(
     pqxx::work &transaction,
     const std::string &preparedQueryName,
-    const std::vector<std::variant<int, float, double, std::string>> &parameters)
+    const std::vector<std::variant<int, int64_t, float, double, std::string>> &parameters)
 {
     try
     {

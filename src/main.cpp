@@ -49,6 +49,9 @@ main()
         // Initialize CharacterManager
         CharacterManager characterManager(logger);
 
+        // Reset online status for all characters (crash recovery)
+        characterManager.resetAllOnline(database);
+
         // Initialize GameServices
         GameServices gameServices(database, logger);
 

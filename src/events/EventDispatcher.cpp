@@ -217,6 +217,10 @@ EventDispatcher::dispatch(const std::string &eventType,
     {
         handleSaveAnalyticsEvent(payload, socket);
     }
+    else if (eventType == "savePlayTime")
+    {
+        handleSavePlayTime(payload, socket);
+    }
     else
     {
         log_->error("Unknown event type: " + eventType);
@@ -1129,5 +1133,32 @@ EventDispatcher::handleSaveAnalyticsEvent(
     catch (const std::exception &ex)
     {
         logger_.logError("handleSaveAnalyticsEvent parse error: " + std::string(ex.what()));
+    }
+}
+
+void
+EventDispatcher::handleSavePlayTime(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    try
+    {
+        auto j = nlohmann::json::parse(payload.rawMessage);
+        PlayTimeDataStruct pt;
+        pt.characterId = j["body"].value("characterId", 0);
+        pt.sessionPlayTimeSec = j["body"].value("sessionPlayTimeSec", int64_t{0});
+        pt.lastSessionPlayTimeSec = j["body"].value("lastSessionPlayTimeSec", int64_t{0});
+        pt.isDisconnect = j["body"].value("isDisconnect", false);
+        if (pt.characterId > 0)
+        {
+            Event saveEvent(Event::SAVE_PLAY_TIME, 0, pt, socket);
+            eventsBatch_.push_back(saveEvent);
+            eventQueue_.pushBatch(eventsBatch_);
+            eventsBatch_.clear();
+        }
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleSavePlayTime parse error: " + std::string(ex.what()));
     }
 }

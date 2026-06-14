@@ -139,6 +139,9 @@ EventHandler::handleGetCharacterDataEvent(const Event &event)
                 passedClientData.clientId,
                 passedClientData.characterId);
 
+            if (characterData.characterId > 0)
+                gameServices_.getCharacterManager().setCharacterOnline(gameServices_.getDatabase(), characterData.characterId);
+
             // Get the clientData object with the new init data
             const ClientDataStruct currentClientData = gameServices_.getClientManager().getClientData(passedClientData.clientId);
 
@@ -1500,6 +1503,10 @@ EventHandler::dispatchEvent(const Event &event)
     // Analytics system (migration 058)
     case Event::SAVE_ANALYTICS_EVENT:
         handleSaveAnalyticsEventEvent(event);
+        break;
+
+    case Event::SAVE_PLAY_TIME:
+        handleSavePlayTimeEvent(event);
         break;
 
     // chunk server events
@@ -3258,7 +3265,7 @@ EventHandler::handleSaveActiveEffectEvent(const Event &event)
 
         // $1=player_id $2=effect_slug $3=attribute_slug $4=source_type $5=value $6=expires_at $7=tick_ms
         // An empty attributeSlug results in NULL attribute_id (no match in entity_attributes).
-        using DbParam = std::variant<int, float, double, std::string>;
+        using DbParam = std::variant<int, int64_t, float, double, std::string>;
         std::vector<DbParam> params{
             characterId,
             effectSlug,
@@ -4696,7 +4703,7 @@ EventHandler::handleSaveSkillCooldownEvent(const Event &event)
 
         auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
         pqxx::work txn(_dbConn.get());
-        using DbParam = std::variant<int, float, double, std::string>;
+        using DbParam = std::variant<int, int64_t, float, double, std::string>;
         // Pass cooldownEndsAtMs as string to avoid std::to_string(double) producing
         // "1776627283138.000000" which PostgreSQL cannot cast with ::bigint.
         std::vector<DbParam> params{characterId, skillSlug, std::to_string(cooldownEndsAtMs)};
@@ -4813,5 +4820,34 @@ EventHandler::handleSaveAnalyticsEventEvent(const Event &event)
     catch (const std::exception &ex)
     {
         gameServices_.getLogger().logError("handleSaveAnalyticsEventEvent error: " + std::string(ex.what()));
+    }
+}
+
+void
+EventHandler::handleSavePlayTimeEvent(const Event &event)
+{
+    const auto &data = event.getData();
+    if (!std::holds_alternative<PlayTimeDataStruct>(data))
+    {
+        log_->error("handleSavePlayTimeEvent: unexpected data type");
+        return;
+    }
+
+    try
+    {
+        const auto &pt = std::get<PlayTimeDataStruct>(data);
+        if (pt.characterId <= 0)
+            return;
+
+        gameServices_.getCharacterManager().updatePlayTime(
+            gameServices_.getDatabase(),
+            pt.characterId,
+            pt.sessionPlayTimeSec,
+            pt.lastSessionPlayTimeSec,
+            pt.isDisconnect);
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("handleSavePlayTimeEvent error: " + std::string(ex.what()));
     }
 }
