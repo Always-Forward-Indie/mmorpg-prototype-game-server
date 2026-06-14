@@ -1,55 +1,26 @@
 #include "utils/Config.hpp"
-#include <filesystem>           // Include the filesystem header
-namespace fs = std::filesystem; // Alias for the filesystem namespace
 
-std::tuple<DatabaseConfig, GameServerConfig>
-Config::parseConfig(const std::string &configFile)
-{
+namespace {
+
+const char* getEnvOrDefault(const char* name, const char* defaultVal) {
+    const char* env = std::getenv(name);
+    return (env && env[0] != '\0') ? env : defaultVal;
+}
+
+}
+
+std::tuple<DatabaseConfig, GameServerConfig> Config::parseConfig() {
     DatabaseConfig DBConfig;
+    DBConfig.dbname   = getEnvOrDefault("DB_NAME", "mmo_prototype");
+    DBConfig.user     = getEnvOrDefault("DB_USER", "postgres");
+    DBConfig.password = getEnvOrDefault("DB_PASSWORD", "");
+    DBConfig.host     = getEnvOrDefault("DB_HOST", "127.0.0.1");
+    DBConfig.port     = static_cast<short>(std::stoi(getEnvOrDefault("DB_PORT", "5432")));
+
     GameServerConfig GSConfig;
-    ChunkServerConfig CSConfig;
+    GSConfig.host        = getEnvOrDefault("SERVER_HOST", "0.0.0.0");
+    GSConfig.port        = static_cast<short>(std::stoi(getEnvOrDefault("SERVER_PORT", "27016")));
+    GSConfig.max_clients = static_cast<short>(std::stoi(getEnvOrDefault("SERVER_MAX_CLIENTS", "3000")));
 
-    // Get the current working directory
-    fs::path currentPath = fs::current_path();
-
-    // Construct the full path to the config.json file relative to the current directory
-    fs::path configPath = currentPath / configFile;
-
-    // Convert the full path to a string
-    std::string configPathStr = configPath.string();
-
-    try
-    {
-        // Open the JSON configuration file
-        std::ifstream ifs(configPathStr);
-        if (!ifs.is_open())
-        {
-            throw std::runtime_error("Failed to open configuration file: " + configPathStr);
-        }
-
-        // Parse the JSON data
-        nlohmann::json root;
-        ifs >> root;
-
-        // Extract Database connection details
-        DBConfig.dbname = root["database"]["dbname"].get<std::string>();
-        DBConfig.user = root["database"]["user"].get<std::string>();
-        DBConfig.password = root["database"]["password"].get<std::string>();
-        DBConfig.host = root["database"]["host"].get<std::string>();
-        DBConfig.port = root["database"]["port"].get<short>();
-
-        // Extract Game server connection details
-        GSConfig.host = root["game_server"]["host"].get<std::string>();
-        GSConfig.port = root["game_server"]["port"].get<short>();
-        GSConfig.max_clients = root["game_server"]["max_clients"].get<short>();
-    }
-    catch (const std::exception &e)
-    {
-        // Handle any errors that occur during parsing or reading the configuration file
-        std::cerr << "Error while parsing configuration: " << e.what() << std::endl;
-        // You may want to throw or handle the error differently based on your application's needs
-    }
-
-    // Construct and return the tuple with the extracted values
     return std::make_tuple(DBConfig, GSConfig);
 }

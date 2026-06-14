@@ -1,10 +1,8 @@
-#pragma once  // Include guard to prevent multiple inclusions
+#pragma once
 
-#include "JsonAssertFix.hpp"
-
-#include <fstream>
-#include <iostream>
-#include <nlohmann/json.hpp>
+#include <cstdlib>
+#include <string>
+#include <tuple>
 
 struct DatabaseConfig {
     std::string dbname;
@@ -20,13 +18,7 @@ struct GameServerConfig {
     short max_clients;
 };
 
-struct ChunkServerConfig {
-    std::string host;
-    short port;
-    short max_clients;
-};
-
 class Config {
 public:
-    std::tuple<DatabaseConfig, GameServerConfig> parseConfig(const std::string& configFile);
+    std::tuple<DatabaseConfig, GameServerConfig> parseConfig();
 };

@@ -5,11 +5,10 @@ services:
       dockerfile: Dockerfile
     ports:
       - "27016:27016"
+    env_file:
+      - .env
     environment:
-      - LOG_LEVEL=info
-      - LOG_LEVEL_NETWORK=warn
-      - LOG_LEVEL_GAMELOOP=warn
-      - LOG_LEVEL_EVENTS=warn
+      - DB_HOST=db
     restart: unless-stopped
     networks:
       - mmo_network
