@@ -1,3 +1,15 @@
+v0.2.12
+17.06.2026
+================
+Fixes:
+
+**upsert_player_inventory_item — ON CONFLICT предотвращает дубликаты.**
+- `Database::upsert_player_inventory_item` — запрос изменён: `INSERT ... ON CONFLICT (character_id, item_id) DO UPDATE SET quantity = quantity + EXCLUDED.quantity`. Ранее при повторной вставке того же предмета создавалась новая строка — инвентарь накапливал дубликаты.
+
+**DisconnectChunkServerEvent — сброс онлайн-статуса всех персонажей.**
+- `EventHandler::handleDisconnectChunkServerEvent` — теперь вызывает `CharacterManager::resetAllOnline()` в обоих путях (по socket и по clientID). При падении чанк-сервера все персонажи корректно помечаются офлайн в БД.
+
+---
 v0.2.11
 15.06.2026
 ================

@@ -703,11 +703,17 @@ EventHandler::handleDisconnectChunkServerEvent(const Event &event)
             // Remove the chunk server data by socket
             gameServices_.getChunkManager().removeChunkServerDataBySocket(clientSocket);
 
+            // Mark all characters as offline since the chunk server is gone
+            gameServices_.getCharacterManager().resetAllOnline(gameServices_.getDatabase());
+
             return;
         }
 
         // Remove the chunk server data
         gameServices_.getChunkManager().removeChunkServerDataById(clientID);
+
+        // Mark all characters as offline since the chunk server is gone
+        gameServices_.getCharacterManager().resetAllOnline(gameServices_.getDatabase());
 
         // send the response to all clients
         nlohmann::json response;

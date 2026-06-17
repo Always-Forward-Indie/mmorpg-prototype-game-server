@@ -679,7 +679,9 @@ Database::prepareDefaultQueries()
         connection_->prepare("upsert_player_inventory_item",
             "INSERT INTO player_inventory (character_id, item_id, quantity) "
             "VALUES ($1, $2, $3) "
-            " RETURNING id;");
+            "ON CONFLICT (character_id, item_id) "
+            "DO UPDATE SET quantity = player_inventory.quantity + EXCLUDED.quantity "
+            "RETURNING id;");
 
         // Update quantity of an existing inventory row by its primary key.
         // $1=quantity, $2=inventory_item_id, $3=character_id (safety check)
