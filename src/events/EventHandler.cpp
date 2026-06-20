@@ -4,6 +4,7 @@
 #include "utils/TimestampUtils.hpp"
 
 #include "events/Event.hpp"
+#include <cstdlib>
 #include <spdlog/logger.h>
 
 EventHandler::EventHandler(
@@ -546,7 +547,10 @@ EventHandler::handleJoinChunkServerEvent(const Event &event)
         {
             ChunkInfoStruct chunkData = std::get<ChunkInfoStruct>(data);
 
-            chunkData.ip = "192.168.50.50";  // Set the chunk server IP address for testing purposes
+            const char* envChunkHost = std::getenv("CHUNK_SERVER_HOST");
+            if (envChunkHost && envChunkHost[0] != '\0') {
+                chunkData.ip = envChunkHost;
+            }
             chunkData.socket = clientSocket; // Set the socket for the chunk server
 
             // Save the chunk data to memory
