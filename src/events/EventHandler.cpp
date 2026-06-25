@@ -707,8 +707,9 @@ EventHandler::handleDisconnectChunkServerEvent(const Event &event)
             // Remove the chunk server data by socket
             gameServices_.getChunkManager().removeChunkServerDataBySocket(clientSocket);
 
-            // Mark all characters as offline since the chunk server is gone
-            gameServices_.getCharacterManager().resetAllOnline(gameServices_.getDatabase());
+            // Individual per-character disconnect events already handle is_online=false via
+            // savePlayTime(isDisconnect:true). Bulk resetAllOnline() here was a false-positive
+            // trigger that marked still-connected players as offline on any connection blip.
 
             return;
         }
@@ -716,8 +717,9 @@ EventHandler::handleDisconnectChunkServerEvent(const Event &event)
         // Remove the chunk server data
         gameServices_.getChunkManager().removeChunkServerDataById(clientID);
 
-        // Mark all characters as offline since the chunk server is gone
-        gameServices_.getCharacterManager().resetAllOnline(gameServices_.getDatabase());
+        // Individual per-character disconnect events already handle is_online=false via
+        // savePlayTime(isDisconnect:true). Bulk resetAllOnline() here was a false-positive
+        // trigger that marked still-connected players as offline on any connection blip.
 
         // send the response to all clients
         nlohmann::json response;
@@ -1517,6 +1519,10 @@ EventHandler::dispatchEvent(const Event &event)
 
     case Event::SAVE_PLAY_TIME:
         handleSavePlayTimeEvent(event);
+        break;
+
+    case Event::MARK_CHARACTERS_ONLINE:
+        handleMarkCharactersOnlineEvent(event);
         break;
 
     // chunk server events
@@ -4859,5 +4865,44 @@ EventHandler::handleSavePlayTimeEvent(const Event &event)
     catch (const std::exception &ex)
     {
         gameServices_.getLogger().logError("handleSavePlayTimeEvent error: " + std::string(ex.what()));
+    }
+}
+
+void
+EventHandler::handleMarkCharactersOnlineEvent(const Event &event)
+{
+    const auto &data = event.getData();
+
+    try
+    {
+        if (!std::holds_alternative<nlohmann::json>(data))
+        {
+            log_->error("handleMarkCharactersOnlineEvent: unexpected data type");
+            return;
+        }
+
+        const nlohmann::json &body = std::get<nlohmann::json>(data);
+        if (!body.contains("characterIds") || !body["characterIds"].is_array())
+        {
+            log_->error("handleMarkCharactersOnlineEvent: missing characterIds array");
+            return;
+        }
+
+        for (const auto &id : body["characterIds"])
+        {
+            int characterId = id.get<int>();
+            if (characterId > 0)
+            {
+                gameServices_.getCharacterManager().setCharacterOnline(
+                    gameServices_.getDatabase(), characterId);
+            }
+        }
+
+        log_->info("Marked " + std::to_string(body["characterIds"].size()) +
+                    " characters as online after chunk-server reconnect");
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("handleMarkCharactersOnlineEvent error: " + std::string(ex.what()));
     }
 }

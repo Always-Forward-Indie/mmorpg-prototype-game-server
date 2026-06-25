@@ -123,7 +123,10 @@ class Event
         // Analytics events (migration 058)
         SAVE_ANALYTICS_EVENT, // Persist a game analytics event from chunk-server to game_analytics table
         // Play time tracking
-        SAVE_PLAY_TIME // Persist play time from chunk-server to characters.total_play_time_sec
+        SAVE_PLAY_TIME, // Persist play time from chunk-server to characters.total_play_time_sec
+
+        // Online status recovery after chunk-server reconnect
+        MARK_CHARACTERS_ONLINE // Batch mark character IDs as is_online=true (sent on chunk-server reconnect)
     }; // Define more event types as needed
     Event() = default; // Default constructor
     Event(EventType type, int clientID, const EventData data, std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket);

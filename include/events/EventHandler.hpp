@@ -119,6 +119,9 @@ class EventHandler
 
     void handleSavePlayTimeEvent(const Event &event);
 
+    // Online status recovery
+    void handleMarkCharactersOnlineEvent(const Event &event);
+
     NetworkManager &networkManager_;
     GameServices &gameServices_;
     std::shared_ptr<spdlog::logger> log_;

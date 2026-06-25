@@ -221,6 +221,10 @@ EventDispatcher::dispatch(const std::string &eventType,
     {
         handleSavePlayTime(payload, socket);
     }
+    else if (eventType == "markCharactersOnline")
+    {
+        handleMarkCharactersOnline(payload, socket);
+    }
     else
     {
         log_->error("Unknown event type: " + eventType);
@@ -1160,5 +1164,28 @@ EventDispatcher::handleSavePlayTime(
     catch (const std::exception &ex)
     {
         logger_.logError("handleSavePlayTime parse error: " + std::string(ex.what()));
+    }
+}
+
+void
+EventDispatcher::handleMarkCharactersOnline(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    try
+    {
+        auto j = nlohmann::json::parse(payload.rawMessage);
+        if (j.contains("body") && j["body"].is_object() && j["body"].contains("characterIds") && j["body"]["characterIds"].is_array())
+        {
+            nlohmann::json body = j["body"];
+            Event event(Event::MARK_CHARACTERS_ONLINE, 0, body, socket);
+            eventsBatch_.push_back(event);
+            eventQueue_.pushBatch(eventsBatch_);
+            eventsBatch_.clear();
+        }
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleMarkCharactersOnline parse error: " + std::string(ex.what()));
     }
 }

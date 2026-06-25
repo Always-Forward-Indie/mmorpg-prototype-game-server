@@ -84,6 +84,9 @@ class EventDispatcher
     // Play time tracking
     void handleSavePlayTime(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
 
+    // Online status recovery
+    void handleMarkCharactersOnline(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
+
     EventQueue &eventQueue_;
     EventQueue &eventQueuePing_;
     GameServer *gameServer_;
