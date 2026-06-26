@@ -1,3 +1,90 @@
+v0.2.14
+26.06.2026
+================
+New:
+
+**Skill Hotbar Persistence — сохранение скилл-бара между сессиями.**
+- `SkillBarSlotStruct` (`DataStructs.hpp`) — структура `slotIndex` + `skillSlug`.
+- `CharacterDataStruct::skillBarSlots` — вектор слотов хотбара персонажа.
+- `CharacterManager::getCharacterSkillBarFromDatabase()` — загрузка слотов из БД при входе.
+- `EventHandler::handleGetCharacterDataEvent()` — пробрасывает `skillBarData` в `setCharacterData` на чанк-сервер.
+- `Event::SAVE_SKILL_BAR_SLOT` — новый тип события для персистенции слота.
+- `EventHandler::handleSaveSkillBarSlotEvent()` — upsert/delete слота через `save_skill_bar_slot` / `clear_skill_bar_slot`.
+- `EventDispatcher::handleSetSkillBarSlot()` — роутинг пакета `saveSkillBarSlot` от чанк-сервера.
+- DB: 3 новых prepared statement — `get_character_skill_bar`, `save_skill_bar_slot` (`INSERT ... ON CONFLICT DO UPDATE`), `clear_skill_bar_slot` (DELETE).
+
+**Skill Cooldown Persistence — кулдауны переживают релог.**
+- `Event::SAVE_SKILL_COOLDOWN` — сохранение активного кулдауна в БД.
+- `Event::GET_PLAYER_SKILL_COOLDOWNS` — загрузка кулдаунов при входе (истёкшие автоочищаются).
+- `EventHandler::handleSaveSkillCooldownEvent()` / `handleGetPlayerSkillCooldownsEvent()` — обработчики.
+- `EventDispatcher::handleSaveSkillCooldown()` / `handleGetPlayerSkillCooldowns()` — роутинг.
+- DB: `upsert_skill_cooldown` (`INSERT ... ON CONFLICT DO UPDATE`), `get_active_skill_cooldowns` (SELECT + DELETE просроченных).
+
+**MARK_CHARACTERS_ONLINE — восстановление онлайн-статуса при переподключении чанк-сервера.**
+- `Event::MARK_CHARACTERS_ONLINE` — новый тип события.
+- `EventHandler::handleMarkCharactersOnlineEvent()` — пакетно выставляет `is_online = true` для всех загруженных персонажей после переподключения чанк-сервера.
+- `EventDispatcher::handleMarkCharactersOnline()` — роутинг пакета `markCharactersOnline`.
+
+**Periodic HP/Mana Persistence (ARCH-4).**
+- `Event::SAVE_HP_MANA` — периодический снэпшот HP/Mana всех онлайн-персонажей.
+- `EventHandler::handleSaveHpManaEvent()` — upsert через `upsert_character_current_state`.
+- `EventDispatcher::handleSaveHpMana()` — роутинг пакета `saveHpMana`.
+- `CharacterManager::saveCharacterHpMana()` — подготовка данных для сохранения.
+
+**Player Flags — система флагов игрока.**
+- `Event::GET_PLAYER_FLAGS` / `Event::UPDATE_PLAYER_FLAG` — загрузка/сохранение key-value флагов (bool/int).
+- `EventHandler::handleGetPlayerFlagsEvent()` / `handleUpdatePlayerFlagEvent()` — обработчики.
+- `EventDispatcher::handleGetPlayerFlags()` / `handleUpdatePlayerFlag()` — роутинг.
+- DB: `get_player_flags`, `upsert_player_flag`.
+
+**Player Active Effects — загрузка эффектов при входе.**
+- `Event::GET_PLAYER_ACTIVE_EFFECTS` — загружает непросроченные status-эффекты + пассивные модификаторы скилов как permanent-эффекты (`expiresAt=0`).
+- `EventHandler::handleGetPlayerActiveEffectsEvent()` — автоочистка просроченных эффектов (`cleanup_expired_active_effects`), мёрджинг пассивных модификаторов из `get_player_passive_skill_effects`.
+- DB: `cleanup_expired_active_effects`, `get_player_active_effects`, `insert_player_active_effect`, `get_player_passive_skill_effects`.
+
+**GET_GAME_CONFIG — передача game_config на чанк-сервер.**
+- `Event::GET_GAME_CONFIG` — загружает все key-value пары `game_config` из БД и отправляет чанк-серверу пакетом `setGameConfig` при `JOIN_CHUNK_SERVER`.
+- DB: `get_game_config` prepared statement.
+
+**Mob skills/weaknesses/resistances — отдельные data-push при старте.**
+- `handleGetMobsListEvent()` — после отправки списка мобов дополнительно отправляет `setMobsSkills`, `setMobWeaknessesResistances` на чанк-сервер.
+- DB: `get_mob_skills`, `get_mob_weaknesses_all`, `get_mob_resistances_all`.
+
+**NPC skills/attributes — data-push при старте.**
+- `handleGetNPCsListEvent()` — после списка NPC отправляет `setNPCsSkills`, `setNPCsAttributes` на чанк-сервер.
+- DB: `get_npc_skills` prepared statement.
+
+**CHUNK_SERVER_HOST — оверрайд IP чанк-сервера.**
+- `EventHandler::handleJoinChunkServerEvent()` — оверрайд IP из env var `CHUNK_SERVER_HOST` для Docker/NAT сценариев.
+
+Infrastructure:
+
+**Database — HIGH-10/CRITICAL-6: Авто-переподключение + сериализация транзакций.**
+- `Database::getConnectionLocked()` — при обрыве соединения прозрачно переподключается и перерегистрирует все prepared statements.
+- `mutable std::mutex dbMutex_` + RAII `ScopedConnection` — сериализация конкурентных pqxx-транзакций.
+
+**NetworkManager — MEDIUM-8: Strand-сериализация записи per-socket.**
+- `SocketWriteState` — per-socket очередь записи с ASIO `strand`. Предотвращает UB конкурентной `async_write` на одном сокете из разных потоков.
+
+**ThreadPool — асинхронная диспетчеризация событий.**
+- `ThreadPool` (`include/utils/ThreadPool.hpp`) — пул потоков `hardware_concurrency`.
+- `GameServer::eventLoop()` — события диспетчеризуются через `threadPool_.enqueueTask()`.
+
+**Timestamp/Lag-компенсация.**
+- `TimestampStruct` (`DataStructs.hpp`) — `serverRecvMs`, `serverSendMs`, `clientSendMsEcho`, `requestId`.
+- `NetworkManager::generateResponseMessage()` — перегрузка с таймстемпами в заголовке.
+- `EventHandler::handlePingClientEvent()` — эхо лаг-метрик.
+
+Fixes:
+
+**v0.2.12 correction — resetAllOnline() убран из handleDisconnectChunkServerEvent.**
+- `resetAllOnline()` был false-positive триггером при любом блипе соединения — помечал офлайн даже подключённых игроков.
+- Онлайн-статус управляется per-character через `savePlayTime(isDisconnect: true)` в индивидуальных событиях дисконнекта.
+
+**Dockerfile.dev — удалён устаревший COPY config.json.**
+- `Dockerfile.dev` не был обновлён при переходе на env vars в v0.2.10.
+
+---
 v0.2.13
 20.06.2026
 ================
