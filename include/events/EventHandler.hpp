@@ -91,6 +91,8 @@ class EventHandler
     void handleSaveLearnedSkillEvent(const Event &event);
     void handleSaveSkillBarSlotEvent(const Event &event);
     void handleGetZoneEventTemplatesEvent(const Event &event);
+    // Mastery definition system
+    void handleGetMasteryDefinitionsEvent(const Event &event);
     // Title system
     void handleGetTitleDefinitionsEvent(const Event &event);
     void handleGetPlayerTitlesEvent(const Event &event);

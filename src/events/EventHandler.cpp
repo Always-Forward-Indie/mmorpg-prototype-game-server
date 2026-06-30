@@ -643,6 +643,10 @@ EventHandler::handleJoinChunkServerEvent(const Event &event)
             Event zoneEventTemplatesEvent(Event::GET_ZONE_EVENT_TEMPLATES, clientID, ClientDataStruct(), clientSocket);
             dispatchEvent(zoneEventTemplatesEvent);
 
+            // load mastery definitions (global catalog — defines which attribute each mastery type buffs)
+            Event masteryDefsEvent(Event::GET_MASTERY_DEFINITIONS, clientID, 0, clientSocket);
+            dispatchEvent(masteryDefsEvent);
+
             // load title definitions (global catalog — same lifetime as zone templates)
             Event titleDefsEvent(Event::GET_TITLE_DEFINITIONS, clientID, 0, clientSocket);
             dispatchEvent(titleDefsEvent);
@@ -1473,6 +1477,11 @@ EventHandler::dispatchEvent(const Event &event)
         break;
     case Event::GET_ZONE_EVENT_TEMPLATES:
         handleGetZoneEventTemplatesEvent(event);
+        break;
+
+    // Mastery definition system
+    case Event::GET_MASTERY_DEFINITIONS:
+        handleGetMasteryDefinitionsEvent(event);
         break;
 
     // Title system
@@ -4012,6 +4021,53 @@ EventHandler::handleSaveMasteryEvent(const Event &event)
     catch (const std::exception &ex)
     {
         gameServices_.getLogger().logError("handleSaveMasteryEvent error: " + std::string(ex.what()));
+    }
+}
+
+// ── GET_MASTERY_DEFINITIONS ────────────────────────────────────────────────
+void
+EventHandler::handleGetMasteryDefinitionsEvent(const Event &event)
+{
+    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
+    int clientID = event.getClientID();
+
+    try
+    {
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+        auto result = gameServices_.getDatabase().executeQueryWithTransaction(
+            txn, "get_mastery_definitions", {});
+
+        nlohmann::json defsJson = nlohmann::json::array();
+        for (const auto &row : result)
+        {
+            nlohmann::json d;
+            d["slug"] = row["slug"].as<std::string>();
+            d["name"] = row["name"].as<std::string>();
+            d["weaponTypeSlug"] = row["weapon_type_slug"].is_null()
+                                       ? ""
+                                       : row["weapon_type_slug"].as<std::string>();
+            d["maxValue"] = row["max_value"].as<double>();
+            d["targetAttributeSlug"] = row["target_attribute_slug"].as<std::string>();
+            defsJson.push_back(std::move(d));
+        }
+
+        ResponseBuilder builder;
+        nlohmann::json response = builder
+                                      .setHeader("message", "Mastery definitions")
+                                      .setHeader("hash", "")
+                                      .setHeader("clientId", clientID)
+                                      .setHeader("eventType", "setMasteryDefinitionsData")
+                                      .setBody("definitions", defsJson)
+                                      .build();
+        networkManager_.sendResponse(clientSocket,
+            networkManager_.generateResponseMessage("success", response));
+
+        log_->info("[MASTERY] Sent {} mastery definitions to chunk server", defsJson.size());
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("handleGetMasteryDefinitionsEvent error: " + std::string(ex.what()));
     }
 }
 

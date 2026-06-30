@@ -103,6 +103,7 @@ class Event
         SAVE_REPUTATION,          // Upsert one faction reputation value for a character
         GET_PLAYER_MASTERIES,     // Load character mastery rows from DB and send to chunk-server
         SAVE_MASTERY,             // Upsert one mastery value for a character
+        GET_MASTERY_DEFINITIONS,  // Load global mastery_definitions from DB and send to chunk-server
         GET_ZONE_EVENT_TEMPLATES, // Load zone_event_templates from DB and send to chunk-server
         SAVE_LEARNED_SKILL,       // Persist a newly learned skill to character_skills
         SAVE_SKILL_BAR_SLOT,      // Persist a hotbar slot assignment to character_skill_bar

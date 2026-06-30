@@ -1,3 +1,20 @@
+v0.2.15
+30.06.2026
+================
+New:
+
+**Mastery Definitions — загрузка справочника `mastery_definitions` для чанк-сервера.**
+- `Event::GET_MASTERY_DEFINITIONS` — новый тип события: загружает статические определения из таблицы `mastery_definitions` (slug, name, weapon_type_slug, max_value, target_attribute_slug) и отправляет чанк-серверу пакет `setMasteryDefinitionsData`.
+- `EventHandler::handleGetMasteryDefinitionsEvent()` — обработчик: SQL-запрос через `get_mastery_definitions`, сериализация в JSON.
+- `EventDispatcher::handleGetMasteryDefinitionsData()` — роутинг пакета `getMasteryDefinitionsData` от чанк-сервера.
+- Вызов добавлен в startup-последовательность `JOIN_CHUNK_SERVER` после `GET_ZONE_EVENT_TEMPLATES`.
+
+DB:
+
+**`mastery_definitions` prepared statement.**
+- `get_mastery_definitions` — `SELECT slug, name, weapon_type_slug, max_value, target_attribute_slug FROM mastery_definitions ORDER BY slug`.
+
+---
 v0.2.14
 26.06.2026
 ================

@@ -177,6 +177,10 @@ EventDispatcher::dispatch(const std::string &eventType,
     {
         handleSaveMastery(payload, socket);
     }
+    else if (eventType == "getMasteryDefinitionsData")
+    {
+        handleGetMasteryDefinitionsData(payload, socket);
+    }
     else if (eventType == "saveLearnedSkill")
     {
         handleSaveLearnedSkill(payload, socket);
@@ -945,6 +949,17 @@ EventDispatcher::handleSaveMastery(
     {
         logger_.logError("handleSaveMastery parse error: " + std::string(ex.what()));
     }
+}
+
+void
+EventDispatcher::handleGetMasteryDefinitionsData(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    Event ev(Event::GET_MASTERY_DEFINITIONS, 0, 0, socket);
+    eventsBatch_.push_back(ev);
+    eventQueue_.pushBatch(eventsBatch_);
+    eventsBatch_.clear();
 }
 
 void

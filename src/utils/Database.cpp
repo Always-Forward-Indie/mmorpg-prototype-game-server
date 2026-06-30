@@ -909,6 +909,11 @@ Database::prepareDefaultQueries()
             "VALUES($1, $2, $3) "
             "ON CONFLICT(character_id, mastery_slug) DO UPDATE SET value = EXCLUDED.value;");
 
+        connection_->prepare("get_mastery_definitions",
+            "SELECT slug, name, weapon_type_slug, max_value, target_attribute_slug "
+            "FROM mastery_definitions "
+            "ORDER BY slug;");
+
         // Title system
         connection_->prepare("get_title_definitions",
             "SELECT id, slug, display_name, description, earn_condition, bonuses::text, condition_params::text "
