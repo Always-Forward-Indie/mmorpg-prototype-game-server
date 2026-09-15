@@ -37,6 +37,7 @@ set(SOURCE_FILES
     src/utils/Generators.cpp
     src/utils/Logger.cpp
     src/utils/Database.cpp
+    src/utils/DatabasePool.cpp
     src/utils/Config.cpp
     src/utils/TimeUtils.cpp
     src/utils/TimestampUtils.cpp

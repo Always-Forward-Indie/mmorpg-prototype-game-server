@@ -2,8 +2,10 @@
 #define DATABASE_HPP
 
 #include "utils/Config.hpp"
+#include "utils/DatabasePool.hpp"
 #include "utils/Logger.hpp"
 #include <cstdint>
+#include <cstdlib>
 #include <memory>
 #include <mutex>
 #include <pqxx/pqxx>
@@ -15,37 +17,37 @@ class Database
     // Constructor
     Database(std::tuple<DatabaseConfig, GameServerConfig> &configs, Logger &logger);
 
-    // Establish a database connection
+    // Establish the connection pool (called once from the constructor)
     void connect(std::tuple<DatabaseConfig, GameServerConfig> &configs);
 
-    // Prepare default queries
-    void prepareDefaultQueries();
+    // Register prepared statements on one connection. Static so the pool can
+    // run it on every (re)opened connection (prepared statements are
+    // per-connection in pqxx).
+    static void prepareQueriesOn(pqxx::connection &conn);
 
-    /// CRITICAL-6 fix: RAII wrapper that holds the DB mutex for the lifetime of a transaction.
-    /// Usage:
+    /// RAII wrapper that holds one pooled connection for the lifetime of a
+    /// transaction. Same call pattern as before (getConnectionLocked):
     ///   auto sc = db.getConnectionLocked();
     ///   pqxx::work txn(sc.get());
     ///   ...
-    ///   txn.commit();  // sc goes out of scope — mutex released
+    ///   txn.commit();  // sc goes out of scope — slot released to the pool
     struct ScopedConnection
     {
-        std::unique_lock<std::mutex> lock;
-        pqxx::connection &conn;
-        /// Construct by locking mutex from scratch (original path)
-        ScopedConnection(std::mutex &m, pqxx::connection &c) : lock(m), conn(c) {}
-        /// Construct with an already-owned lock (HIGH-10 reconnect path)
-        ScopedConnection(std::unique_lock<std::mutex> l, pqxx::connection &c) : lock(std::move(l)), conn(c) {}
+        DatabasePool::Guard guard;
+        explicit ScopedConnection(DatabasePool::Guard &&g) : guard(std::move(g)) {}
         ScopedConnection(ScopedConnection &&) = default;
         pqxx::connection &get()
         {
-            return conn;
+            return guard.get();
         }
     };
     ScopedConnection getConnectionLocked();
 
-    /// Legacy accessor — NOT thread-safe when used directly for transactions.
-    /// Kept for prepareDefaultQueries() which runs single-threaded at startup.
-    pqxx::connection &getConnection();
+    // Pool stats for monitoring (contention visibility).
+    size_t dbPoolSize() const;
+    size_t dbPoolInUse() const;
+    uint64_t dbPoolTimeouts() const;
+    uint64_t dbPoolReconnects() const;
 
     // Handle database connection or query errors
     void handleDatabaseError(const std::exception &e);
@@ -56,12 +58,9 @@ class Database
         const std::vector<std::variant<int, int64_t, float, double, std::string>> &parameters);
 
   private:
-    // Database connection
-    std::unique_ptr<pqxx::connection> connection_;
-    /// HIGH-10: connection string stored so getConnectionLocked() can reconnect
-    std::string connectionString_;
-    /// CRITICAL-6: serialises concurrent pqxx::work transactions on the single connection
-    mutable std::mutex dbMutex_;
+    static int poolSizeFromEnv();
+    // Connection pool (replaces the single serialized connection).
+    std::unique_ptr<DatabasePool> pool_;
     // Logger
     Logger &logger_;
     std::shared_ptr<spdlog::logger> log_;
