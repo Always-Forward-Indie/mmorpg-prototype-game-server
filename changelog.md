@@ -1,3 +1,33 @@
+v0.2.16
+15.09.2026
+================
+
+Fixes:
+
+**Тотал-аутэдж входов (game отдавал chunkId 0) — generation-stamp + heartbeat.**
+- Причина: флэп линка чанк↔гейм → переподключение регистрирует чанк заново → опоздавшее событие дисконнекта старого сокета стирало свежую запись (`removeChunkServerDataBySocket` без проверки). Дальше — тишина навсегда (перерегистрация только при ребуте чанка).
+- `ChunkManager` — поколения на регистрацию (паттерн P0 чанка): удаление только при совпадении поколения, stale reverse-маппинги чистятся, `addChunkInfo`/`addListOfAllChunks` затирают старые сокет-маппинги.
+- Чанк переутверждает `chunkServerConnection` каждые 60с (идемпотентный heartbeat; цепочка гасится при реконнекте/деструкторе, join потоков не висит).
+- Юнит-тест `tests/test_chunk_manager.cpp` (новая папка `tests/`, то же no-gtest соглашение): stale-disconnect, re-register, remove — ALL OK.
+
+**Вис на shutdown — stop-предикат очередей.**
+- `EventQueue` — `stopped_` + `notify_all`, `pop/popBatch` возвращают false; `GameServer::stop()` будит все три очереди (деструктор больше не висит на `join`, контейнер не уезжает в SIGKILL). Проверено рестартом (~1с).
+- `processBatch` — `enqueueTask` в try/catch (пул full/stopped роняет событие с логом, а не цикл).
+
+**`chunkServerData` ack — конец error-спама.**
+- Game принимает one-way ack инициализации чанка (`handleChunkInitAck`: chunkId + статус в лог, без изменения состояния — онлайн/сокет уже заведены хендшейком). Раньше падало в `Unknown event type` на каждый коннект.
+
+New:
+
+**DatabasePool v2 — пул вместо одного сериализованного коннекшена.**
+- Новый `utils/DatabasePool` (слоты по индексам, health-check + прозрачный reconnect с перерегистрацией prepared statements, acquire-таймаут 5с, счетчики timeouts/reconnects/in-use). `DB_POOL_SIZE` из env, default 5 (влезает в `max_connections=100` с запасом).
+- `Database` переведен на пул без смены API (`getConnectionLocked()` + `ScopedConnection` как были — 75 мест не тронуты); `prepareDefaultQueries` стал статическим `prepareQueriesOn(conn)` (104 стейтмента, механика 1:1); мертвый `getConnection()` удален.
+- Проверено: пул 5/5 в логах старта, join/disconnect-сейвы без ошибок, 200/200.
+
+**Scheduler guard** — как в чанке: бросающий таск не роняет поток.
+
+---
+
 v0.2.15
 30.06.2026
 ================
