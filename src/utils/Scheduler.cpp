@@ -1,5 +1,6 @@
 #include "utils/Scheduler.hpp"
 #include <algorithm>
+#include <cstdio>
 
 Scheduler::Scheduler() : stopFlag(false) {}
 
@@ -68,7 +69,19 @@ void Scheduler::run() {
             // Готовая задача – удаляем её из кучи, освобождаем мьютекс и выполняем
             tasksHeap.pop();
             lock.unlock();
-            t.func();
+            try
+            {
+                t.func();
+            }
+            catch (const std::exception &e)
+            {
+                // A throwing task must never kill the scheduler thread.
+                std::fprintf(stderr, "[Scheduler] task %d threw: %s\n", t.id, e.what());
+            }
+            catch (...)
+            {
+                std::fprintf(stderr, "[Scheduler] task %d threw unknown exception\n", t.id);
+            }
             lock.lock();
             // Обновляем время следующего запуска и возвращаем задачу в кучу
             t.nextRunTime = now + std::chrono::seconds(t.interval);

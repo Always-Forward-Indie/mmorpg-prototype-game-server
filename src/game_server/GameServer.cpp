@@ -134,16 +134,24 @@ void GameServer::processBatch(const std::vector<Event>& eventsBatch)
         // Create a deep copy of the event to ensure its data remains valid
         // when processed asynchronously in the thread pool
         Event eventCopy = event;
-        threadPool_.enqueueTask([this, eventCopy] {
-            try
-            {
-                eventHandler_.dispatchEvent(eventCopy);
-            }
-            catch (const std::exception &e)
-            {
-                gameServices_.getLogger().logError("Error processing priority dispatchEvent: " + std::string(e.what()));
-            }
-        });
+        try
+        {
+            threadPool_.enqueueTask([this, eventCopy] {
+                try
+                {
+                    eventHandler_.dispatchEvent(eventCopy);
+                }
+                catch (const std::exception &e)
+                {
+                    gameServices_.getLogger().logError("Error processing priority dispatchEvent: " + std::string(e.what()));
+                }
+            });
+        }
+        catch (const std::exception &e)
+        {
+            // Pool full/stopped (shutdown storm): drop, never kill the loop.
+            gameServices_.getLogger().logError("Dropped priority event (pool): " + std::string(e.what()));
+        }
     }
 
     // Process normal events
@@ -152,16 +160,23 @@ void GameServer::processBatch(const std::vector<Event>& eventsBatch)
         // Create a deep copy of the event to ensure its data remains valid
         // when processed asynchronously in the thread pool
         Event eventCopy = event;
-        threadPool_.enqueueTask([this, eventCopy] {
-            try
-            {
-                eventHandler_.dispatchEvent(eventCopy);
-            }
-            catch (const std::exception &e)
-            {
-                gameServices_.getLogger().logError("Error in normal dispatchEvent: " + std::string(e.what()));
-            }
-        });
+        try
+        {
+            threadPool_.enqueueTask([this, eventCopy] {
+                try
+                {
+                    eventHandler_.dispatchEvent(eventCopy);
+                }
+                catch (const std::exception &e)
+                {
+                    gameServices_.getLogger().logError("Error in normal dispatchEvent: " + std::string(e.what()));
+                }
+            });
+        }
+        catch (const std::exception &e)
+        {
+            gameServices_.getLogger().logError("Dropped normal event (pool): " + std::string(e.what()));
+        }
     }
 
     eventCondition.notify_all();
@@ -186,6 +201,12 @@ void GameServer::stop()
 {
     running_ = false;
     scheduler_.stop();
+    // Wake consumers blocked in popBatch() so the event-loop threads below
+    // can observe running_ == false and exit (otherwise join() hangs and the
+    // container escalates SIGTERM to SIGKILL).
+    eventQueueGameServer_.stop();
+    eventQueueChunkServer_.stop();
+    eventQueueGameServerPing_.stop();
     eventCondition.notify_all();
 }
 
