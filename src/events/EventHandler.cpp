@@ -66,7 +66,14 @@ EventHandler::handleJoinPlayerClientEvent(const Event &event)
             // generate chunk server connection data
             nlohmann::json chunkServerDataJson;
             chunkServerDataJson["chunkId"] = chunkServerData.id;
-            chunkServerDataJson["chunkIp"] = chunkServerData.ip;
+            // Clients may live outside the Docker net: advertise the public
+            // host when configured, keep the internal one for server-to-server.
+            {
+                const char* publicHost = std::getenv("CHUNK_PUBLIC_HOST");
+                chunkServerDataJson["chunkIp"] = (publicHost && publicHost[0] != '\0')
+                    ? publicHost
+                    : chunkServerData.ip;
+            }
             chunkServerDataJson["chunkPort"] = chunkServerData.port;
             chunkServerDataJson["chunkPosX"] = chunkServerData.posX;
             chunkServerDataJson["chunkPosY"] = chunkServerData.posY;

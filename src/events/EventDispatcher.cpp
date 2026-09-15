@@ -33,6 +33,10 @@ EventDispatcher::dispatch(const std::string &eventType,
     {
         handleChunkServerConnection(payload, socket);
     }
+    else if (eventType == "chunkServerData")
+    {
+        handleChunkInitAck(payload, socket);
+    }
     else if (eventType == "moveCharacter")
     {
         handleMoveCharacter(payload, socket);
@@ -317,6 +321,40 @@ EventDispatcher::handleChunkServerConnection(
 
     eventQueue_.pushBatch(eventsBatch_);
     eventsBatch_.clear();
+}
+
+void
+EventDispatcher::handleChunkInitAck(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    // Chunk init ack (chunkServerData): one-way informational packet sent by
+    // the chunk after boot ("Init success/failed for chunk!", header.chunkId).
+    // Previously fell into "Unknown event type" error spam on every chunk
+    // connect/reconnect. No state change: chunk online/socket mapping already
+    // comes from the chunkServerConnection handshake. Just acknowledge loudly
+    // enough to see, quietly enough to not spam.
+    (void)socket;
+    int chunkId = 0;
+    std::string message;
+    try
+    {
+        auto j = nlohmann::json::parse(payload.rawMessage);
+        if (j.contains("header") && j["header"].is_object())
+        {
+            chunkId = j["header"].value("chunkId", 0);
+            message = j["header"].value("message", "");
+        }
+    }
+    catch (const std::exception &e)
+    {
+        log_->warn("chunkServerData ack: unparsable payload: " + std::string(e.what()));
+        return;
+    }
+    if (message.find("failed") != std::string::npos || message.find("Failed") != std::string::npos)
+        log_->warn("chunk " + std::to_string(chunkId) + " init ack FAILED: " + message);
+    else
+        log_->info("chunk " + std::to_string(chunkId) + " init ack: " + message);
 }
 
 void

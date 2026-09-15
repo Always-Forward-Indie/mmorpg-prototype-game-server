@@ -22,6 +22,8 @@ class EventDispatcher
     void handleGetSpawnZones(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
     void handleGetConnectedClients(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
     void handleChunkServerConnection(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
+    // Chunk init ack (chunkServerData): informational, no state change.
+    void handleChunkInitAck(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
 
     void handleGetMobData(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
     void handleGetCharacterExpForLevel(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
