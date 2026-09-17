@@ -3,11 +3,13 @@
 #include "utils/Generators.hpp"
 #include "utils/Logger.hpp"
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <memory>
 #include <shared_mutex>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 class ChunkManager
 {
@@ -22,6 +24,15 @@ class ChunkManager
 
     void removeChunkServerDataBySocket(const std::shared_ptr<boost::asio::ip::tcp::socket> &socket);
     void removeChunkServerDataById(int chunkId);
+
+    /// Drop chunks silent longer than silentThresholdMs (no heartbeat /
+    /// re-registration since). Game-side liveness net for deaths the
+    /// disconnect event never reports (missed TCP FIN, wedged peer).
+    /// Returns removed ids. Warns per removal for alert grep.
+    std::vector<int> sweepSilentChunks(int64_t silentThresholdMs);
+
+    /// steady_clock ms. Public for tests.
+    static int64_t steadyNowMs();
 
   private:
     Logger &logger_;

@@ -8,17 +8,31 @@
 class ItemManager
 {
   public:
-    ItemManager(Database &database, Logger &logger);
+    /// Explicit dependencies (no Database): loading from DB stays in
+    /// loadItems(Database&)/loadMobLoot(Database&); everything else is pure
+    /// in-memory logic. Database.hpp include is for the load signatures.
+    ItemManager(Logger &logger);
 
     /**
      * @brief Load all items from database into memory
      */
-    void loadItems();
+    void loadItems(Database &database);
 
     /**
      * @brief Load all mob loot information from database
      */
-    void loadMobLoot();
+    void loadMobLoot(Database &database);
+
+    /**
+     * @brief Replace the in-memory item catalog (pure, no DB).
+     * Used by loadItems() after fetching rows and directly by unit tests.
+     */
+    void setItemsList(const std::vector<ItemDataStruct> &items);
+
+    /**
+     * @brief Replace the in-memory mob loot table (pure, no DB).
+     */
+    void setMobLootInfo(const std::vector<MobLootInfoStruct> &entries);
 
     /**
      * @brief Get all items as map
@@ -53,7 +67,6 @@ class ItemManager
     std::vector<MobLootInfoStruct> getLootForMob(int mobId) const;
 
   private:
-    Database &database_;
     Logger &logger_;
     std::shared_ptr<spdlog::logger> log_;
 

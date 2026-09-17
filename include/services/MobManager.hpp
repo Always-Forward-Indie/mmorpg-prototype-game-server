@@ -7,8 +7,14 @@
 class MobManager
 {
   public:
-    MobManager(Database &database, Logger &logger);
-    void loadMobs();
+    /// Explicit dependencies (no Database): loading stays in loadMobs(Database&).
+    MobManager(Logger &logger);
+    void loadMobs(Database &database);
+
+    /**
+     * @brief Replace the in-memory mob catalog (pure, no DB).
+     */
+    void setMobsList(const std::vector<MobDataStruct> &mobs);
 
     std::map<int, MobDataStruct> getMobs() const;
     std::vector<MobDataStruct> getMobsAsVector() const;
@@ -17,7 +23,6 @@ class MobManager
     std::map<int, MobAttributeStruct> getMobsAttributes() const;
 
   private:
-    Database &database_;
     Logger &logger_;
     std::shared_ptr<spdlog::logger> log_;
 

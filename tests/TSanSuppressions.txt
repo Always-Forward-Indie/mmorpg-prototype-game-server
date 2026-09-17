@@ -1,0 +1,20 @@
+# ThreadSanitizer suppressions for game-server unit tests.
+#
+# Usage (inside the dev container, separate build dir — never a second make
+# inside the watched /usr/src/app/build, see tests/README.md "Sanitizers"):
+#   TSAN_OPTIONS="suppressions=/usr/src/app/tests/TSanSuppressions.txt" \
+#     setarch x86_64 -R /tmp/gbuild-tsan/tests/unit_tests
+#
+# KNOWN ARTIFACT 1 (verified 2026-09-17, 86 reports triaged, zero app frames
+# beyond logging call sites): spdlog async thread_pool teardown races with its
+# own worker threads during Logger destruction (mpmc queue push vs worker
+# dequeue, double lock in enqueue-at-shutdown). Every unit test builds a
+# Logger (one init_thread_pool + shutdown per fixture), so the global
+# registry churns constantly. Production owns a single Logger for the whole
+# process lifetime and shuts down once at exit. Suppression matches only
+# stacks containing spdlog frames; races purely in application memory
+# (managers, pools, chunk registry) have no spdlog frames and still report.
+# Ported from chunk-server-new tests/TSanSuppressions.txt (same artifact).
+race:spdlog::*
+deadlock:spdlog::*
+mutex:spdlog::*

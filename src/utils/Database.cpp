@@ -37,20 +37,19 @@ Database::Database(std::tuple<DatabaseConfig, GameServerConfig> &configs, Logger
 void
 Database::connect(std::tuple<DatabaseConfig, GameServerConfig> &configs)
 {
-    try
-    {
-        const DatabaseConfig &dbcfg = std::get<0>(configs);
-        log_->info("Opening database pool...");
-        pool_ = std::make_unique<DatabasePool>(dbcfg, logger_, poolSizeFromEnv(),
-            [](pqxx::connection &conn)
-            { Database::prepareQueriesOn(conn); });
-        log_->info("Database pool established (" +
-                   std::to_string(pool_->size()) + " connections).");
-    }
-    catch (const std::exception &e)
-    {
-        handleDatabaseError(e);
-    }
+    // Wait-for-db: Postgres may still be starting (host reboot, cold volume).
+    // createWithRetry throws past DB_CONNECT_TIMEOUT_SEC and we let it
+    // propagate — fail-FAST by design (main exits 1, orchestrator restarts
+    // us). The old swallow-and-continue left pool_ null and every query
+    // failing with "not initialized": silent degradation with no restart.
+    const DatabaseConfig &dbcfg = std::get<0>(configs);
+    log_->info("Opening database pool...");
+    pool_ = DatabasePool::createWithRetry(dbcfg, logger_, poolSizeFromEnv(),
+        [](pqxx::connection &conn)
+        { Database::prepareQueriesOn(conn); },
+        DatabasePool::connectTimeoutFromEnv());
+    log_->info("Database pool established (" +
+               std::to_string(pool_->size()) + " connections).");
 }
 
 void

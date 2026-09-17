@@ -11,8 +11,13 @@
 class SpawnZoneManager
 {
   public:
-    SpawnZoneManager(MobManager &mobManager, Database &database, Logger &logger);
-    void loadMobSpawnZones();
+    SpawnZoneManager(MobManager &mobManager, Logger &logger);
+    void loadMobSpawnZones(Database &database);
+
+    /**
+     * @brief Replace the in-memory spawn zones (pure, no DB).
+     */
+    void setSpawnZones(const std::vector<SpawnZoneStruct> &zones);
 
     std::map<int, SpawnZoneStruct> getMobSpawnZones();
     SpawnZoneStruct getMobSpawnZoneByID(int zoneId);
@@ -22,7 +27,6 @@ class SpawnZoneManager
     void removeMobByUID(std::string mobUID);
 
   private:
-    Database &database_;
     Logger &logger_;
     std::shared_ptr<spdlog::logger> log_;
     MobManager &mobManager_;

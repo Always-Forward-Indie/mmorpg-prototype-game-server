@@ -1,5 +1,7 @@
 #include "utils/DatabasePool.hpp"
 #include <spdlog/logger.h>
+#include <cstdlib>
+#include <thread>
 
 DatabasePool::DatabasePool(const DatabaseConfig &cfg, Logger &logger, int poolSize,
     PrepareFn prepare)
@@ -53,10 +55,17 @@ DatabasePool::acquire(std::chrono::milliseconds timeout)
     const size_t slot = available_.front();
     available_.pop();
     // Health check + transparent reconnect (HIGH-10 equivalent for pooled use).
+    // NOTE: is_open() only reflects client-side state, so a SELECT 1 probe is
+    // required to detect server-side drops (else stale conns fail at first use).
     bool healthy = false;
     try
     {
-        healthy = connections_[slot] && connections_[slot]->is_open();
+        if (connections_[slot] && connections_[slot]->is_open())
+        {
+            pqxx::nontransaction probe(*connections_[slot]);
+            probe.exec("SELECT 1");
+            healthy = true;
+        }
     }
     catch (...)
     {
@@ -97,4 +106,62 @@ DatabasePool::inUse() const
 {
     std::lock_guard<std::mutex> lock(mutex_);
     return connections_.size() - available_.size();
+}
+
+int
+DatabasePool::connectTimeoutFromEnv()
+{
+    // DB_CONNECT_TIMEOUT_SEC, default 90 (covers slow cold starts and
+    // "database system is starting up" flaps), clamped to [0, 600].
+    int n = 90;
+    if (const char *env = std::getenv("DB_CONNECT_TIMEOUT_SEC"))
+    {
+        try
+        {
+            n = std::stoi(env);
+        }
+        catch (...)
+        {
+            n = 90;
+        }
+    }
+    if (n < 0)
+        n = 0;
+    if (n > 600)
+        n = 600;
+    return n;
+}
+
+std::unique_ptr<DatabasePool>
+DatabasePool::createWithRetry(const DatabaseConfig &cfg, Logger &logger, int poolSize,
+    PrepareFn prepare, int timeoutSec)
+{
+    // Wait-for-db: Postgres may still be starting (host reboot, cold volume).
+    // Retry with a fixed 2s pause; any exception is retryable here because a
+    // wrong password/connstr fails identically on every attempt and simply
+    // burns the deadline, after which we fail fast (exit 1 -> orchestrator
+    // restart) instead of serving with a dead pool.
+    auto log = logger.getSystem("db");
+    using Clock = std::chrono::steady_clock;
+    const auto deadline = Clock::now() + std::chrono::seconds(timeoutSec);
+    int attempt = 0;
+    for (;;)
+    {
+        ++attempt;
+        try
+        {
+            return std::make_unique<DatabasePool>(cfg, logger, poolSize, prepare);
+        }
+        catch (const std::exception &e)
+        {
+            if (Clock::now() >= deadline)
+            {
+                throw std::runtime_error("[DatabasePool] could not open pool after " +
+                    std::to_string(attempt) + " attempt(s): " + e.what());
+            }
+            log->warn("[DatabasePool] DB unavailable (attempt {}): {} — retrying in 2s",
+                attempt, e.what());
+            std::this_thread::sleep_for(std::chrono::seconds(2));
+        }
+    }
 }

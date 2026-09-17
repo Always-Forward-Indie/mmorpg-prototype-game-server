@@ -116,7 +116,9 @@ NetworkManager::sendResponse(std::shared_ptr<boost::asio::ip::tcp::socket> clien
     // write queue. Multiple EventHandler threads can call sendResponse concurrently
     // for the same chunk-server connection; without serialisation that causes UB.
     auto dataPtr = std::make_shared<const std::string>(responseString);
-    auto state = getOrCreateSocketState(clientSocket.get());
+    auto state = getOrCreateSocketState(clientSocket);
+    if (!state)
+        return;
 
     boost::asio::post(state->strand, [this, clientSocket, dataPtr, state]() mutable
         {
@@ -126,20 +128,78 @@ NetworkManager::sendResponse(std::shared_ptr<boost::asio::ip::tcp::socket> clien
 }
 
 std::shared_ptr<NetworkManager::SocketWriteState>
-NetworkManager::getOrCreateSocketState(boost::asio::ip::tcp::socket *sock)
+NetworkManager::getOrCreateSocketState(
+    const std::shared_ptr<boost::asio::ip::tcp::socket> &socket)
 {
+    if (!socket)
+        return nullptr;
+    boost::asio::ip::tcp::socket *key = socket.get();
     std::lock_guard<std::mutex> lock(socketStatesMutex_);
-    auto &entry = socketStates_[sock];
-    if (!entry)
-        entry = std::make_shared<SocketWriteState>(io_context_);
-    return entry;
+    auto it = socketStates_.find(key);
+    if (it != socketStates_.end())
+    {
+        // Same live object => same queue (one strand per socket, always:
+        // concurrent async_write on one socket is UB in Asio).
+        auto owner = it->second->owner.lock();
+        if (owner && owner.get() == key)
+            return it->second;
+        // Otherwise REPLACE, never mutate in place: strand callbacks may
+        // still reference the old queue object, and touching writePending /
+        // writeQueue off-strand breaks the single-writer invariant
+        // (SEGV under churn — see login CRITICAL-11, chunk v0.2.32).
+        auto fresh = std::make_shared<SocketWriteState>(io_context_);
+        fresh->owner = socket;
+        it->second = fresh;
+        return fresh;
+    }
+    auto fresh = std::make_shared<SocketWriteState>(io_context_);
+    fresh->owner = socket;
+    socketStates_.emplace(key, fresh);
+    return fresh;
 }
 
 void
-NetworkManager::removeSocketState(boost::asio::ip::tcp::socket *sock)
+NetworkManager::removeSocketState(boost::asio::ip::tcp::socket *sock,
+    const std::shared_ptr<boost::asio::ip::tcp::socket> &expectedOwner)
+{
+    // Erase-then-recreate for one live socket yields two strands writing it
+    // (UB). So this only drops owner-expired entries; live mappings are
+    // reclaimed by gcWriteQueues().
+    if (!sock)
+        return;
+    std::lock_guard<std::mutex> lock(socketStatesMutex_);
+    auto it = socketStates_.find(sock);
+    if (it == socketStates_.end())
+        return;
+    if (expectedOwner)
+    {
+        auto owner = it->second->owner.lock();
+        if (owner)
+            return;
+    }
+    socketStates_.erase(it);
+}
+
+void
+NetworkManager::gcWriteQueues()
 {
     std::lock_guard<std::mutex> lock(socketStatesMutex_);
-    socketStates_.erase(sock);
+    for (auto it = socketStates_.begin(); it != socketStates_.end();)
+    {
+        // Owner expired => no posted strand lambda can reference the socket;
+        // erasing the map entry is safe (no queue fields touched off-strand).
+        if (it->second->owner.expired())
+            it = socketStates_.erase(it);
+        else
+            ++it;
+    }
+}
+
+size_t
+NetworkManager::writeQueueCount() const
+{
+    std::lock_guard<std::mutex> lock(socketStatesMutex_);
+    return socketStates_.size();
 }
 
 void
@@ -150,7 +210,7 @@ NetworkManager::doNextWrite(std::shared_ptr<boost::asio::ip::tcp::socket> socket
     {
         state->writePending = false;
         if (!socket->is_open())
-            removeSocketState(socket.get());
+            removeSocketState(socket.get(), socket);
         return;
     }
 
@@ -171,7 +231,7 @@ NetworkManager::doNextWrite(std::shared_ptr<boost::asio::ip::tcp::socket> socket
                     boost::system::error_code close_ec;
                     if (socket->is_open())
                         socket->close(close_ec);
-                    removeSocketState(socket.get());
+                    removeSocketState(socket.get(), socket);
                     return;
                 }
                 log_->debug("Bytes sent: " + std::to_string(bytes_transferred));
@@ -244,6 +304,15 @@ NetworkManager::addActiveSession(std::shared_ptr<ClientSession> session)
 void
 NetworkManager::removeActiveSession(std::shared_ptr<ClientSession> session)
 {
-    std::lock_guard<std::mutex> lock(sessionsMutex_);
-    activeSessions_.erase(session);
+    auto sock = session ? session->socket() : nullptr;
+    {
+        std::lock_guard<std::mutex> lock(sessionsMutex_);
+        activeSessions_.erase(session);
+    }
+    // Reclaim this socket's write state (owner-checked: erases only if the
+    // mapped owner already expired) and sweep other expired entries, so the
+    // map cannot grow with dead sockets under connect/disconnect churn.
+    if (sock)
+        removeSocketState(sock.get(), sock);
+    gcWriteQueues();
 }

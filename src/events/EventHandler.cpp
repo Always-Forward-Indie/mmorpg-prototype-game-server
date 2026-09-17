@@ -554,6 +554,28 @@ EventHandler::handleJoinChunkServerEvent(const Event &event)
         {
             ChunkInfoStruct chunkData = std::get<ChunkInfoStruct>(data);
 
+            // Wave 1.7: id <= 0 is the "missing header.id" default, never a
+            // real chunk (the real chunk hardcodes header.id = 1). Registering
+            // it poisons joinGameClient with CHUNKID_0 and needs a chunk
+            // reboot to clear — reject loudly instead (alert grep:
+            // "[ChunkManager]").
+            if (chunkData.id <= 0)
+            {
+                gameServices_.getLogger().log(
+                    "[ChunkManager] rejecting chunk handshake with id=" +
+                    std::to_string(chunkData.id) + " (malformed chunkServerConnection, no registration)");
+                response = builder
+                               .setHeader("message", "Joining chunk server failed: invalid chunk id!")
+                               .setHeader("hash", "")
+                               .setHeader("clientId", clientID)
+                               .setHeader("eventType", "setChunkData")
+                               .setBody("chunkServerData", chunkServerDataJson)
+                               .build();
+                std::string responseData = networkManager_.generateResponseMessage("error", response);
+                networkManager_.sendResponse(clientSocket, responseData);
+                return;
+            }
+
             const char* envChunkHost = std::getenv("CHUNK_SERVER_HOST");
             if (envChunkHost && envChunkHost[0] != '\0') {
                 chunkData.ip = envChunkHost;
@@ -614,7 +636,7 @@ EventHandler::handleJoinChunkServerEvent(const Event &event)
             dispatchEvent(questsEvent);
 
             // load game config
-            gameServices_.getGameConfigService().loadConfig();
+            gameServices_.getGameConfigService().loadConfig(gameServices_.getDatabase());
             Event gameConfigEvent(Event::GET_GAME_CONFIG, clientID, ClientDataStruct(), clientSocket);
             dispatchEvent(gameConfigEvent);
 
@@ -830,7 +852,7 @@ EventHandler::handleGetMobsListEvent(const Event &event)
     try
     {
         // load the mobs list from the database
-        gameServices_.getMobManager().loadMobs();
+        gameServices_.getMobManager().loadMobs(gameServices_.getDatabase());
 
         // Get the mobs list from the database as map
         auto mobsListMap = gameServices_.getMobManager().getMobs();
@@ -2000,7 +2022,7 @@ EventHandler::handleGetNPCsListEvent(const Event &event)
     try
     {
         // load the NPCs list from the database
-        gameServices_.getNPCManager().loadNPCs();
+        gameServices_.getNPCManager().loadNPCs(gameServices_.getDatabase());
 
         // Get the NPCs list from the database as map
         auto npcsListMap = gameServices_.getNPCManager().getNPCs();
@@ -4355,19 +4377,34 @@ EventHandler::handleGetTitleDefinitionsEvent(const Event &event)
             t["displayName"] = row["display_name"].as<std::string>();
             t["description"] = row["description"].as<std::string>();
             t["earnCondition"] = row["earn_condition"].as<std::string>();
-            // bonuses column is JSONB — parse it back to a JSON array
+            // bonuses column is JSONB — parse it back to a JSON array.
+            // Broken row content must not fail the whole static push (chunk
+            // would boot without ANY titles); warn with the row id instead.
             try
             {
                 t["bonuses"] = nlohmann::json::parse(row["bonuses"].as<std::string>());
+            }
+            catch (const std::exception &e)
+            {
+                log_->warn("[TITLE] title id={} has broken bonuses JSONB ({}), sending []",
+                    row["id"].as<int>(), e.what());
+                t["bonuses"] = nlohmann::json::array();
             }
             catch (...)
             {
                 t["bonuses"] = nlohmann::json::array();
             }
             // conditionParams is JSONB — parse it back to a JSON object
+            // (same broken-row policy as bonuses above).
             try
             {
                 t["conditionParams"] = nlohmann::json::parse(row["condition_params"].as<std::string>());
+            }
+            catch (const std::exception &e)
+            {
+                log_->warn("[TITLE] title id={} has broken condition_params JSONB ({}), sending {{}}",
+                    row["id"].as<int>(), e.what());
+                t["conditionParams"] = nlohmann::json::object();
             }
             catch (...)
             {
@@ -4643,13 +4680,21 @@ EventHandler::handleGetNPCAmbientSpeechEvent(const Event &event)
             line["weight"] = row["weight"].as<int>();
             line["cooldownSec"] = row["cooldown_sec"].as<int>();
 
-            // condition_group is stored as JSON text in DB; parse or leave null
+            // condition_group is stored as JSON text in DB; broken content
+            // falls back to null for that line only (same policy as titles:
+            // never fail the whole static push over one bad row).
             if (!row["condition_group"].is_null())
             {
                 try
                 {
                     line["conditionGroup"] = nlohmann::json::parse(
                         row["condition_group"].as<std::string>());
+                }
+                catch (const std::exception &e)
+                {
+                    log_->warn("[AMBIENT] npc={} line={} has broken condition_group ({}), sending null",
+                        npcId, row["line_id"].as<int>(), e.what());
+                    line["conditionGroup"] = nullptr;
                 }
                 catch (...)
                 {

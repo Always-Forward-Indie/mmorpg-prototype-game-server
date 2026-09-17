@@ -69,6 +69,17 @@ class DatabasePool
     DatabasePool(const DatabasePool &) = delete;
     DatabasePool &operator=(const DatabasePool &) = delete;
 
+    /// Open a pool, retrying transient DB outages (Postgres still starting
+    /// up, host reboot) until timeoutSec elapses. Logs every attempt.
+    /// Throws std::runtime_error past the deadline — callers must fail FAST
+    /// (exit 1) so the container orchestrator restarts us instead of
+    /// serving with a dead pool. timeoutSec <= 0 = single attempt.
+    static std::unique_ptr<DatabasePool> createWithRetry(const DatabaseConfig &cfg,
+        Logger &logger, int poolSize, PrepareFn prepare, int timeoutSec);
+
+    /// DB_CONNECT_TIMEOUT_SEC, default 90, clamped to [0, 600].
+    static int connectTimeoutFromEnv();
+
     /// Acquire a slot. Blocks until one is available or timeout expires.
     /// Throws std::runtime_error on timeout or when no healthy connection
     /// could be (re)opened.

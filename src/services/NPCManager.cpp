@@ -2,8 +2,8 @@
 #include <algorithm>
 #include <spdlog/logger.h>
 
-NPCManager::NPCManager(Database &database, Logger &logger)
-    : database_(database), logger_(logger)
+NPCManager::NPCManager(Logger &logger)
+    : logger_(logger)
 {
     log_ = logger.getSystem("npc");
     // NPCs will be loaded when explicitly requested
@@ -11,7 +11,7 @@ NPCManager::NPCManager(Database &database, Logger &logger)
 }
 
 void
-NPCManager::loadNPCs()
+NPCManager::loadNPCs(Database &database)
 {
     std::lock_guard<std::mutex> lock(npcsMutex_);
 
@@ -23,11 +23,11 @@ NPCManager::loadNPCs()
 
     try
     {
-        auto _dbConn = database_.getConnectionLocked();
+        auto _dbConn = database.getConnectionLocked();
         pqxx::work transaction(_dbConn.get());
 
         // Load basic NPC data
-        pqxx::result selectNPCs = database_.executeQueryWithTransaction(
+        pqxx::result selectNPCs = database.executeQueryWithTransaction(
             transaction,
             "get_npcs",
             {});
@@ -78,14 +78,14 @@ NPCManager::loadNPCs()
                 npcData.factionSlug = row["faction_slug"].as<std::string>();
 
             // Load related data
-            npcData.attributes = loadNPCAttributes(transaction, npcData.id);
-            npcData.skills = loadNPCSkills(transaction, npcData.id);
+            npcData.attributes = loadNPCAttributes(database, transaction, npcData.id);
+            npcData.skills = loadNPCSkills(database, transaction, npcData.id);
 
             // loadNPCPosition also fills npcData.zoneId from the placement row
-            npcData.position = loadNPCPosition(transaction, npcData.id, npcData.zoneId);
+            npcData.position = loadNPCPosition(database, transaction, npcData.id, npcData.zoneId);
 
             // Load quest slugs for which this NPC is giver or turn-in target
-            npcData.questSlugs = loadNPCQuests(transaction, npcData.id);
+            npcData.questSlugs = loadNPCQuests(database, transaction, npcData.id);
 
             // Calculate derived values
             npcData.maxHealth = calculateMaxHealth(npcData.attributes);
@@ -115,6 +115,16 @@ NPCManager::loadNPCs()
         npcs_.clear();
         loaded_ = false;
     }
+}
+
+void
+NPCManager::setNPCsList(const std::vector<NPCDataStruct> &npcs)
+{
+    std::lock_guard<std::mutex> lock(npcsMutex_);
+    npcs_.clear();
+    for (const auto &npc : npcs)
+        npcs_[npc.id] = npc;
+    loaded_ = true;
 }
 
 std::map<int, NPCDataStruct>
@@ -188,13 +198,13 @@ NPCManager::getNPCCount() const
 }
 
 std::vector<NPCAttributeStruct>
-NPCManager::loadNPCAttributes(pqxx::work &transaction, int npcId)
+NPCManager::loadNPCAttributes(Database &database, pqxx::work &transaction, int npcId)
 {
     std::vector<NPCAttributeStruct> attributes;
 
     try
     {
-        pqxx::result selectAttributes = database_.executeQueryWithTransaction(
+        pqxx::result selectAttributes = database.executeQueryWithTransaction(
             transaction,
             "get_npc_attributes",
             {npcId});
@@ -220,13 +230,13 @@ NPCManager::loadNPCAttributes(pqxx::work &transaction, int npcId)
 }
 
 std::vector<SkillStruct>
-NPCManager::loadNPCSkills(pqxx::work &transaction, int npcId)
+NPCManager::loadNPCSkills(Database &database, pqxx::work &transaction, int npcId)
 {
     std::vector<SkillStruct> skills;
 
     try
     {
-        pqxx::result selectSkills = database_.executeQueryWithTransaction(
+        pqxx::result selectSkills = database.executeQueryWithTransaction(
             transaction,
             "get_npc_skills",
             {npcId});
@@ -262,13 +272,13 @@ NPCManager::loadNPCSkills(pqxx::work &transaction, int npcId)
 }
 
 PositionStruct
-NPCManager::loadNPCPosition(pqxx::work &transaction, int npcId, int &zoneId)
+NPCManager::loadNPCPosition(Database &database, pqxx::work &transaction, int npcId, int &zoneId)
 {
     PositionStruct position;
 
     try
     {
-        pqxx::result selectPosition = database_.executeQueryWithTransaction(
+        pqxx::result selectPosition = database.executeQueryWithTransaction(
             transaction,
             "get_npc_position",
             {npcId});
@@ -296,7 +306,7 @@ NPCManager::loadNPCPosition(pqxx::work &transaction, int npcId, int &zoneId)
 }
 
 int
-NPCManager::calculateMaxHealth(const std::vector<NPCAttributeStruct> &attributes) const
+NPCManager::calculateMaxHealth(const std::vector<NPCAttributeStruct> &attributes)
 {
     auto it = std::find_if(attributes.begin(), attributes.end(), [](const NPCAttributeStruct &attr)
         { return attr.slug == "max_health"; });
@@ -305,7 +315,7 @@ NPCManager::calculateMaxHealth(const std::vector<NPCAttributeStruct> &attributes
 }
 
 int
-NPCManager::calculateMaxMana(const std::vector<NPCAttributeStruct> &attributes) const
+NPCManager::calculateMaxMana(const std::vector<NPCAttributeStruct> &attributes)
 {
     auto it = std::find_if(attributes.begin(), attributes.end(), [](const NPCAttributeStruct &attr)
         { return attr.slug == "max_mana"; });
@@ -314,13 +324,13 @@ NPCManager::calculateMaxMana(const std::vector<NPCAttributeStruct> &attributes) 
 }
 
 std::vector<std::string>
-NPCManager::loadNPCQuests(pqxx::work &transaction, int npcId)
+NPCManager::loadNPCQuests(Database &database, pqxx::work &transaction, int npcId)
 {
     std::vector<std::string> slugs;
 
     try
     {
-        pqxx::result result = database_.executeQueryWithTransaction(
+        pqxx::result result = database.executeQueryWithTransaction(
             transaction,
             "get_npc_quests",
             {npcId});

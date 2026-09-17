@@ -35,6 +35,10 @@ class NetworkManager
     void setGameServer(GameServer *GameServer);
     void addActiveSession(std::shared_ptr<ClientSession> session);
     void removeActiveSession(std::shared_ptr<ClientSession> session);
+    /// Reclaim idle per-socket write queues (owner-expired only). Called on
+    /// session teardown (see removeActiveSession).
+    void gcWriteQueues();
+    size_t writeQueueCount() const;
 
   private:
     // Per-socket write state: ensures async_write calls are serialised per socket
@@ -44,17 +48,24 @@ class NetworkManager
         boost::asio::strand<boost::asio::io_context::executor_type> strand;
         std::queue<std::shared_ptr<const std::string>> writeQueue;
         bool writePending{false};
+        // Owner identity: a raw socket* key alone is unsafe (free+realloc may
+        // reuse the address); a stale queue must never swallow a new socket.
+        // Ported from login-server (CRITICAL-11) and chunk-server (v0.2.32).
+        std::weak_ptr<boost::asio::ip::tcp::socket> owner;
         explicit SocketWriteState(boost::asio::io_context &ctx)
             : strand(boost::asio::make_strand(ctx))
         {
         }
     };
 
-    std::mutex socketStatesMutex_;
+    // Mutable: writeQueueCount() is a const observer used by health logging.
+    mutable std::mutex socketStatesMutex_;
     std::unordered_map<boost::asio::ip::tcp::socket *, std::shared_ptr<SocketWriteState>> socketStates_;
 
-    std::shared_ptr<SocketWriteState> getOrCreateSocketState(boost::asio::ip::tcp::socket *sock);
-    void removeSocketState(boost::asio::ip::tcp::socket *sock);
+    std::shared_ptr<SocketWriteState> getOrCreateSocketState(
+        const std::shared_ptr<boost::asio::ip::tcp::socket> &socket);
+    void removeSocketState(boost::asio::ip::tcp::socket *sock,
+        const std::shared_ptr<boost::asio::ip::tcp::socket> &expectedOwner);
     void doNextWrite(std::shared_ptr<boost::asio::ip::tcp::socket> socket,
         std::shared_ptr<SocketWriteState> state);
 

@@ -22,16 +22,20 @@ class NPCManager
   public:
     /**
      * @brief Constructor
-     * @param database Database instance for data access
      * @param logger Logger instance for error handling
      */
-    NPCManager(Database &database, Logger &logger);
+    NPCManager(Logger &logger);
 
     /**
      * @brief Load NPCs from database with all related data
      * Thread-safe operation
      */
-    void loadNPCs();
+    void loadNPCs(Database &database);
+
+    /**
+     * @brief Replace the in-memory NPC catalog (pure, no DB).
+     */
+    void setNPCsList(const std::vector<NPCDataStruct> &npcs);
 
     /**
      * @brief Get all NPCs as map (thread-safe)
@@ -73,8 +77,21 @@ class NPCManager
      */
     size_t getNPCCount() const;
 
+    /**
+     * @brief Calculate max health from attributes (pure).
+     * @param attributes Vector of NPC attributes
+     * @return Max health value (default 100)
+     */
+    static int calculateMaxHealth(const std::vector<NPCAttributeStruct> &attributes);
+
+    /**
+     * @brief Calculate max mana from attributes (pure).
+     * @param attributes Vector of NPC attributes
+     * @return Max mana value (default 50)
+     */
+    static int calculateMaxMana(const std::vector<NPCAttributeStruct> &attributes);
+
   private:
-    Database &database_;
     Logger &logger_;
     std::shared_ptr<spdlog::logger> log_;
 
@@ -89,7 +106,7 @@ class NPCManager
      * @param npcId NPC identifier
      * @return Vector of NPC attributes
      */
-    std::vector<NPCAttributeStruct> loadNPCAttributes(pqxx::work &transaction, int npcId);
+    std::vector<NPCAttributeStruct> loadNPCAttributes(Database &database, pqxx::work &transaction, int npcId);
 
     /**
      * @brief Load NPC skills from database
@@ -97,7 +114,7 @@ class NPCManager
      * @param npcId NPC identifier
      * @return Vector of NPC skills
      */
-    std::vector<SkillStruct> loadNPCSkills(pqxx::work &transaction, int npcId);
+    std::vector<SkillStruct> loadNPCSkills(Database &database, pqxx::work &transaction, int npcId);
 
     /**
      * @brief Load NPC position from database
@@ -105,7 +122,7 @@ class NPCManager
      * @param npcId NPC identifier
      * @return PositionStruct with NPC coordinates
      */
-    PositionStruct loadNPCPosition(pqxx::work &transaction, int npcId, int &zoneId);
+    PositionStruct loadNPCPosition(Database &database, pqxx::work &transaction, int npcId, int &zoneId);
 
     /**
      * @brief Load quest slugs for which this NPC is the giver or turn-in target.
@@ -113,19 +130,5 @@ class NPCManager
      * @param npcId NPC identifier
      * @return Vector of quest slug strings
      */
-    std::vector<std::string> loadNPCQuests(pqxx::work &transaction, int npcId);
-
-    /**
-     * @brief Calculate max health from attributes
-     * @param attributes Vector of NPC attributes
-     * @return Max health value
-     */
-    int calculateMaxHealth(const std::vector<NPCAttributeStruct> &attributes) const;
-
-    /**
-     * @brief Calculate max mana from attributes
-     * @param attributes Vector of NPC attributes
-     * @return Max mana value
-     */
-    int calculateMaxMana(const std::vector<NPCAttributeStruct> &attributes) const;
+    std::vector<std::string> loadNPCQuests(Database &database, pqxx::work &transaction, int npcId);
 };

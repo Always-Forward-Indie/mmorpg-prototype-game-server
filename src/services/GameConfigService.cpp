@@ -2,20 +2,20 @@
 #include <stdexcept>
 #include <spdlog/logger.h>
 
-GameConfigService::GameConfigService(Database &db, Logger &logger)
-    : db_(db), logger_(logger)
+GameConfigService::GameConfigService(Logger &logger)
+    : logger_(logger)
 {
     log_ = logger.getSystem("config");
 }
 
 void
-GameConfigService::loadConfig()
+GameConfigService::loadConfig(Database &db)
 {
     try
     {
-        auto _dbConn = db_.getConnectionLocked();
+        auto _dbConn = db.getConnectionLocked();
         pqxx::work txn(_dbConn.get());
-        pqxx::result rows = db_.executeQueryWithTransaction(txn, "get_game_config", {});
+        pqxx::result rows = db.executeQueryWithTransaction(txn, "get_game_config", {});
         txn.commit();
 
         std::unordered_map<std::string, std::string> newConfig;
@@ -40,10 +40,10 @@ GameConfigService::loadConfig()
 }
 
 void
-GameConfigService::reload()
+GameConfigService::reload(Database &db)
 {
     log_->info("GameConfigService: reloading config from database...");
-    loadConfig();
+    loadConfig(db);
 }
 
 std::unordered_map<std::string, std::string>
@@ -51,4 +51,11 @@ GameConfigService::getAll() const
 {
     std::shared_lock lock(mutex_);
     return config_; // copy — лок держится только на время копирования
+}
+
+void
+GameConfigService::setConfig(const std::unordered_map<std::string, std::string> &config)
+{
+    std::unique_lock lock(mutex_);
+    config_ = config;
 }

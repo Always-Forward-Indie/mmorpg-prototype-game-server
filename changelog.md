@@ -1,3 +1,76 @@
+v0.2.19
+17.09.2026
+================
+
+Fixes:
+
+**Wave 1.x verification + TSan suppressions port.**
+- Gates verified this session (separate /tmp/gbuild dirs inside the live dev
+  container, never a second make in the watched build): 37/37 unit green;
+  TSan 37/37 pass with zero non-suppressed reports. Raw run showed 86
+  warnings, all triaged: 85x spdlog-async internals (mpmc queue, sinks,
+  fmt buffers — same teardown artifact class as chunk) + double-lock in
+  spdlog enqueue at shutdown. Zero game-code frames beyond logging call
+  sites. Ported chunk's `tests/TSanSuppressions.txt` (spdlog-only) and added
+  the Sanitizers runbook to `tests/README.md`. No product change.
+
+---
+
+v0.2.18
+17.09.2026
+================
+
+Fixes:
+
+**Wave 1.6 — game NetworkManager stale-guard (ported login CRITICAL-11 pattern).**
+- Raw `socket*` map key could hand a new connection the previous owner's write
+  queue/strand after free+realloc (same bug class fixed twice before). Now:
+  owner-identity (`weak_ptr`) on every queue, REPLACE-never-mutate on address
+  reuse, owner-checked removal, `gcWriteQueues()` + `writeQueueCount()`.
+  GC runs on session teardown (game loops block on popBatch, so no periodic
+  hook exists like login's 60s cleanup). Lock order audited (no inversion).
+- New `ClientSession::socket()` accessor for teardown reclamation.
+
+**Wave 1.7 — CHUNKID_0 rejected + game-side chunk liveness sweep.**
+- `handleJoinChunkServerEvent` rejects `chunkData.id <= 0` with an error
+  response (0 is the missing-header default; the real chunk hardcodes id=1).
+  `addChunkInfo`/`addListOfAllChunks` ignore id<=0 as defense in depth.
+- `ChunkInfoStruct.lastHeartbeatMs` stamped on every registration;
+  `ChunkManager::sweepSilentChunks` drops entries silent past the threshold,
+  scheduled every 60s with a 180s threshold (3 missed heartbeats) from main.
+  Previously a death without a disconnect event lingered until manual reboot.
+- Tests: `ZeroIdHandshakeNeverRegisters`, `SweepRemovesOnlySilentChunks`,
+  `ReRegisterRefreshesHeartbeat`. Verified: 37/37 green, join_storm 50/50.
+
+**Wave 1.8 — ThreadPool: atomic stop + throwing tasks can't kill workers.**
+- `stop` is now `atomic<bool>`; worker loop wraps `task()` in try/catch with
+  stderr logging (same rule as Scheduler). New `ThrowingTaskDoesNotKillWorker`
+  test. Same change on login-server.
+
+**Wave 1.3 — JSONB static-push fallbacks warn with row ids.**
+- Title `bonuses`/`conditionParams` and ambient `conditionGroup` fallbacks no
+  longer silently mask broken content rows; warn includes the row id. Policy:
+  never fail a whole static push over one bad row.
+
+---
+
+v0.2.17
+17.09.2026
+================
+
+Fixes:
+
+**Wait-for-db: pool opens with retry, game fails fast instead of degrading (Wave 1.5).**
+- Cause: `Database::connect` swallowed pool-open failures — the server kept running with `pool_ == nullptr` and every query threw "not initialized" (silent degradation, no orchestrator restart). Any host reboot with a slow Postgres = manual recovery.
+- New `DatabasePool::createWithRetry` + `connectTimeoutFromEnv` (`DB_CONNECT_TIMEOUT_SEC`, default 90, clamp [0, 600]): fixed 2s retry loop with warn logs; throws past the deadline and `connect()` lets it propagate — main exits 1, `restart: unless-stopped` brings us back. Cross-stack `depends_on` is impossible (separate compose projects), so the retry lives in code.
+- Verified live: stopped `mmorpg_prototype_db`, restarted game+login — both logged `DB unavailable (attempt N) — retrying`, then recovered automatically on db start (game pushed the full static cascade to chunk, no manual steps).
+
+**Shared RNG unification — RandomUtils (Wave 1.1).**
+- `ClassSpawnZoneManager` shared one static mt19937 + two distributions across ThreadPool workers (race); `Generators` used unseeded `rand()` (not thread-safe). Both now use the new header-only `include/utils/RandomUtils.hpp` (one thread_local engine per thread, function-local distributions, `seedForTests()` for tests). Key formula and sampling math unchanged (1-1).
+- Tests: new `tests/test_random_utils.cpp`. Verified: 33/33 green (incl. existing `ClassSpawnGeometry.RandomPointStaysInRect` on the fixed path).
+
+---
+
 v0.2.16
 15.09.2026
 ================

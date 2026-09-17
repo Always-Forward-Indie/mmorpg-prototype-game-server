@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <vector>
 #include <queue>
 #include <thread>
@@ -45,5 +46,7 @@ private:
     
     std::mutex queueMutex;
     std::condition_variable condition;
-    bool stop = false;
+    // Atomic: read on every worker wakeup (wait predicate) and written on
+    // shutdown; plain bool here is a race if ever touched off-mutex.
+    std::atomic<bool> stop{false};
 };

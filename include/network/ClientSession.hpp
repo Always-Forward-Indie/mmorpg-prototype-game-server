@@ -29,6 +29,8 @@ class ClientSession : public std::enable_shared_from_this<ClientSession>
 
     void start();
     void setDisconnectCallback(std::function<void(std::shared_ptr<ClientSession>)> callback);
+    /// Owning socket (for write-state reclamation in NetworkManager).
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket() const { return socket_; }
 
   private:
     void doRead();

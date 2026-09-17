@@ -75,6 +75,7 @@ set(HEADER_FILES
     include/utils/ResponseBuilder.hpp
     include/utils/TimeConverter.hpp
     include/utils/Generators.hpp
+    include/utils/RandomUtils.hpp
     include/utils/Logger.hpp
     include/utils/TerminalColors.hpp
     include/utils/Database.hpp
@@ -99,3 +100,8 @@ find_package(spdlog REQUIRED)
 add_executable(${PROJECT_NAME} ${SOURCE_FILES} ${HEADER_FILES})
 
 target_link_libraries(${PROJECT_NAME} PkgConfig::libpqxx spdlog::spdlog_header_only)
+
+# Unit tests (gtest). tests/CMakeLists.txt skips gracefully when GTest is
+# absent (e.g. prod image without libgtest-dev).
+enable_testing()
+add_subdirectory(tests)

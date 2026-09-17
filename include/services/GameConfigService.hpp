@@ -17,18 +17,18 @@
 class GameConfigService
 {
   public:
-    GameConfigService(Database &db, Logger &logger);
+    GameConfigService(Logger &logger);
 
     /**
      * @brief Загрузить конфиг из БД. Вызывается при старте и при reload().
      */
-    void loadConfig();
+    void loadConfig(Database &db);
 
     /**
      * @brief Runtime-перезагрузка конфига без перезапуска сервера.
      *        Эквивалентен loadConfig() — повторно читает всю таблицу.
      */
-    void reload();
+    void reload(Database &db);
 
     /**
      * @brief Вернуть snapshot всего конфига для сериализации в JSON.
@@ -36,8 +36,12 @@ class GameConfigService
      */
     std::unordered_map<std::string, std::string> getAll() const;
 
+    /**
+     * @brief Подменить конфиг целиком (pure, no DB). Используется тестами.
+     */
+    void setConfig(const std::unordered_map<std::string, std::string> &config);
+
   private:
-    Database &db_;
     Logger &logger_;
     std::shared_ptr<spdlog::logger> log_;
 

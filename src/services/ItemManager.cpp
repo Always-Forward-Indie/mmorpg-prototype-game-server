@@ -1,22 +1,20 @@
 #include "services/ItemManager.hpp"
 #include <spdlog/logger.h>
 
-ItemManager::ItemManager(Database &database, Logger &logger)
-    : database_(database), logger_(logger)
+ItemManager::ItemManager(Logger &logger)
+    : logger_(logger)
 {
     log_ = logger.getSystem("item");
-    loadItems();
-    loadMobLoot();
 }
 
 void
-ItemManager::loadItems()
+ItemManager::loadItems(Database &database)
 {
     try
     {
-        auto _dbConn = database_.getConnectionLocked();
+        auto _dbConn = database.getConnectionLocked();
         pqxx::work transaction(_dbConn.get());
-        pqxx::result selectItems = database_.executeQueryWithTransaction(
+        pqxx::result selectItems = database.executeQueryWithTransaction(
             transaction,
             "get_items",
             {});
@@ -28,7 +26,9 @@ ItemManager::loadItems()
             return;
         }
 
-        std::unique_lock<std::shared_mutex> lock(itemsMutex_);
+        // Parse into a local map first (short critical sections, and the pure
+        // setItemsList() below is directly unit-testable without a database).
+        std::map<int, ItemDataStruct> parsed;
 
         for (const auto &row : selectItems)
         {
@@ -60,7 +60,7 @@ ItemManager::loadItems()
             itemData.isTwoHanded = row["is_two_handed"].as<bool>();
 
             // Load item attributes
-            pqxx::result selectItemAttributes = database_.executeQueryWithTransaction(
+            pqxx::result selectItemAttributes = database.executeQueryWithTransaction(
                 transaction,
                 "get_item_attributes",
                 {itemData.id});
@@ -79,7 +79,7 @@ ItemManager::loadItems()
             }
 
             // Load item use-effects (potions, scrolls, food — migration 034)
-            pqxx::result selectUseEffects = database_.executeQueryWithTransaction(
+            pqxx::result selectUseEffects = database.executeQueryWithTransaction(
                 transaction,
                 "get_item_use_effects",
                 {itemData.id});
@@ -100,11 +100,11 @@ ItemManager::loadItems()
             // Social systems (Stage 4, migration 039)
             itemData.masterySlug = row["mastery_slug"].is_null() ? "" : row["mastery_slug"].as<std::string>();
 
-            items_[itemData.id] = itemData;
+            parsed[itemData.id] = itemData;
         }
 
         // Load per-class restrictions into the already-built items map
-        pqxx::result selectClassRestrictions = database_.executeQueryWithTransaction(
+        pqxx::result selectClassRestrictions = database.executeQueryWithTransaction(
             transaction,
             "get_item_class_restrictions",
             {});
@@ -112,12 +112,12 @@ ItemManager::loadItems()
         {
             int itemId = restrictionRow["item_id"].as<int>();
             int classId = restrictionRow["class_id"].as<int>();
-            if (items_.count(itemId))
-                items_[itemId].allowedClassIds.push_back(classId);
+            if (parsed.count(itemId))
+                parsed[itemId].allowedClassIds.push_back(classId);
         }
 
         // Load item-set memberships into the already-built items map
-        pqxx::result selectSetMembers = database_.executeQueryWithTransaction(
+        pqxx::result selectSetMembers = database.executeQueryWithTransaction(
             transaction,
             "get_item_set_memberships",
             {});
@@ -126,15 +126,21 @@ ItemManager::loadItems()
             int itemId = setRow["item_id"].as<int>();
             int setId = setRow["set_id"].as<int>();
             std::string setSlug = setRow["set_slug"].as<std::string>();
-            if (items_.count(itemId))
+            if (parsed.count(itemId))
             {
-                items_[itemId].setId = setId;
-                items_[itemId].setSlug = setSlug;
+                parsed[itemId].setId = setId;
+                parsed[itemId].setSlug = setSlug;
             }
         }
 
+        std::vector<ItemDataStruct> loaded;
+        loaded.reserve(parsed.size());
+        for (const auto &[id, item] : parsed)
+            loaded.push_back(item);
+        setItemsList(loaded);
+
         transaction.commit();
-        logger_.log("Loaded " + std::to_string(items_.size()) + " items from database");
+        logger_.log("Loaded " + std::to_string(loaded.size()) + " items from database");
     }
     catch (const std::exception &e)
     {
@@ -143,13 +149,13 @@ ItemManager::loadItems()
 }
 
 void
-ItemManager::loadMobLoot()
+ItemManager::loadMobLoot(Database &database)
 {
     try
     {
-        auto _dbConn = database_.getConnectionLocked();
+        auto _dbConn = database.getConnectionLocked();
         pqxx::work transaction(_dbConn.get());
-        pqxx::result selectMobLoot = database_.executeQueryWithTransaction(
+        pqxx::result selectMobLoot = database.executeQueryWithTransaction(
             transaction,
             "get_mobs_loot",
             {});
@@ -161,7 +167,7 @@ ItemManager::loadMobLoot()
             return;
         }
 
-        std::unique_lock<std::shared_mutex> lock(lootMutex_);
+        std::map<int, std::vector<MobLootInfoStruct>> parsed;
 
         for (const auto &row : selectMobLoot)
         {
@@ -175,15 +181,20 @@ ItemManager::loadMobLoot()
             lootInfo.maxQuantity = row["max_quantity"].as<int>();
             lootInfo.lootTier = row["loot_tier"].as<std::string>();
 
-            mobLootInfo_[lootInfo.mobId].push_back(lootInfo);
+            parsed[lootInfo.mobId].push_back(lootInfo);
         }
 
         transaction.commit();
 
         int totalLootEntries = 0;
-        for (const auto &mobLoot : mobLootInfo_)
+        for (const auto &mobLoot : parsed)
         {
             totalLootEntries += mobLoot.second.size();
+        }
+
+        {
+            std::unique_lock<std::shared_mutex> lock(lootMutex_);
+            mobLootInfo_ = std::move(parsed);
         }
 
         logger_.log("Loaded loot information for " + std::to_string(mobLootInfo_.size()) +
@@ -193,6 +204,24 @@ ItemManager::loadMobLoot()
     {
         logger_.logError("Error loading mob loot: " + std::string(e.what()));
     }
+}
+
+void
+ItemManager::setItemsList(const std::vector<ItemDataStruct> &items)
+{
+    std::unique_lock<std::shared_mutex> lock(itemsMutex_);
+    items_.clear();
+    for (const auto &item : items)
+        items_[item.id] = item;
+}
+
+void
+ItemManager::setMobLootInfo(const std::vector<MobLootInfoStruct> &entries)
+{
+    std::unique_lock<std::shared_mutex> lock(lootMutex_);
+    mobLootInfo_.clear();
+    for (const auto &entry : entries)
+        mobLootInfo_[entry.mobId].push_back(entry);
 }
 
 std::map<int, ItemDataStruct>

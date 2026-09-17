@@ -2,6 +2,7 @@
 #include "SkillStructs.hpp"
 #include <boost/asio.hpp>
 #include <chrono>
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -43,6 +44,9 @@ struct ChunkInfoStruct
     float sizeX = 0;
     float sizeY = 0;
     float sizeZ = 0;
+    // Last registration/heartbeat, steady_clock ms. Stamped by ChunkManager
+    // on add (chunk heartbeats every 60s); 0 = never (pre-sweep entries).
+    int64_t lastHeartbeatMs = 0;
 };
 
 struct CharacterAttributeStruct

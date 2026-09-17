@@ -79,6 +79,21 @@ main()
         // Start Scheduler loop in a separate thread
         scheduler.start();
 
+        // Wave 1.7: game-side chunk liveness sweep. The chunk heartbeats its
+        // registration every 60s; a death the disconnect event never reports
+        // (missed FIN, wedged peer) previously lingered until a manual chunk
+        // reboot. Sweep every 60s, drop entries silent for 180s (3 heartbeats).
+        // Scheduler::run already guards task exceptions; id 1 (first task).
+        {
+            Task chunkSweepTask(
+                [&gameServices]()
+                { gameServices.getChunkManager().sweepSilentChunks(180000); },
+                60,
+                std::chrono::system_clock::now() + std::chrono::seconds(60),
+                1);
+            scheduler.scheduleTask(chunkSweepTask);
+        }
+
         // wait for the signal to stop the server
         while (running)
         {

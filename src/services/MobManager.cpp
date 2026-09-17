@@ -2,22 +2,21 @@
 #include <cmath>
 #include <spdlog/logger.h>
 
-MobManager::MobManager(Database &database, Logger &logger)
-    : database_(database), logger_(logger)
+MobManager::MobManager(Logger &logger)
+    : logger_(logger)
 {
     log_ = logger.getSystem("mob");
-    loadMobs();
 }
 
 // Function to load mobs from the database and store them in memory
 void
-MobManager::loadMobs()
+MobManager::loadMobs(Database &database)
 {
     try
     {
-        auto _dbConn = database_.getConnectionLocked();
+        auto _dbConn = database.getConnectionLocked();
         pqxx::work transaction(_dbConn.get()); // Start a transaction
-        pqxx::result selectMobs = database_.executeQueryWithTransaction(
+        pqxx::result selectMobs = database.executeQueryWithTransaction(
             transaction,
             "get_mobs",
             {});
@@ -81,7 +80,7 @@ MobManager::loadMobs()
             mobData.hpMax = row["hp_max"].as<int>();
 
             // get mob attributes
-            pqxx::result selectMobAttributes = database_.executeQueryWithTransaction(
+            pqxx::result selectMobAttributes = database.executeQueryWithTransaction(
                 transaction,
                 "get_mob_attributes",
                 {mobData.id});
@@ -132,6 +131,14 @@ std::map<int, MobDataStruct>
 MobManager::getMobs() const
 {
     return mobs_;
+}
+
+void
+MobManager::setMobsList(const std::vector<MobDataStruct> &mobs)
+{
+    mobs_.clear();
+    for (const auto &mob : mobs)
+        mobs_[mob.id] = mob;
 }
 
 // Function to get all mobs from memory as vector

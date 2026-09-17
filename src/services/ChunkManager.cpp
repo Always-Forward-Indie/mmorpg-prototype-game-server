@@ -1,4 +1,5 @@
 #include "services/ChunkManager.hpp"
+#include <spdlog/logger.h>
 
 ChunkManager::ChunkManager(Logger &logger) : logger_(logger) {
     log_ = logger.getSystem("chunk");}
@@ -6,30 +7,50 @@ ChunkManager::ChunkManager(Logger &logger) : logger_(logger) {
 void
 ChunkManager::addChunkInfo(const ChunkInfoStruct &chunkInfo)
 {
+    if (chunkInfo.id <= 0)
+    {
+        // Defense in depth (the handler rejects these with a client error):
+        // id 0 is the "missing header.id" default, never a real chunk. The
+        // real chunk hardcodes header.id = 1 in its handshake.
+        log_->warn("[ChunkManager] ignoring chunk registration with id={} (malformed handshake?)",
+            chunkInfo.id);
+        return;
+    }
     std::unique_lock lock(mutex_);
+    ChunkInfoStruct stamped = chunkInfo;
+    stamped.lastHeartbeatMs = steadyNowMs();
     // Drop the reverse entry of any previous socket for this chunk id first,
     // so a late disconnect for the old socket can never resolve to the new one.
-    auto fwd = chunksById_.find(chunkInfo.id);
+    auto fwd = chunksById_.find(stamped.id);
     if (fwd != chunksById_.end() && fwd->second.socket &&
-        fwd->second.socket != chunkInfo.socket)
+        fwd->second.socket != stamped.socket)
     {
         chunkIdBySocket_.erase(fwd->second.socket);
         socketGen_.erase(fwd->second.socket);
     }
     const uint64_t gen = nextGen_.fetch_add(1, std::memory_order_relaxed);
-    chunksById_[chunkInfo.id] = chunkInfo;
-    chunkIdBySocket_[chunkInfo.socket] = chunkInfo.id;
-    genById_[chunkInfo.id] = gen;
-    if (chunkInfo.socket)
-        socketGen_[chunkInfo.socket] = {chunkInfo.id, gen};
+    chunksById_[stamped.id] = stamped;
+    chunkIdBySocket_[stamped.socket] = stamped.id;
+    genById_[stamped.id] = gen;
+    if (stamped.socket)
+        socketGen_[stamped.socket] = {stamped.id, gen};
+    log_->info("[ChunkManager] registered chunk id={} port={} gen={}",
+        stamped.id, stamped.port, gen);
 }
 
 void
 ChunkManager::addListOfAllChunks(const std::vector<ChunkInfoStruct> &chunks)
 {
     std::unique_lock lock(mutex_);
+    const int64_t now = steadyNowMs();
     for (const auto &chunk : chunks)
     {
+        if (chunk.id <= 0)
+        {
+            log_->warn("[ChunkManager] ignoring chunk registration with id={} (malformed handshake?)",
+                chunk.id);
+            continue;
+        }
         auto fwd = chunksById_.find(chunk.id);
         if (fwd != chunksById_.end() && fwd->second.socket &&
             fwd->second.socket != chunk.socket)
@@ -38,7 +59,9 @@ ChunkManager::addListOfAllChunks(const std::vector<ChunkInfoStruct> &chunks)
             socketGen_.erase(fwd->second.socket);
         }
         const uint64_t gen = nextGen_.fetch_add(1, std::memory_order_relaxed);
-        chunksById_[chunk.id] = chunk;
+        ChunkInfoStruct stamped = chunk;
+        stamped.lastHeartbeatMs = now;
+        chunksById_[chunk.id] = stamped;
         chunkIdBySocket_[chunk.socket] = chunk.id;
         genById_[chunk.id] = gen;
         if (chunk.socket)
@@ -97,6 +120,11 @@ ChunkManager::removeChunkServerDataBySocket(const std::shared_ptr<boost::asio::i
     {
         chunksById_.erase(id);
         genById_.erase(id);
+        log_->warn("[ChunkManager] live chunk id={} removed by socket disconnect", id);
+    }
+    else
+    {
+        log_->info("[ChunkManager] stale socket disconnect ignored (chunk id={} stays live)", id);
     }
 }
 
@@ -112,5 +140,43 @@ ChunkManager::removeChunkServerDataById(int chunkId)
             socketGen_.erase(it->second.socket);
         genById_.erase(chunkId);
         chunksById_.erase(it);
+        log_->warn("[ChunkManager] chunk id={} removed by id", chunkId);
     }
+}
+
+int64_t
+ChunkManager::steadyNowMs()
+{
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now().time_since_epoch())
+        .count();
+}
+
+std::vector<int>
+ChunkManager::sweepSilentChunks(int64_t silentThresholdMs)
+{
+    std::vector<int> removed;
+    const int64_t now = steadyNowMs();
+    std::unique_lock lock(mutex_);
+    for (auto it = chunksById_.begin(); it != chunksById_.end();)
+    {
+        const int id = it->first;
+        const int64_t silentFor = now - it->second.lastHeartbeatMs;
+        if (silentFor >= silentThresholdMs)
+        {
+            if (it->second.socket)
+                socketGen_.erase(it->second.socket);
+            chunkIdBySocket_.erase(it->second.socket);
+            genById_.erase(id);
+            it = chunksById_.erase(it);
+            removed.push_back(id);
+            log_->warn("[ChunkManager] sweep: silent chunk id={} removed (no heartbeat for {}ms)",
+                id, silentFor);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+    return removed;
 }

@@ -1,76 +1,150 @@
-// Unit tests for game ChunkManager generation stamps.
+// Unit tests for game ChunkManager generation stamps (gtest).
 //
 // A stale async disconnect (old socket, processed after a reconnect) must
 // never wipe the live chunk registration — this exact race caused a total
-// join outage (game returned chunkId 0) under load. See SERVER_BUGS.md.
+// join outage (game returned chunkId 0) under load.
+// Migrated from the hand-rolled CHECK-macro style to gtest; same 6 cases,
+// now independent (each builds its own fixture state).
 #include "services/ChunkManager.hpp"
 
 #include <boost/asio.hpp>
-#include <cstdio>
+#include <gtest/gtest.h>
 
-static int failures = 0;
-
-#define CHECK(cond, msg)                                                \
-    do                                                                  \
-    {                                                                   \
-        if (!(cond))                                                    \
-        {                                                               \
-            std::printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, (msg)); \
-            ++failures;                                                 \
-        }                                                               \
-    } while (0)
-
-int main()
+namespace
 {
-    Logger logger("test");
-    ChunkManager cm(logger);
+
+using boost::asio::ip::tcp;
+
+struct ChunkManagerFixture : ::testing::Test
+{
+    Logger logger{"test"};
+    ChunkManager cm{logger};
     boost::asio::io_context ioc;
-    using boost::asio::ip::tcp;
 
-    auto s1 = std::make_shared<tcp::socket>(ioc);
-    auto s2 = std::make_shared<tcp::socket>(ioc);
+    std::shared_ptr<tcp::socket> makeSocket()
+    {
+        return std::make_shared<tcp::socket>(ioc);
+    }
 
-    ChunkInfoStruct info;
-    info.id = 1;
-    info.ip = "127.0.0.1";
-    info.port = 27017;
+    ChunkInfoStruct makeInfo(std::shared_ptr<tcp::socket> s)
+    {
+        ChunkInfoStruct info;
+        info.id = 1;
+        info.ip = "127.0.0.1";
+        info.port = 27017;
+        info.socket = s;
+        return info;
+    }
+};
 
-    // 1. Register, resolve by id and by socket.
-    info.socket = s1;
-    cm.addChunkInfo(info);
-    CHECK(cm.getChunkById(1).port == 27017, "registered chunk resolves by id");
-    CHECK(cm.getChunkBySocket(s1).id == 1, "registered chunk resolves by socket");
+} // namespace
 
-    // 2. Reconnect (new socket, same id) replaces the mapping.
-    info.socket = s2;
-    cm.addChunkInfo(info);
-    CHECK(cm.getChunkById(1).socket == s2, "reconnect replaces socket");
-    CHECK(cm.getChunkBySocket(s2).id == 1, "reconnect resolves by new socket");
+TEST_F(ChunkManagerFixture, RegisterResolvesByIdAndSocket)
+{
+    auto s1 = makeSocket();
+    cm.addChunkInfo(makeInfo(s1));
+    EXPECT_EQ(cm.getChunkById(1).port, 27017);
+    EXPECT_EQ(cm.getChunkBySocket(s1).id, 1);
+}
 
-    // 3. THE BUG: late disconnect for the STALE socket must not wipe live.
-    cm.removeChunkServerDataBySocket(s1);
-    CHECK(cm.getChunkById(1).port == 27017, "stale disconnect keeps live registration");
-    CHECK(cm.getChunkBySocket(s2).id == 1, "live socket still resolves");
+TEST_F(ChunkManagerFixture, ReconnectReplacesSocket)
+{
+    auto s1 = makeSocket();
+    auto s2 = makeSocket();
+    cm.addChunkInfo(makeInfo(s1));
+    cm.addChunkInfo(makeInfo(s2));
+    EXPECT_EQ(cm.getChunkById(1).socket, s2);
+    EXPECT_EQ(cm.getChunkBySocket(s2).id, 1);
+}
 
-    // 4. Genuine disconnect for the live socket removes.
+TEST_F(ChunkManagerFixture, StaleDisconnectKeepsLiveRegistration)
+{
+    auto s1 = makeSocket();
+    auto s2 = makeSocket();
+    cm.addChunkInfo(makeInfo(s1));
+    cm.addChunkInfo(makeInfo(s2)); // reconnect
+    cm.removeChunkServerDataBySocket(s1); // late disconnect for the STALE socket
+    EXPECT_EQ(cm.getChunkById(1).port, 27017);
+    EXPECT_EQ(cm.getChunkBySocket(s2).id, 1);
+}
+
+TEST_F(ChunkManagerFixture, LiveDisconnectRemoves)
+{
+    auto s1 = makeSocket();
+    auto s2 = makeSocket();
+    cm.addChunkInfo(makeInfo(s1));
+    cm.addChunkInfo(makeInfo(s2));
     cm.removeChunkServerDataBySocket(s2);
-    CHECK(cm.getChunkById(1).id == 0, "live disconnect removes");
+    EXPECT_EQ(cm.getChunkById(1).id, 0);
+}
 
-    // 5. Unknown socket / id are safe no-ops.
-    auto s3 = std::make_shared<tcp::socket>(ioc);
+TEST_F(ChunkManagerFixture, UnknownSocketAndIdAreSafeNoOps)
+{
+    auto s1 = makeSocket();
+    cm.addChunkInfo(makeInfo(s1));
+    auto s3 = makeSocket();
     cm.removeChunkServerDataBySocket(s3);
     cm.removeChunkServerDataById(999);
     cm.removeChunkServerDataBySocket(nullptr);
+    EXPECT_EQ(cm.getChunkById(1).port, 27017); // registration untouched
+}
 
-    // 6. removeChunkServerDataById still works.
-    info.socket = s1;
-    cm.addChunkInfo(info);
+TEST_F(ChunkManagerFixture, RemoveByIdWorks)
+{
+    auto s1 = makeSocket();
+    cm.addChunkInfo(makeInfo(s1));
     cm.removeChunkServerDataById(1);
-    CHECK(cm.getChunkById(1).id == 0, "remove by id works");
+    EXPECT_EQ(cm.getChunkById(1).id, 0);
+}
 
-    if (failures == 0)
-        std::printf("ALL OK\n");
-    else
-        std::printf("%d FAILURES\n", failures);
-    return failures == 0 ? 0 : 1;
+TEST_F(ChunkManagerFixture, ZeroIdHandshakeNeverRegisters)
+{
+    // Wave 1.7: id 0 is the "missing header.id" default, never a real chunk.
+    // Registering it poisoned joinGameClient with CHUNKID_0 until a manual
+    // chunk reboot — now rejected at both layers (handler + manager).
+    auto s1 = makeSocket();
+    ChunkInfoStruct bad = makeInfo(s1);
+    bad.id = 0;
+    cm.addChunkInfo(bad);
+    // Nothing stored at all: even a sweep-everything finds no id-0 entry...
+    EXPECT_TRUE(cm.sweepSilentChunks(0).empty());
+    EXPECT_EQ(cm.getChunkBySocket(s1).id, 0); // ...and no reverse mapping.
+    std::vector<ChunkInfoStruct> batch{bad};
+    cm.addListOfAllChunks(batch);
+    EXPECT_TRUE(cm.sweepSilentChunks(0).empty());
+    // A valid handshake on the same socket still registers fine.
+    cm.addChunkInfo(makeInfo(s1));
+    EXPECT_EQ(cm.getChunkById(1).port, 27017);
+}
+
+TEST_F(ChunkManagerFixture, SweepRemovesOnlySilentChunks)
+{
+    // Fresh registration survives a generous threshold...
+    auto s1 = makeSocket();
+    cm.addChunkInfo(makeInfo(s1));
+    EXPECT_TRUE(cm.sweepSilentChunks(60000).empty());
+    EXPECT_EQ(cm.getChunkById(1).port, 27017);
+    // ...but a zero threshold (silent since forever, in test terms) sweeps.
+    // Reverse mappings go with it, so a later disconnect is a safe no-op.
+    auto removed = cm.sweepSilentChunks(0);
+    ASSERT_EQ(removed.size(), 1u);
+    EXPECT_EQ(removed[0], 1);
+    EXPECT_EQ(cm.getChunkById(1).id, 0);
+    EXPECT_EQ(cm.getChunkBySocket(s1).id, 0);
+    cm.removeChunkServerDataBySocket(s1);
+    cm.removeChunkServerDataById(1);
+    EXPECT_EQ(cm.getChunkById(1).id, 0);
+}
+
+TEST_F(ChunkManagerFixture, ReRegisterRefreshesHeartbeat)
+{
+    // Re-registration (chunk heartbeat, every 60s) restamps the entry, so a
+    // live chunk is never swept: add, sweep-all, re-add, sweep-all again.
+    auto s1 = makeSocket();
+    cm.addChunkInfo(makeInfo(s1));
+    EXPECT_EQ(cm.sweepSilentChunks(0).size(), 1u);
+    auto s2 = makeSocket();
+    cm.addChunkInfo(makeInfo(s2)); // heartbeat re-assert
+    EXPECT_EQ(cm.getChunkById(1).socket, s2);
+    EXPECT_TRUE(cm.sweepSilentChunks(60000).empty());
 }

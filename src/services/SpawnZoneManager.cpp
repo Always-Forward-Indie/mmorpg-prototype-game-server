@@ -3,21 +3,20 @@
 #include <algorithm>
 #include <spdlog/logger.h>
 
-SpawnZoneManager::SpawnZoneManager(MobManager &mobManager, Database &database, Logger &logger)
-    : mobManager_(mobManager), database_(database), logger_(logger)
+SpawnZoneManager::SpawnZoneManager(MobManager &mobManager, Logger &logger)
+    : mobManager_(mobManager), logger_(logger)
 {
     log_ = logger.getSystem("spawn");
-    loadMobSpawnZones();
 }
 
 void
-SpawnZoneManager::loadMobSpawnZones()
+SpawnZoneManager::loadMobSpawnZones(Database &database)
 {
     try
     {
-        auto _dbConn = database_.getConnectionLocked();
+        auto _dbConn = database.getConnectionLocked();
         pqxx::work transaction(_dbConn.get()); // Start a transaction
-        pqxx::result selectSpawnZones = database_.executeQueryWithTransaction(
+        pqxx::result selectSpawnZones = database.executeQueryWithTransaction(
             transaction,
             "get_mob_spawn_zone_data",
             {});
@@ -77,6 +76,14 @@ std::map<int, SpawnZoneStruct>
 SpawnZoneManager::getMobSpawnZones()
 {
     return mobSpawnZones_;
+}
+
+void
+SpawnZoneManager::setSpawnZones(const std::vector<SpawnZoneStruct> &zones)
+{
+    mobSpawnZones_.clear();
+    for (const auto &zone : zones)
+        mobSpawnZones_[zone.id] = zone;
 }
 
 // get spawn zone by id

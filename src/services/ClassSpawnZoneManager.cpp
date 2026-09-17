@@ -1,22 +1,22 @@
 #include "services/ClassSpawnZoneManager.hpp"
+#include "utils/RandomUtils.hpp"
 #include <cmath>
 #include <spdlog/logger.h>
 
-ClassSpawnZoneManager::ClassSpawnZoneManager(Database &database, Logger &logger)
-    : database_(database), logger_(logger)
+ClassSpawnZoneManager::ClassSpawnZoneManager(Logger &logger)
+    : logger_(logger)
 {
     log_ = logger.getSystem("classspawn");
-    loadClassSpawnZones();
 }
 
 void
-ClassSpawnZoneManager::loadClassSpawnZones()
+ClassSpawnZoneManager::loadClassSpawnZones(Database &database)
 {
     try
     {
-        auto _dbConn = database_.getConnectionLocked();
+        auto _dbConn = database.getConnectionLocked();
         pqxx::work txn(_dbConn.get());
-        pqxx::result rows = database_.executeQueryWithTransaction(txn, "get_class_spawn_zones", {});
+        pqxx::result rows = database.executeQueryWithTransaction(txn, "get_class_spawn_zones", {});
         txn.commit();
 
         std::map<int, ClassSpawnZoneStruct> newZones;
@@ -74,41 +74,26 @@ ClassSpawnZoneManager::getSpawnZoneForClass(int classId) const
     return nullptr;
 }
 
+void
+ClassSpawnZoneManager::setClassSpawnZones(const std::vector<ClassSpawnZoneStruct> &zones)
+{
+    std::unique_lock lock(mutex_);
+    zones_.clear();
+    for (const auto &zone : zones)
+        zones_[zone.classId] = zone;
+}
+
 const std::map<int, ClassSpawnZoneStruct> &
 ClassSpawnZoneManager::getAllClassSpawnZones() const
 {
     return zones_;
 }
 
-std::mt19937 &
-ClassSpawnZoneManager::getRng()
-{
-    static std::mt19937 rng(std::chrono::steady_clock::now().time_since_epoch().count());
-    return rng;
-}
-
-std::uniform_real_distribution<float> &
-ClassSpawnZoneManager::getUnitDist()
-{
-    static std::uniform_real_distribution<float> dist(0.0f, 1.0f);
-    return dist;
-}
-
-std::uniform_real_distribution<float> &
-ClassSpawnZoneManager::getAngleDist()
-{
-    static std::uniform_real_distribution<float> dist(0.0f,
-        static_cast<float>(2.0 * M_PI));
-    return dist;
-}
-
 PositionStruct
 ClassSpawnZoneManager::getRandomPointInZone(const ClassSpawnZoneStruct &zone)
 {
-    auto &rng = getRng();
-    auto &unit = getUnitDist();
-    auto &angleDist = getAngleDist();
-
+    // RNG: RandomUtils (one thread_local engine per thread; the old statics
+    // shared one mt19937 + two distributions across ThreadPool workers — race).
     float x = 0.0f;
     float y = 0.0f;
     float z = 0.0f;
@@ -117,18 +102,18 @@ ClassSpawnZoneManager::getRandomPointInZone(const ClassSpawnZoneStruct &zone)
     {
     case ZoneShape::CIRCLE:
     {
-        float angle = angleDist(rng);
-        float r = zone.outerRadius * std::sqrt(unit(rng));
+        float angle = RandomUtils::angle();
+        float r = zone.outerRadius * std::sqrt(RandomUtils::uniform01());
         x = zone.centerX + r * std::cos(angle);
         y = zone.centerY + r * std::sin(angle);
         break;
     }
     case ZoneShape::ANNULUS:
     {
-        float angle = angleDist(rng);
+        float angle = RandomUtils::angle();
         float r2in = zone.innerRadius * zone.innerRadius;
         float r2out = zone.outerRadius * zone.outerRadius;
-        float r = std::sqrt(r2in + unit(rng) * (r2out - r2in));
+        float r = std::sqrt(r2in + RandomUtils::uniform01() * (r2out - r2in));
         x = zone.centerX + r * std::cos(angle);
         y = zone.centerY + r * std::sin(angle);
         break;
@@ -136,13 +121,13 @@ ClassSpawnZoneManager::getRandomPointInZone(const ClassSpawnZoneStruct &zone)
     case ZoneShape::RECT:
     default:
     {
-        x = zone.minX + unit(rng) * (zone.maxX - zone.minX);
-        y = zone.minY + unit(rng) * (zone.maxY - zone.minY);
+        x = zone.minX + RandomUtils::uniform01() * (zone.maxX - zone.minX);
+        y = zone.minY + RandomUtils::uniform01() * (zone.maxY - zone.minY);
         break;
     }
     }
 
-    z = zone.minZ + unit(rng) * (zone.maxZ - zone.minZ);
+    z = zone.minZ + RandomUtils::uniform01() * (zone.maxZ - zone.minZ);
 
     PositionStruct pos;
     pos.positionX = x;

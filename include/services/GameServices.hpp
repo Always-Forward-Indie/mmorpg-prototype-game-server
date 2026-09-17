@@ -18,17 +18,23 @@ class GameServices
     GameServices(Database &database, Logger &logger)
         : logger_(logger),
           database_(database),
-          mobManager_(database_, logger_),
-          itemManager_(database_, logger_),
-          npcManager_(database_, logger_),
-          spawnZoneManager_(mobManager_, database_, logger_),
+          mobManager_(logger_),
+          itemManager_(logger_),
+          npcManager_(logger_),
+          spawnZoneManager_(mobManager_, logger_),
           characterManager_(logger_),
-          classSpawnZoneManager_(database_, logger_),
+          classSpawnZoneManager_(logger_),
           clientManager_(logger_),
           chunkManager_(logger_),
           dialogueQuestManager_(database_, logger_),
-          gameConfigService_(database_, logger_)
+          gameConfigService_(logger_)
     {
+        // Explicit data loading (was implicit in manager ctors).
+        mobManager_.loadMobs(database_);
+        itemManager_.loadItems(database_);
+        itemManager_.loadMobLoot(database_);
+        spawnZoneManager_.loadMobSpawnZones(database_);
+        classSpawnZoneManager_.loadClassSpawnZones(database_);
     }
 
     Logger &getLogger()
