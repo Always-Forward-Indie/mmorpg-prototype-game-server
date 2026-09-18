@@ -1240,6 +1240,7 @@ EventHandler::handleGetSpawnZonesEvent(const Event &event)
             nlohmann::json zj;
             zj["id"] = zid;
             zj["name"] = spawnZone.second.zoneName;
+            zj["gameZoneId"] = spawnZone.second.gameZoneId;
             zj["shape"] = shapeToStr(spawnZone.second.shape);
             zj["minX"] = spawnZone.second.minX;
             zj["maxX"] = spawnZone.second.maxX;

@@ -314,6 +314,8 @@ struct SpawnZoneStruct
     int id = 0; ///< spawn_zone_mobs.id (szm surrogate PK, used as map key in GS)
     int zoneId = 0;
     std::string zoneName;
+    /// Owning game zone (zones.id) for chunk-side threshold attribution.
+    int gameZoneId = 0;
 
     // Geometry
     ZoneShape shape = ZoneShape::RECT;

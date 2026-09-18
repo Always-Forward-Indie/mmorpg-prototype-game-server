@@ -36,6 +36,7 @@ SpawnZoneManager::loadMobSpawnZones(Database &database)
             // multiple mobs in the same zone don't overwrite each other.
             spawnZone.id = row["szm_id"].as<int>();
             spawnZone.zoneId = row["zone_id"].as<int>();
+            spawnZone.gameZoneId = row["game_zone_id"].is_null() ? 0 : row["game_zone_id"].as<int>();
             spawnZone.zoneName = row["zone_name"].as<std::string>();
             spawnZone.minX = row["min_spawn_x"].as<float>();
             spawnZone.maxX = row["max_spawn_x"].as<float>();

@@ -333,7 +333,7 @@ Database::prepareQueriesOn(pqxx::connection &conn)
         // One row per (zone, mob) pair; szm_id is the unique key for the map.
         // Old schema had mob_id directly in spawn_zones; new schema uses spawn_zone_mobs link table.
         conn.prepare("get_mob_spawn_zone_data",
-            "SELECT szm.id AS szm_id, sz.zone_id, sz.zone_name, "
+            "SELECT szm.id AS szm_id, sz.zone_id, sz.zone_name, sz.game_zone_id, "
             "sz.min_spawn_x, sz.max_spawn_x, sz.min_spawn_y, sz.max_spawn_y, sz.min_spawn_z, sz.max_spawn_z, "
             "sz.shape_type, sz.center_x, sz.center_y, sz.inner_radius, sz.outer_radius, sz.exclusion_game_zone_id, "
             "szm.mob_id, szm.spawn_count, szm.respawn_time, "

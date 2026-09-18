@@ -1,3 +1,17 @@
+v0.2.20
+18.09.2026
+================
+
+New:
+
+**Spawn-zone push carries gameZoneId.**
+- `get_mob_spawn_zone_data` selects `sz.game_zone_id`; game
+  `SpawnZoneStruct` holds it; `setSpawnZonesList` emits `gameZoneId` per
+  zone. Chunk uses it for kill origin attribution (threshold credit by
+  spawn zone, not death position). No behavior change otherwise.
+
+---
+
 v0.2.19
 17.09.2026
 ================
