@@ -3872,7 +3872,7 @@ EventHandler::handleTimedChampionKilledEvent(const Event &event)
             int64_t nextSpawnAt = killedAt + static_cast<int64_t>(intervalHours) * 3600;
 
             gameServices_.getDatabase().executeQueryWithTransaction(
-                txn, "update_timed_champion_next_spawn", {slug, static_cast<double>(nextSpawnAt)});
+                txn, "update_timed_champion_next_spawn", {slug, nextSpawnAt});
         }
         txn.commit();
 

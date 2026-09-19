@@ -893,7 +893,7 @@ Database::prepareQueriesOn(pqxx::connection &conn)
 
         conn.prepare("update_timed_champion_next_spawn",
             "UPDATE timed_champion_templates "
-            "SET next_spawn_at = to_timestamp($2), last_killed_at = NOW() "
+            "SET next_spawn_at = $2::bigint, last_killed_at = NOW() "
             "WHERE slug = $1;");
 
         // Stage 4: Reputation
