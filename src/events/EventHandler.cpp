@@ -2340,8 +2340,10 @@ EventHandler::handleSaveInventoryChangeEvent(const Event &event)
                     txn, "upsert_player_inventory_item", {characterId, itemId, quantity});
                 txn.commit();
 
-                // Send back the assigned player_inventory.id so chunk server can fix in-memory id=0
-                if (!result.empty() && chunkSocket && chunkSocket->is_open())
+                // Send back the assigned player_inventory.id so chunk server can fix in-memory id=0.
+                // Without the sync every later save goes down the additive
+                // upsert path (double count), so answer on the live socket.
+                if (!result.empty())
                 {
                     int64_t assignedId = result[0]["id"].as<int64_t>();
                     nlohmann::json syncPkt;
@@ -2350,8 +2352,17 @@ EventHandler::handleSaveInventoryChangeEvent(const Event &event)
                     syncPkt["body"]["characterId"] = characterId;
                     syncPkt["body"]["itemId"] = itemId;
                     syncPkt["body"]["inventoryItemId"] = assignedId;
-                    networkManager_.sendResponse(chunkSocket,
-                        networkManager_.generateResponseMessage("success", syncPkt));
+                    auto syncSocket = gameServices_.getChunkManager().resolveLiveSocket(chunkSocket);
+                    if (!syncSocket)
+                    {
+                        log_->error("[GAME] inventoryItemIdSync: no live chunk socket for char={}",
+                            characterId);
+                    }
+                    else
+                    {
+                        networkManager_.sendResponse(syncSocket,
+                            networkManager_.generateResponseMessage("success", syncPkt));
+                    }
                 }
             }
         }
@@ -3967,8 +3978,19 @@ EventHandler::handleSaveReputationEvent(const Event &event)
 
         auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
         pqxx::work txn(_dbConn.get());
-        gameServices_.getDatabase().executeQueryWithTransaction(
-            txn, "upsert_reputation", {characterId, faction, value});
+        // Prefer the delta when the sender provides one: concurrent changes
+        // apply atomically instead of racing last-writer-wins on absolutes.
+        // Legacy absolute-only senders keep the old upsert path.
+        if (j.contains("delta") && j["delta"].is_number_integer() && j["delta"].get<int>() != 0)
+        {
+            gameServices_.getDatabase().executeQueryWithTransaction(
+                txn, "add_reputation", {characterId, faction, j["delta"].get<int>()});
+        }
+        else
+        {
+            gameServices_.getDatabase().executeQueryWithTransaction(
+                txn, "upsert_reputation", {characterId, faction, value});
+        }
         txn.commit();
 
         log_->info("[REPUTATION] Saved char={} faction={} value={}", characterId, faction, value);

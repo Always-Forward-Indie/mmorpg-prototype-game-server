@@ -193,6 +193,10 @@ EventDispatcher::dispatch(const std::string &eventType,
     {
         handleSaveSkillBarSlot(payload, socket);
     }
+    else if (eventType == "saveCurrencyTransaction")
+    {
+        handleSaveCurrencyTransaction(payload, socket);
+    }
     else if (eventType == "getTitleDefinitionsData")
     {
         handleGetTitleDefinitionsData(payload, socket);
@@ -1039,6 +1043,26 @@ EventDispatcher::handleSaveSkillBarSlot(
     catch (const std::exception &ex)
     {
         logger_.logError("handleSaveSkillBarSlot parse error: " + std::string(ex.what()));
+    }
+}
+
+void
+EventDispatcher::handleSaveCurrencyTransaction(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    try
+    {
+        auto j = nlohmann::json::parse(payload.rawMessage);
+        const auto &body = j["body"];
+        Event saveEvent(Event::SAVE_CURRENCY_TRANSACTION, 0, body, socket);
+        eventsBatch_.push_back(saveEvent);
+        eventQueue_.pushBatch(eventsBatch_);
+        eventsBatch_.clear();
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleSaveCurrencyTransaction parse error: " + std::string(ex.what()));
     }
 }
 

@@ -912,6 +912,14 @@ Database::prepareQueriesOn(pqxx::connection &conn)
             "VALUES($1, $2, $3) "
             "ON CONFLICT(character_id, faction_slug) DO UPDATE SET value = EXCLUDED.value;");
 
+        // Atomic delta apply (concurrent changes must add, not last-write).
+        // Idempotent only per unique fact; same delta twice adds twice, so
+        // chunk sends each change once (at-least-once retries need keys).
+        conn.prepare("add_reputation",
+            "INSERT INTO character_reputation(character_id, faction_slug, value) "
+            "VALUES($1, $2, $3) "
+            "ON CONFLICT(character_id, faction_slug) DO UPDATE SET value = character_reputation.value + EXCLUDED.value;");
+
         // Stage 4: Mastery
         conn.prepare("get_player_masteries",
             "SELECT mastery_slug, value "

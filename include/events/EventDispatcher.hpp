@@ -61,6 +61,7 @@ class EventDispatcher
     void handleGetMasteryDefinitionsData(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
     void handleSaveLearnedSkill(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
     void handleSaveSkillBarSlot(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
+    void handleSaveCurrencyTransaction(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
     // Title system
     void handleGetTitleDefinitionsData(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
     void handleGetPlayerTitlesData(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
