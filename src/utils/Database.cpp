@@ -301,6 +301,13 @@ Database::prepareQueriesOn(pqxx::connection &conn)
         conn.prepare("set_free_skill_points",
             "UPDATE characters SET free_skill_points = GREATEST(0, $2::integer) WHERE id = $1;");
 
+        // Outbox idempotency guard (see Tools/Tests/OUTBOX_PLAN.md): claim a
+        // fact key atomically inside the caller's txn; duplicates skip the
+        // business writes and get an ack-duplicate instead.
+        conn.prepare("claim_fact_key",
+            "INSERT INTO fact_keys_applied(key) VALUES($1) "
+            "ON CONFLICT DO NOTHING RETURNING key;");
+
         // ── Skill Bar (migration 051) ─────────────────────────────────────────
         conn.prepare("get_character_skill_bar",
             "SELECT slot_index, skill_slug "

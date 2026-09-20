@@ -2231,13 +2231,58 @@ EventHandler::handleGetNPCsAttributesEvent(const Event &event)
     }
 }
 
+namespace
+{
+// ── Outbox fact helpers (see Tools/Tests/OUTBOX_PLAN.md) ─────────────────
+// factKeyOf: "" when the sender carries no key (legacy path: proceed,
+// no ack — backward compatible).
+std::string outboxFactKeyOf(const nlohmann::json &body)
+{
+    const auto it = body.find("factKey");
+    if (it == body.end() || !it->is_string())
+        return "";
+    return it->get<std::string>();
+}
+
+// Claim a fact key atomically inside the caller's txn. Returns 1 = fresh
+// (proceed), 0 = duplicate (skip business writes, caller sends
+// ack-duplicate), -1 = transport error (caller must abort WITHOUT ack so
+// the chunk retries). Distinguishes conflict from error via COUNT(*):
+// the wrapper swallows exceptions into an empty result, while a real
+// duplicate still yields exactly one row with count 0.
+int outboxClaimFactKey(Database &db, pqxx::work &txn, const std::string &key)
+{
+    auto rows = db.executeQueryWithTransaction(txn, "claim_fact_key", {key});
+    if (rows.empty())
+        return -1;
+    return rows[0][0].as<int>(0) == 1 ? 1 : 0;
+}
+
+void outboxSendFactAck(NetworkManager &net,
+    const std::shared_ptr<boost::asio::ip::tcp::socket> &socket,
+    const std::string &key,
+    const std::string &status)
+{
+    if (!socket || key.empty())
+        return;
+    nlohmann::json response = ResponseBuilder()
+                                  .setHeader("message", "Fact ack")
+                                  .setHeader("hash", "")
+                                  .setHeader("clientId", 0)
+                                  .setHeader("eventType", "factAck")
+                                  .setBody("key", key)
+                                  .setBody("status", status)
+                                  .build();
+    net.sendResponse(socket, net.generateResponseMessage("success", response));
+}
+} // namespace
+
 void
 EventHandler::handleSavePositionsEvent(const Event &event)
 {
     const auto &data = event.getData();
 
-    try
-    {
+    try    {
         if (!std::holds_alternative<std::vector<CharacterDataStruct>>(data))
         {
             log_->error("handleSavePositionsEvent: unexpected data type");
@@ -2341,6 +2386,20 @@ EventHandler::handleSaveInventoryChangeEvent(const Event &event)
 
         auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
         pqxx::work txn(_dbConn.get());
+        // Outbox idempotency: claim first (atomic with the writes below).
+        const std::string invFactKey = outboxFactKeyOf(j);
+        if (!invFactKey.empty())
+        {
+            const int claimed = outboxClaimFactKey(
+                gameServices_.getDatabase(), txn, invFactKey);
+            if (claimed == 0)
+            {
+                outboxSendFactAck(networkManager_, chunkSocket, invFactKey, "duplicate");
+                return;
+            }
+            if (claimed < 0)
+                return;
+        }
         if (quantity > 0)
         {
             if (inventoryItemId > 0)
@@ -2400,6 +2459,9 @@ EventHandler::handleSaveInventoryChangeEvent(const Event &event)
             }
             txn.commit();
         }
+        // Outbox ack: the fact is durable now.
+        if (!invFactKey.empty())
+            outboxSendFactAck(networkManager_, chunkSocket, invFactKey, "applied");
         log_->info("[SAVE_INVENTORY] character=" + std::to_string(characterId) +
                    " item=" + std::to_string(itemId) + " qty=" + std::to_string(quantity));
     }
@@ -3996,6 +4058,20 @@ EventHandler::handleSaveReputationEvent(const Event &event)
 
         auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
         pqxx::work txn(_dbConn.get());
+        // Outbox idempotency: claim first (atomic with the write below).
+        const std::string repFactKey = outboxFactKeyOf(j);
+        if (!repFactKey.empty())
+        {
+            const int claimed = outboxClaimFactKey(
+                gameServices_.getDatabase(), txn, repFactKey);
+            if (claimed == 0)
+            {
+                outboxSendFactAck(networkManager_, event.getClientSocket(), repFactKey, "duplicate");
+                return;
+            }
+            if (claimed < 0)
+                return;
+        }
         // Prefer the delta when the sender provides one: concurrent changes
         // apply atomically instead of racing last-writer-wins on absolutes.
         // Legacy absolute-only senders keep the old upsert path.
@@ -4010,6 +4086,9 @@ EventHandler::handleSaveReputationEvent(const Event &event)
                 txn, "upsert_reputation", {characterId, faction, value});
         }
         txn.commit();
+
+        if (!repFactKey.empty())
+            outboxSendFactAck(networkManager_, event.getClientSocket(), repFactKey, "applied");
 
         log_->info("[REPUTATION] Saved char={} faction={} value={}", characterId, faction, value);
     }
@@ -4179,6 +4258,23 @@ EventHandler::handleSaveLearnedSkillEvent(const Event &event)
         auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
         pqxx::work txn(_dbConn.get());
 
+        // Outbox idempotency: claim the fact key atomically with the writes
+        // below (duplicate deliveries skip + ack-duplicate; transport errors
+        // abort without ack so the chunk retries).
+        const std::string learnFactKey = outboxFactKeyOf(j);
+        if (!learnFactKey.empty())
+        {
+            const int claimed = outboxClaimFactKey(
+                gameServices_.getDatabase(), txn, learnFactKey);
+            if (claimed == 0)
+            {
+                outboxSendFactAck(networkManager_, clientSocket, learnFactKey, "duplicate");
+                return;
+            }
+            if (claimed < 0)
+                return;
+        }
+
         // Persist the skill
         gameServices_.getDatabase().executeQueryWithTransaction(
             txn, "save_learned_skill", {characterId, skillSlug});
@@ -4210,6 +4306,10 @@ EventHandler::handleSaveLearnedSkillEvent(const Event &event)
         auto rows = gameServices_.getDatabase().executeQueryWithTransaction(
             txn, "get_character_skills", {characterId});
         txn.commit();
+
+        // Outbox ack: the fact is durable now.
+        if (!learnFactKey.empty())
+            outboxSendFactAck(networkManager_, clientSocket, learnFactKey, "applied");
 
         // Find the newly learned skill in the results
         nlohmann::json skillJson = nlohmann::json::object();
