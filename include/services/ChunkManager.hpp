@@ -22,6 +22,18 @@ class ChunkManager
     ChunkInfoStruct getChunkById(int chunkId) const;
     ChunkInfoStruct getChunkBySocket(const std::shared_ptr<boost::asio::ip::tcp::socket> &socket) const;
 
+    /// Resolve the socket to answer a chunk-originated request on, at send
+    /// time. Events queue async work: by the time a game→chunk runtime
+    /// response is built, the chunk may have reconnected and the captured
+    /// `hint` socket may be stale (writes into a half-open stale socket
+    /// fail silently). Prefer the current registration for the hint's chunk
+    /// (default chunk id 1 when the hint is unknown); fall back to `hint`
+    /// itself; null when neither names a socket. Callers still get
+    /// sendResponse's closed-socket error for dead sockets. Pure registry
+    /// read — unit-pinned in test_chunk_manager.cpp.
+    std::shared_ptr<boost::asio::ip::tcp::socket> resolveLiveSocket(
+        const std::shared_ptr<boost::asio::ip::tcp::socket> &hint) const;
+
     void removeChunkServerDataBySocket(const std::shared_ptr<boost::asio::ip::tcp::socket> &socket);
     void removeChunkServerDataById(int chunkId);
 

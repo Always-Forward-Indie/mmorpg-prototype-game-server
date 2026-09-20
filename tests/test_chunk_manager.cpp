@@ -148,3 +148,27 @@ TEST_F(ChunkManagerFixture, ReRegisterRefreshesHeartbeat)
     EXPECT_EQ(cm.getChunkById(1).socket, s2);
     EXPECT_TRUE(cm.sweepSilentChunks(60000).empty());
 }
+
+TEST_F(ChunkManagerFixture, ResolveLiveSocketPrefersCurrentRegistration)
+{
+    // Event queued on s1, chunk reconnected on s2 before the game answers:
+    // answering on s1 would vanish into a half-open stale socket.
+    auto s1 = makeSocket();
+    auto s2 = makeSocket();
+    cm.addChunkInfo(makeInfo(s1));
+    cm.addChunkInfo(makeInfo(s2)); // reconnect
+    EXPECT_EQ(cm.resolveLiveSocket(s1), s2);
+}
+
+TEST_F(ChunkManagerFixture, ResolveLiveSocketFallsBackToHint)
+{
+    // Hint socket never registered (unknown chunk): nothing better known,
+    // return the hint itself; sendResponse still guards closed sockets.
+    auto s1 = makeSocket();
+    EXPECT_EQ(cm.resolveLiveSocket(s1), s1);
+}
+
+TEST_F(ChunkManagerFixture, ResolveLiveSocketNullWhenNothingKnown)
+{
+    EXPECT_EQ(cm.resolveLiveSocket(nullptr), nullptr);
+}

@@ -2879,10 +2879,20 @@ EventHandler::handleGetCharacterAttributesRefreshEvent(const Event &event)
                                       .setHeader("hash", "")
                                       .setHeader("clientId", characterId)
                                       .setHeader("eventType", "setCharacterAttributesRefresh")
-                                      .setBody("characterId", characterId)
-                                      .setBody("attributesData", attrsJson)
-                                      .build();
-        networkManager_.sendResponse(clientSocket,
+                                       .setBody("characterId", characterId)
+                                       .setBody("attributesData", attrsJson)
+                                       .build();
+        // Answer on the live chunk socket (see setLearnedSkill: captured
+        // sockets go stale across chunk reconnects).
+        auto sendSocket =
+            gameServices_.getChunkManager().resolveLiveSocket(clientSocket);
+        if (!sendSocket)
+        {
+            log_->error("[GAME] setCharacterAttributesRefresh: no live chunk socket for char={}",
+                characterId);
+            return;
+        }
+        networkManager_.sendResponse(sendSocket,
             networkManager_.generateResponseMessage("success", response));
 
         gameServices_.getLogger().log("[EH] Sent " + std::to_string(attrsJson.size()) +
@@ -4239,7 +4249,19 @@ EventHandler::handleSaveLearnedSkillEvent(const Event &event)
                                       .setBody("skillData", skillJson)
                                       .build();
 
-        networkManager_.sendResponse(clientSocket,
+        // Send on the live chunk socket, not the captured one: the event
+        // queued async and the chunk may have reconnected since (writes
+        // into a half-open stale socket fail silently). resolveLiveSocket
+        // prefers the current registration; sendResponse still guards
+        // closed sockets with an error log.
+        auto sendSocket =
+            gameServices_.getChunkManager().resolveLiveSocket(clientSocket);
+        if (!sendSocket)
+        {
+            log_->error("[GAME] setLearnedSkill: no live chunk socket for char={}", characterId);
+            return;
+        }
+        networkManager_.sendResponse(sendSocket,
             networkManager_.generateResponseMessage("success", response));
 
         log_->info("[SKILL] Saved learned skill slug={} for char={}", skillSlug, characterId);

@@ -91,6 +91,20 @@ ChunkManager::getChunkBySocket(const std::shared_ptr<boost::asio::ip::tcp::socke
     return ChunkInfoStruct{};
 }
 
+std::shared_ptr<boost::asio::ip::tcp::socket>
+ChunkManager::resolveLiveSocket(const std::shared_ptr<boost::asio::ip::tcp::socket> &hint) const
+{
+    std::shared_lock lock(mutex_);
+    int chunkId = 1; // single-chunk deployment default
+    auto bySock = chunkIdBySocket_.find(hint);
+    if (bySock != chunkIdBySocket_.end())
+        chunkId = bySock->second;
+    auto byId = chunksById_.find(chunkId);
+    if (byId != chunksById_.end() && byId->second.socket)
+        return byId->second.socket;
+    return hint;
+}
+
 void
 ChunkManager::removeChunkServerDataBySocket(const std::shared_ptr<boost::asio::ip::tcp::socket> &socket)
 {
