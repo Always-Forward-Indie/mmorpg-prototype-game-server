@@ -303,10 +303,16 @@ Database::prepareQueriesOn(pqxx::connection &conn)
 
         // Outbox idempotency guard (see Tools/Tests/OUTBOX_PLAN.md): claim a
         // fact key atomically inside the caller's txn; duplicates skip the
-        // business writes and get an ack-duplicate instead.
+        // business writes and get an ack-duplicate instead. COUNT(*) wrapper
+        // (not bare RETURNING key): callers read an int (1 = fresh, 0 =
+        // duplicate); an empty result unambiguously means transport error.
+        // (A bare RETURNING key breaks .as<int>() readers with
+        // "Unexpected text after integer" and rolls everything back.)
         conn.prepare("claim_fact_key",
+            "WITH ins AS ("
             "INSERT INTO fact_keys_applied(key) VALUES($1) "
-            "ON CONFLICT DO NOTHING RETURNING key;");
+            "ON CONFLICT DO NOTHING RETURNING key"
+            ") SELECT COUNT(*) FROM ins;");
 
         // ── Skill Bar (migration 051) ─────────────────────────────────────────
         conn.prepare("get_character_skill_bar",
