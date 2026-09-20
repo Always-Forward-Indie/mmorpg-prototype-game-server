@@ -2238,8 +2238,12 @@ namespace
 // no ack — backward compatible).
 std::string outboxFactKeyOf(const nlohmann::json &body)
 {
+    // Only object bodies carry keys (array bodies = batched snapshots that
+    // self-heal on the next period; they stay on the legacy path).
+    if (!body.is_object())
+        return "";
     const auto it = body.find("factKey");
-    if (it == body.end() || !it->is_string())
+    if (it == body.end() || !it->is_string() || it->get<std::string>().empty())
         return "";
     return it->get<std::string>();
 }
@@ -3150,9 +3154,25 @@ EventHandler::handleSaveDurabilityChangeEvent(const Event &event)
 
         auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
         pqxx::work txn(_dbConn.get());
+        // Outbox idempotency: claim first (atomic with the writes below).
+        const std::string durFactKey = outboxFactKeyOf(j);
+        if (!durFactKey.empty())
+        {
+            const int durClaimed = outboxClaimFactKey(
+                gameServices_.getDatabase(), txn, durFactKey);
+            if (durClaimed == 0)
+            {
+                outboxSendFactAck(networkManager_, event.getClientSocket(), durFactKey, "duplicate");
+                return;
+            }
+            if (durClaimed < 0)
+                return;
+        }
         gameServices_.getDatabase().executeQueryWithTransaction(
             txn, "update_durability_current", {durabilityCurrent, inventoryItemId, characterId});
         txn.commit();
+        if (!durFactKey.empty())
+            outboxSendFactAck(networkManager_, event.getClientSocket(), durFactKey, "applied");
 
         log_->info("[SAVE_DUR] char=" + std::to_string(characterId) +
                    " item=" + std::to_string(inventoryItemId) +
@@ -3189,9 +3209,25 @@ EventHandler::handleSaveCurrencyTransactionEvent(const Event &event)
 
         auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
         pqxx::work txn(_dbConn.get());
+        // Outbox idempotency: claim first (atomic with the writes below).
+        const std::string curFactKey = outboxFactKeyOf(j);
+        if (!curFactKey.empty())
+        {
+            const int curClaimed = outboxClaimFactKey(
+                gameServices_.getDatabase(), txn, curFactKey);
+            if (curClaimed == 0)
+            {
+                outboxSendFactAck(networkManager_, event.getClientSocket(), curFactKey, "duplicate");
+                return;
+            }
+            if (curClaimed < 0)
+                return;
+        }
         gameServices_.getDatabase().executeQueryWithTransaction(
             txn, "insert_currency_transaction", {characterId, npcId, totalPrice, txType});
         txn.commit();
+        if (!curFactKey.empty())
+            outboxSendFactAck(networkManager_, event.getClientSocket(), curFactKey, "applied");
 
         log_->info("[CURRENCY_TX] char=" + std::to_string(characterId) +
                    " type=" + txType + " item=" + std::to_string(itemId) +
@@ -3226,6 +3262,20 @@ EventHandler::handleSaveEquipmentChangeEvent(const Event &event)
 
         auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
         pqxx::work txn(_dbConn.get());
+        // Outbox idempotency: claim first (atomic with the writes below).
+        const std::string equipFactKey = outboxFactKeyOf(j);
+        if (!equipFactKey.empty())
+        {
+            const int equipClaimed = outboxClaimFactKey(
+                gameServices_.getDatabase(), txn, equipFactKey);
+            if (equipClaimed == 0)
+            {
+                outboxSendFactAck(networkManager_, event.getClientSocket(), equipFactKey, "duplicate");
+                return;
+            }
+            if (equipClaimed < 0)
+                return;
+        }
 
         if (action == "equip")
         {
@@ -3248,6 +3298,8 @@ EventHandler::handleSaveEquipmentChangeEvent(const Event &event)
             return;
         }
         txn.commit();
+        if (!equipFactKey.empty())
+            outboxSendFactAck(networkManager_, event.getClientSocket(), equipFactKey, "applied");
 
         log_->info("[SAVE_EQUIP] char=" + std::to_string(characterId) +
                    " action=" + action +
@@ -3387,8 +3439,24 @@ EventHandler::handleSaveExperienceDebtEvent(const Event &event)
 
         auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
         pqxx::work txn(_dbConn.get());
+        // Outbox idempotency: claim first (atomic with the writes below).
+        const std::string debtFactKey = outboxFactKeyOf(j);
+        if (!debtFactKey.empty())
+        {
+            const int debtClaimed = outboxClaimFactKey(
+                gameServices_.getDatabase(), txn, debtFactKey);
+            if (debtClaimed == 0)
+            {
+                outboxSendFactAck(networkManager_, event.getClientSocket(), debtFactKey, "duplicate");
+                return;
+            }
+            if (debtClaimed < 0)
+                return;
+        }
         gameServices_.getDatabase().executeQueryWithTransaction(txn, "set_character_experience_debt", {characterId, debt});
         txn.commit();
+        if (!debtFactKey.empty())
+            outboxSendFactAck(networkManager_, event.getClientSocket(), debtFactKey, "applied");
 
         log_->info("[SAVE_EXP_DEBT] char=" + std::to_string(characterId) + " debt=" + std::to_string(debt));
     }
@@ -3433,9 +3501,25 @@ EventHandler::handleSaveActiveEffectEvent(const Event &event)
 
         auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
         pqxx::work txn(_dbConn.get());
+        // Outbox idempotency: claim first (atomic with the writes below).
+        const std::string effFactKey = outboxFactKeyOf(j);
+        if (!effFactKey.empty())
+        {
+            const int effClaimed = outboxClaimFactKey(
+                gameServices_.getDatabase(), txn, effFactKey);
+            if (effClaimed == 0)
+            {
+                outboxSendFactAck(networkManager_, event.getClientSocket(), effFactKey, "duplicate");
+                return;
+            }
+            if (effClaimed < 0)
+                return;
+        }
         gameServices_.getDatabase().executeQueryWithTransaction(
             txn, "insert_player_active_effect", params);
         txn.commit();
+        if (!effFactKey.empty())
+            outboxSendFactAck(networkManager_, event.getClientSocket(), effFactKey, "applied");
 
         log_->info("[SAVE_ACTIVE_EFFECT] char=" + std::to_string(characterId) + " effect=" + effectSlug);
     }
@@ -3467,9 +3551,25 @@ EventHandler::handleSaveItemKillCountEvent(const Event &event)
 
         auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
         pqxx::work txn(_dbConn.get());
+        // Outbox idempotency: claim first (atomic with the writes below).
+        const std::string killFactKey = outboxFactKeyOf(j);
+        if (!killFactKey.empty())
+        {
+            const int killClaimed = outboxClaimFactKey(
+                gameServices_.getDatabase(), txn, killFactKey);
+            if (killClaimed == 0)
+            {
+                outboxSendFactAck(networkManager_, event.getClientSocket(), killFactKey, "duplicate");
+                return;
+            }
+            if (killClaimed < 0)
+                return;
+        }
         gameServices_.getDatabase().executeQueryWithTransaction(
             txn, "update_item_kill_count", {killCount, inventoryItemId, characterId});
         txn.commit();
+        if (!killFactKey.empty())
+            outboxSendFactAck(networkManager_, event.getClientSocket(), killFactKey, "applied");
 
         log_->info("[SAVE_KILL_COUNT] char=" + std::to_string(characterId) +
                    " item=" + std::to_string(inventoryItemId) +
@@ -3838,9 +3938,25 @@ EventHandler::handleSavePityCounterEvent(const Event &event)
 
         auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
         pqxx::work txn(_dbConn.get());
+        // Outbox idempotency: claim first (atomic with the writes below).
+        const std::string pityFactKey = outboxFactKeyOf(j);
+        if (!pityFactKey.empty())
+        {
+            const int pityClaimed = outboxClaimFactKey(
+                gameServices_.getDatabase(), txn, pityFactKey);
+            if (pityClaimed == 0)
+            {
+                outboxSendFactAck(networkManager_, event.getClientSocket(), pityFactKey, "duplicate");
+                return;
+            }
+            if (pityClaimed < 0)
+                return;
+        }
         gameServices_.getDatabase().executeQueryWithTransaction(
             txn, "upsert_pity_counter", {characterId, itemId, killCount});
         txn.commit();
+        if (!pityFactKey.empty())
+            outboxSendFactAck(networkManager_, event.getClientSocket(), pityFactKey, "applied");
 
         log_->info("[SAVE_PITY] char=" + std::to_string(characterId) +
                    " item=" + std::to_string(itemId) +
@@ -3875,9 +3991,25 @@ EventHandler::handleSaveBestiaryKillEvent(const Event &event)
 
         auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
         pqxx::work txn(_dbConn.get());
+        // Outbox idempotency: claim first (atomic with the writes below).
+        const std::string bestFactKey = outboxFactKeyOf(j);
+        if (!bestFactKey.empty())
+        {
+            const int bestClaimed = outboxClaimFactKey(
+                gameServices_.getDatabase(), txn, bestFactKey);
+            if (bestClaimed == 0)
+            {
+                outboxSendFactAck(networkManager_, event.getClientSocket(), bestFactKey, "duplicate");
+                return;
+            }
+            if (bestClaimed < 0)
+                return;
+        }
         gameServices_.getDatabase().executeQueryWithTransaction(
             txn, "upsert_bestiary_kill", {characterId, mobTemplateId, killCount});
         txn.commit();
+        if (!bestFactKey.empty())
+            outboxSendFactAck(networkManager_, event.getClientSocket(), bestFactKey, "applied");
 
         log_->info("[SAVE_BESTIARY] char=" + std::to_string(characterId) +
                    " mob=" + std::to_string(mobTemplateId) +
@@ -3963,6 +4095,20 @@ EventHandler::handleTimedChampionKilledEvent(const Event &event)
         // We need the interval_hours for this slug. Query and then update.
         auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
         pqxx::work txn(_dbConn.get());
+        // Outbox idempotency: claim first (atomic with the writes below).
+        const std::string champFactKey = outboxFactKeyOf(j);
+        if (!champFactKey.empty())
+        {
+            const int champClaimed = outboxClaimFactKey(
+                gameServices_.getDatabase(), txn, champFactKey);
+            if (champClaimed == 0)
+            {
+                outboxSendFactAck(networkManager_, event.getClientSocket(), champFactKey, "duplicate");
+                return;
+            }
+            if (champClaimed < 0)
+                return;
+        }
 
         // Get interval_hours for this slug
         auto rows = txn.exec_params(
@@ -3976,6 +4122,8 @@ EventHandler::handleTimedChampionKilledEvent(const Event &event)
                 txn, "update_timed_champion_next_spawn", {slug, nextSpawnAt});
         }
         txn.commit();
+        if (!champFactKey.empty())
+            outboxSendFactAck(networkManager_, event.getClientSocket(), champFactKey, "applied");
 
         log_->info("[TIMED_CHAMP] Updated next_spawn for slug='{}' after kill", slug);
     }
@@ -4171,9 +4319,25 @@ EventHandler::handleSaveMasteryEvent(const Event &event)
 
         auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
         pqxx::work txn(_dbConn.get());
+        // Outbox idempotency: claim first (atomic with the writes below).
+        const std::string mastFactKey = outboxFactKeyOf(j);
+        if (!mastFactKey.empty())
+        {
+            const int mastClaimed = outboxClaimFactKey(
+                gameServices_.getDatabase(), txn, mastFactKey);
+            if (mastClaimed == 0)
+            {
+                outboxSendFactAck(networkManager_, event.getClientSocket(), mastFactKey, "duplicate");
+                return;
+            }
+            if (mastClaimed < 0)
+                return;
+        }
         gameServices_.getDatabase().executeQueryWithTransaction(
             txn, "upsert_mastery", {characterId, masterySlug, value});
         txn.commit();
+        if (!mastFactKey.empty())
+            outboxSendFactAck(networkManager_, event.getClientSocket(), mastFactKey, "applied");
 
         log_->info("[MASTERY] Saved char={} slug={} value={}", characterId, masterySlug, value);
     }
@@ -4450,6 +4614,20 @@ EventHandler::handleSaveSkillBarSlotEvent(const Event &event)
 
         auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
         pqxx::work txn(_dbConn.get());
+        // Outbox idempotency: claim first (atomic with the writes below).
+        const std::string barFactKey = outboxFactKeyOf(j);
+        if (!barFactKey.empty())
+        {
+            const int barClaimed = outboxClaimFactKey(
+                gameServices_.getDatabase(), txn, barFactKey);
+            if (barClaimed == 0)
+            {
+                outboxSendFactAck(networkManager_, event.getClientSocket(), barFactKey, "duplicate");
+                return;
+            }
+            if (barClaimed < 0)
+                return;
+        }
 
         if (skillSlug.empty())
         {
@@ -4462,6 +4640,8 @@ EventHandler::handleSaveSkillBarSlotEvent(const Event &event)
                 txn, "save_skill_bar_slot", {characterId, slotIndex, skillSlug});
         }
         txn.commit();
+        if (!barFactKey.empty())
+            outboxSendFactAck(networkManager_, event.getClientSocket(), barFactKey, "applied");
 
         log_->info("[SKILL_BAR] slot={} slug='{}' saved for char={}", slotIndex, skillSlug, characterId);
     }
@@ -4686,6 +4866,20 @@ EventHandler::handleSavePlayerTitleEvent(const Event &event)
 
         auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
         pqxx::work txn(_dbConn.get());
+        // Outbox idempotency: claim first (atomic with the writes below).
+        const std::string titleFactKey = outboxFactKeyOf(j);
+        if (!titleFactKey.empty())
+        {
+            const int titleClaimed = outboxClaimFactKey(
+                gameServices_.getDatabase(), txn, titleFactKey);
+            if (titleClaimed == 0)
+            {
+                outboxSendFactAck(networkManager_, event.getClientSocket(), titleFactKey, "duplicate");
+                return;
+            }
+            if (titleClaimed < 0)
+                return;
+        }
 
         // Upsert all earned titles; equipped flag is true only for the currently selected one
         for (const auto &slugVal : earnedSlugsArr)
@@ -4704,6 +4898,8 @@ EventHandler::handleSavePlayerTitleEvent(const Event &event)
                 txn, "set_character_equipped_title", {characterId, equippedSlug});
 
         txn.commit();
+        if (!titleFactKey.empty())
+            outboxSendFactAck(networkManager_, event.getClientSocket(), titleFactKey, "applied");
         log_->info("[TITLE] Saved char={} titles={} equipped='{}'",
             characterId,
             earnedSlugsArr.size(),
@@ -5002,12 +5198,28 @@ EventHandler::handleSaveSkillCooldownEvent(const Event &event)
 
         auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
         pqxx::work txn(_dbConn.get());
+        // Outbox idempotency: claim first (atomic with the writes below).
+        const std::string cdFactKey = outboxFactKeyOf(j);
+        if (!cdFactKey.empty())
+        {
+            const int cdClaimed = outboxClaimFactKey(
+                gameServices_.getDatabase(), txn, cdFactKey);
+            if (cdClaimed == 0)
+            {
+                outboxSendFactAck(networkManager_, event.getClientSocket(), cdFactKey, "duplicate");
+                return;
+            }
+            if (cdClaimed < 0)
+                return;
+        }
         using DbParam = std::variant<int, int64_t, float, double, std::string>;
         // Pass cooldownEndsAtMs as string to avoid std::to_string(double) producing
         // "1776627283138.000000" which PostgreSQL cannot cast with ::bigint.
         std::vector<DbParam> params{characterId, skillSlug, std::to_string(cooldownEndsAtMs)};
         gameServices_.getDatabase().executeQueryWithTransaction(txn, "upsert_skill_cooldown", params);
         txn.commit();
+        if (!cdFactKey.empty())
+            outboxSendFactAck(networkManager_, event.getClientSocket(), cdFactKey, "applied");
 
         log_->debug("[SAVE_SKILL_COOLDOWN] char={} skill={} endsAt={}", characterId, skillSlug, cooldownEndsAtMs);
     }
@@ -5099,6 +5311,20 @@ EventHandler::handleSaveAnalyticsEventEvent(const Event &event)
 
         auto sc = gameServices_.getDatabase().getConnectionLocked();
         pqxx::work txn(sc.get());
+        // Outbox idempotency: claim first (atomic with the writes below).
+        const std::string anaFactKey = outboxFactKeyOf(j);
+        if (!anaFactKey.empty())
+        {
+            const int anaClaimed = outboxClaimFactKey(
+                gameServices_.getDatabase(), txn, anaFactKey);
+            if (anaClaimed == 0)
+            {
+                outboxSendFactAck(networkManager_, event.getClientSocket(), anaFactKey, "duplicate");
+                return;
+            }
+            if (anaClaimed < 0)
+                return;
+        }
 
         // Use exec_params with inline SQL — analytics INSERT does not need a reusable
         // prepared statement because each call is already serialised through the event queue.
@@ -5113,6 +5339,8 @@ EventHandler::handleSaveAnalyticsEventEvent(const Event &event)
             payload);
 
         txn.commit();
+        if (!anaFactKey.empty())
+            outboxSendFactAck(networkManager_, event.getClientSocket(), anaFactKey, "applied");
 
         log_->debug("[ANALYTICS] {} char={} session={} lvl={} zone={}", eventType, charId, sessionId, level, zoneId);
     }
