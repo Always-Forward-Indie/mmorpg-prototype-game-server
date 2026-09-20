@@ -296,6 +296,11 @@ Database::prepareQueriesOn(pqxx::connection &conn)
         conn.prepare("decrement_skill_points",
             "UPDATE characters SET free_skill_points = GREATEST(0, free_skill_points - $2) WHERE id = $1;");
 
+        // Absolute SP persist for chunk-decided facts (single owner: chunk
+        // validates+deducts, game stores the value as-is; idempotent).
+        conn.prepare("set_free_skill_points",
+            "UPDATE characters SET free_skill_points = GREATEST(0, $2::integer) WHERE id = $1;");
+
         // ── Skill Bar (migration 051) ─────────────────────────────────────────
         conn.prepare("get_character_skill_bar",
             "SELECT slot_index, skill_slug "

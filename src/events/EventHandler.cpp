@@ -4143,15 +4143,27 @@ EventHandler::handleSaveLearnedSkillEvent(const Event &event)
         gameServices_.getDatabase().executeQueryWithTransaction(
             txn, "save_learned_skill", {characterId, skillSlug});
 
-        // Deduct SP cost atomically in the same transaction
-        auto costRows = gameServices_.getDatabase().executeQueryWithTransaction(
-            txn, "get_skill_sp_cost", {skillSlug});
-        if (!costRows.empty() && !costRows[0]["skill_point_cost"].is_null())
+        // Persist SP as the authoritative value decided by chunk (single
+        // owner: chunk validates+deducts in-session, game stores the fact).
+        // Repeating the same fact is a no-op (idempotent). Legacy senders
+        // without the fact fall back to the old cost-table decrement.
+        if (j.contains("freeSkillPoints") && j["freeSkillPoints"].is_number_integer())
         {
-            int spCost = costRows[0]["skill_point_cost"].as<int>(0);
-            if (spCost > 0)
-                gameServices_.getDatabase().executeQueryWithTransaction(
-                    txn, "decrement_skill_points", {characterId, spCost});
+            gameServices_.getDatabase().executeQueryWithTransaction(
+                txn, "set_free_skill_points",
+                {characterId, j["freeSkillPoints"].get<int>()});
+        }
+        else
+        {
+            auto costRows = gameServices_.getDatabase().executeQueryWithTransaction(
+                txn, "get_skill_sp_cost", {skillSlug});
+            if (!costRows.empty() && !costRows[0]["skill_point_cost"].is_null())
+            {
+                int spCost = costRows[0]["skill_point_cost"].as<int>(0);
+                if (spCost > 0)
+                    gameServices_.getDatabase().executeQueryWithTransaction(
+                        txn, "decrement_skill_points", {characterId, spCost});
+            }
         }
 
         // Query full skill data for the newly learned skill
