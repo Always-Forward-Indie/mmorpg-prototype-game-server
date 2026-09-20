@@ -582,6 +582,19 @@ EventHandler::handleJoinChunkServerEvent(const Event &event)
             }
             chunkData.socket = clientSocket; // Set the socket for the chunk server
 
+            // Heartbeat re-assert vs first boot: chunk re-sends
+            // chunkServerConnection every 60s on the SAME socket. Re-pushing
+            // the full catalog on every heartbeat wipes chunk-side runtime
+            // state (timed-champion spawned flags -> infinite respawn every
+            // minute) and wastes bandwidth. Same socket => refresh
+            // registration, ack, skip the 24 boot dispatches below. A new
+            // socket (chunk restarted) or unknown id (game restarted) =>
+            // full push as before (fast recovery, no FIN dependence).
+            const ChunkInfoStruct prevReg =
+                gameServices_.getChunkManager().getChunkById(chunkData.id);
+            const bool sameSocket =
+                prevReg.socket && clientSocket && prevReg.socket == clientSocket;
+
             // Save the chunk data to memory
             gameServices_.getChunkManager().addChunkInfo(chunkData);
 
@@ -595,6 +608,10 @@ EventHandler::handleJoinChunkServerEvent(const Event &event)
             chunkServerDataJson["sizeY"] = chunkData.sizeY;
             chunkServerDataJson["sizeZ"] = chunkData.sizeZ;
 
+            // Full catalog push only for a new link (see sameSocket above).
+            // Heartbeat re-asserts skip straight to the ack below.
+            if (!sameSocket)
+            {
             // load spawn zones
             Event spawnZonesEvent(Event::GET_SPAWN_ZONES, clientID, SpawnZoneStruct(), clientSocket);
             dispatchEvent(spawnZonesEvent);
@@ -691,6 +708,7 @@ EventHandler::handleJoinChunkServerEvent(const Event &event)
             // load world interactive objects (migration 043)
             Event worldObjectsEvent(Event::GET_WORLD_OBJECTS, clientID, 0, clientSocket);
             dispatchEvent(worldObjectsEvent);
+            } // if (!sameSocket): end of full catalog push
         }
 
         // Add the message to the response
