@@ -14,7 +14,7 @@ ItemManager::loadItems(Database &database)
     {
         auto _dbConn = database.getConnectionLocked();
         pqxx::work transaction(_dbConn.get());
-        pqxx::result selectItems = database.executeQueryWithTransaction(
+        pqxx::result selectItems = database.execChecked(
             transaction,
             "get_items",
             {});
@@ -60,7 +60,7 @@ ItemManager::loadItems(Database &database)
             itemData.isTwoHanded = row["is_two_handed"].as<bool>();
 
             // Load item attributes
-            pqxx::result selectItemAttributes = database.executeQueryWithTransaction(
+            pqxx::result selectItemAttributes = database.execChecked(
                 transaction,
                 "get_item_attributes",
                 {itemData.id});
@@ -79,7 +79,7 @@ ItemManager::loadItems(Database &database)
             }
 
             // Load item use-effects (potions, scrolls, food — migration 034)
-            pqxx::result selectUseEffects = database.executeQueryWithTransaction(
+            pqxx::result selectUseEffects = database.execChecked(
                 transaction,
                 "get_item_use_effects",
                 {itemData.id});
@@ -104,7 +104,7 @@ ItemManager::loadItems(Database &database)
         }
 
         // Load per-class restrictions into the already-built items map
-        pqxx::result selectClassRestrictions = database.executeQueryWithTransaction(
+        pqxx::result selectClassRestrictions = database.execChecked(
             transaction,
             "get_item_class_restrictions",
             {});
@@ -117,7 +117,7 @@ ItemManager::loadItems(Database &database)
         }
 
         // Load item-set memberships into the already-built items map
-        pqxx::result selectSetMembers = database.executeQueryWithTransaction(
+        pqxx::result selectSetMembers = database.execChecked(
             transaction,
             "get_item_set_memberships",
             {});
@@ -155,7 +155,7 @@ ItemManager::loadMobLoot(Database &database)
     {
         auto _dbConn = database.getConnectionLocked();
         pqxx::work transaction(_dbConn.get());
-        pqxx::result selectMobLoot = database.executeQueryWithTransaction(
+        pqxx::result selectMobLoot = database.execChecked(
             transaction,
             "get_mobs_loot",
             {});

@@ -16,7 +16,7 @@ MobManager::loadMobs(Database &database)
     {
         auto _dbConn = database.getConnectionLocked();
         pqxx::work transaction(_dbConn.get()); // Start a transaction
-        pqxx::result selectMobs = database.executeQueryWithTransaction(
+        pqxx::result selectMobs = database.execChecked(
             transaction,
             "get_mobs",
             {});
@@ -27,7 +27,12 @@ MobManager::loadMobs(Database &database)
             log_->error("No mobs found in the database");
             // Rollback the transaction
             transaction.abort();
+            return;
         }
+
+        // Stage into a local map: a mid-load failure must keep the last good
+        // map, never a partially overwritten one.
+        std::map<int, MobDataStruct> newMobs;
 
         for (const auto &row : selectMobs)
         {
@@ -80,14 +85,19 @@ MobManager::loadMobs(Database &database)
             mobData.hpMax = row["hp_max"].as<int>();
 
             // get mob attributes
-            pqxx::result selectMobAttributes = database.executeQueryWithTransaction(
+            pqxx::result selectMobAttributes = database.execChecked(
                 transaction,
                 "get_mob_attributes",
                 {mobData.id});
 
             if (selectMobAttributes.empty())
             {
+                // A mob without attributes would boot with maxHealth/maxMana = 0.
+                // Fail the whole load (keeps the last good map) instead of
+                // inserting a broken mob and continuing on an aborted txn.
+                log_->error("No attributes for mob id=" + std::to_string(mobData.id) + ", aborting load");
                 transaction.abort(); // Rollback the transaction
+                return;
             }
 
             // populate mob attributes
@@ -117,8 +127,11 @@ MobManager::loadMobs(Database &database)
                 mobData.attributes.push_back(mobAttribute);
             }
 
-            mobs_[mobData.id] = mobData;
+            newMobs[mobData.id] = mobData;
         }
+
+        transaction.commit();
+        mobs_ = std::move(newMobs);
     }
     catch (const std::exception &e)
     {

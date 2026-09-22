@@ -82,7 +82,7 @@ CharacterManager::getBasicCharacterDataFromDatabase(Database &db, int accountId,
     {
         auto _dbConn = db.getConnectionLocked();
         pqxx::work txn(_dbConn.get());
-        auto result = db.executeQueryWithTransaction(txn, "get_character", {accountId, characterId});
+        auto result = db.execChecked(txn, "get_character", {accountId, characterId});
         if (!result.empty())
         {
             const auto &row = result[0];
@@ -101,8 +101,11 @@ CharacterManager::getBasicCharacterDataFromDatabase(Database &db, int accountId,
             characterData.totalPlayTimeSec = row["total_play_time_sec"].as<int64_t>(0);
             characterData.lastSessionPlayTimeSec = row["last_session_play_time_sec"].as<int64_t>(0);
 
-            auto expResult = db.executeQueryWithTransaction(txn, "get_character_exp_for_next_level", {characterData.characterLevel});
-            characterData.expForNextLevel = expResult[0][0].as<int>();
+            auto expResult = db.execChecked(txn, "get_character_exp_for_next_level", {characterData.characterLevel});
+            if (!expResult.empty())
+                characterData.expForNextLevel = expResult[0][0].as<int>();
+            else
+                log_->error("get_character_exp_for_next_level: empty result for level=" + std::to_string(characterData.characterLevel));
         }
         txn.commit();
     }
@@ -121,7 +124,7 @@ CharacterManager::getCharacterPositionFromDatabase(Database &db, int accountId, 
     {
         auto _dbConn = db.getConnectionLocked();
         pqxx::work txn(_dbConn.get());
-        auto result = db.executeQueryWithTransaction(txn, "get_character_position", {characterId});
+        auto result = db.execChecked(txn, "get_character_position", {characterId});
         if (!result.empty())
         {
             pos.positionX = result[0][0].as<float>();
@@ -146,7 +149,7 @@ CharacterManager::getCharacterAttributesFromDatabase(Database &db, int character
     {
         auto _dbConn = db.getConnectionLocked();
         pqxx::work txn(_dbConn.get());
-        auto result = db.executeQueryWithTransaction(txn, "get_character_attributes", {characterId});
+        auto result = db.execChecked(txn, "get_character_attributes", {characterId});
         for (const auto &row : result)
         {
             CharacterAttributeStruct attr;
@@ -178,7 +181,7 @@ CharacterManager::getCharacterSkillsFromDatabase(Database &db, int characterId)
         auto _dbConn = db.getConnectionLocked();
 
         pqxx::work txn(_dbConn.get());
-        auto result = db.executeQueryWithTransaction(txn, "get_character_skills", {characterId});
+        auto result = db.execChecked(txn, "get_character_skills", {characterId});
         for (const auto &row : result)
         {
             SkillStruct skill;
@@ -244,7 +247,7 @@ CharacterManager::getCharacterSkillBarFromDatabase(Database &db, int characterId
     {
         auto _dbConn = db.getConnectionLocked();
         pqxx::work txn(_dbConn.get());
-        auto result = db.executeQueryWithTransaction(txn, "get_character_skill_bar", {characterId});
+        auto result = db.execChecked(txn, "get_character_skill_bar", {characterId});
         for (const auto &row : result)
         {
             SkillBarSlotStruct slot;
@@ -269,7 +272,7 @@ CharacterManager::getMobSkillsFromDatabase(Database &db, int mobId)
     {
         auto _dbConn = db.getConnectionLocked();
         pqxx::work txn(_dbConn.get());
-        auto result = db.executeQueryWithTransaction(txn, "get_mob_skills", {mobId});
+        auto result = db.execChecked(txn, "get_mob_skills", {mobId});
         for (const auto &row : result)
         {
             SkillStruct skill;

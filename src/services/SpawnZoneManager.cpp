@@ -16,7 +16,7 @@ SpawnZoneManager::loadMobSpawnZones(Database &database)
     {
         auto _dbConn = database.getConnectionLocked();
         pqxx::work transaction(_dbConn.get()); // Start a transaction
-        pqxx::result selectSpawnZones = database.executeQueryWithTransaction(
+        pqxx::result selectSpawnZones = database.execChecked(
             transaction,
             "get_mob_spawn_zone_data",
             {});
@@ -27,7 +27,12 @@ SpawnZoneManager::loadMobSpawnZones(Database &database)
             log_->error("No spawn zones found in the database");
             // Rollback the transaction
             transaction.abort(); // Rollback the transaction
+            return;
         }
+
+        // Stage into a local map: a mid-load failure must keep the last good
+        // map, never a partially overwritten one.
+        std::map<int, SpawnZoneStruct> newZones;
 
         for (const auto &row : selectSpawnZones)
         {
@@ -63,8 +68,11 @@ SpawnZoneManager::loadMobSpawnZones(Database &database)
             spawnZone.spawnCount = row["spawn_count"].as<int>();
             spawnZone.respawnTime = std::chrono::seconds(TimeConverter::getSeconds(row["respawn_time"].as<std::string>()));
 
-            mobSpawnZones_[spawnZone.id] = spawnZone;
+            newZones[spawnZone.id] = spawnZone;
         }
+
+        transaction.commit();
+        mobSpawnZones_ = std::move(newZones);
     }
     catch (const std::exception &e)
     {

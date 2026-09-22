@@ -19,9 +19,9 @@ DialogueQuestManager::getAllDialoguesJson()
     auto _dbConn = database_.getConnectionLocked();
     pqxx::work txn(_dbConn.get());
 
-    auto dialogues = database_.executeQueryWithTransaction(txn, "get_dialogues", {});
-    auto nodes = database_.executeQueryWithTransaction(txn, "get_dialogue_nodes", {});
-    auto edges = database_.executeQueryWithTransaction(txn, "get_dialogue_edges", {});
+    auto dialogues = database_.execChecked(txn, "get_dialogues", {});
+    auto nodes = database_.execChecked(txn, "get_dialogue_nodes", {});
+    auto edges = database_.execChecked(txn, "get_dialogue_edges", {});
     txn.commit();
 
     nlohmann::json result = nlohmann::json::array();
@@ -104,7 +104,7 @@ DialogueQuestManager::getAllNPCDialogueMappingsJson()
 {
     auto _dbConn = database_.getConnectionLocked();
     pqxx::work txn(_dbConn.get());
-    auto mappings = database_.executeQueryWithTransaction(txn, "get_npc_dialogue_mappings", {});
+    auto mappings = database_.execChecked(txn, "get_npc_dialogue_mappings", {});
     txn.commit();
 
     nlohmann::json result = nlohmann::json::array();
@@ -130,9 +130,9 @@ DialogueQuestManager::getAllQuestsJson()
     auto _dbConn = database_.getConnectionLocked();
     pqxx::work txn(_dbConn.get());
 
-    auto quests = database_.executeQueryWithTransaction(txn, "get_quests", {});
-    auto steps = database_.executeQueryWithTransaction(txn, "get_quest_steps", {});
-    auto rewards = database_.executeQueryWithTransaction(txn, "get_quest_rewards", {});
+    auto quests = database_.execChecked(txn, "get_quests", {});
+    auto steps = database_.execChecked(txn, "get_quest_steps", {});
+    auto rewards = database_.execChecked(txn, "get_quest_rewards", {});
     txn.commit();
 
     nlohmann::json result = nlohmann::json::array();
@@ -201,7 +201,7 @@ DialogueQuestManager::getPlayerQuestsJson(int characterId)
 {
     auto _dbConn = database_.getConnectionLocked();
     pqxx::work txn(_dbConn.get());
-    auto result = database_.executeQueryWithTransaction(txn, "get_player_quests", {(int)characterId});
+    auto result = database_.execChecked(txn, "get_player_quests", {(int)characterId});
     txn.commit();
 
     nlohmann::json questsJson = nlohmann::json::array();
@@ -227,7 +227,7 @@ DialogueQuestManager::getPlayerFlagsJson(int characterId)
 {
     auto _dbConn = database_.getConnectionLocked();
     pqxx::work txn(_dbConn.get());
-    auto result = database_.executeQueryWithTransaction(txn, "get_player_flags", {(int)characterId});
+    auto result = database_.execChecked(txn, "get_player_flags", {(int)characterId});
     txn.commit();
 
     nlohmann::json flagsJson = nlohmann::json::array();

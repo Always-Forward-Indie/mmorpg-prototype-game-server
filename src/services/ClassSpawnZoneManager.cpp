@@ -16,7 +16,14 @@ ClassSpawnZoneManager::loadClassSpawnZones(Database &database)
     {
         auto _dbConn = database.getConnectionLocked();
         pqxx::work txn(_dbConn.get());
-        pqxx::result rows = database.executeQueryWithTransaction(txn, "get_class_spawn_zones", {});
+        pqxx::result rows = database.execChecked(txn, "get_class_spawn_zones", {});
+        if (rows.empty())
+        {
+            // Empty table must not wipe the last good zones.
+            log_->error("No class spawn zones in database, keeping previous zones");
+            txn.abort();
+            return;
+        }
         txn.commit();
 
         std::map<int, ClassSpawnZoneStruct> newZones;

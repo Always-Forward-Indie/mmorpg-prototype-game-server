@@ -27,7 +27,7 @@ NPCManager::loadNPCs(Database &database)
         pqxx::work transaction(_dbConn.get());
 
         // Load basic NPC data
-        pqxx::result selectNPCs = database.executeQueryWithTransaction(
+        pqxx::result selectNPCs = database.execChecked(
             transaction,
             "get_npcs",
             {});
@@ -204,7 +204,7 @@ NPCManager::loadNPCAttributes(Database &database, pqxx::work &transaction, int n
 
     try
     {
-        pqxx::result selectAttributes = database.executeQueryWithTransaction(
+        pqxx::result selectAttributes = database.execChecked(
             transaction,
             "get_npc_attributes",
             {npcId});
@@ -221,6 +221,12 @@ NPCManager::loadNPCAttributes(Database &database, pqxx::work &transaction, int n
             attributes.push_back(std::move(attribute));
         }
     }
+    catch (const DatabaseError &)
+    {
+        // Transport failure must fail the whole NPC load (outer catch clears
+        // the map), not masquerade as default stats. Row-parse errors below stay tolerated.
+        throw;
+    }
     catch (const std::exception &e)
     {
         logger_.logError("Error loading NPC attributes for NPC ID " + std::to_string(npcId) + ": " + std::string(e.what()));
@@ -236,7 +242,7 @@ NPCManager::loadNPCSkills(Database &database, pqxx::work &transaction, int npcId
 
     try
     {
-        pqxx::result selectSkills = database.executeQueryWithTransaction(
+        pqxx::result selectSkills = database.execChecked(
             transaction,
             "get_npc_skills",
             {npcId});
@@ -263,6 +269,12 @@ NPCManager::loadNPCSkills(Database &database, pqxx::work &transaction, int npcId
             skills.push_back(std::move(skill));
         }
     }
+    catch (const DatabaseError &)
+    {
+        // Transport failure must fail the whole NPC load (outer catch clears
+        // the map), not masquerade as an empty skill list. Row-parse errors below stay tolerated.
+        throw;
+    }
     catch (const std::exception &e)
     {
         logger_.logError("Error loading NPC skills for NPC ID " + std::to_string(npcId) + ": " + std::string(e.what()));
@@ -278,7 +290,7 @@ NPCManager::loadNPCPosition(Database &database, pqxx::work &transaction, int npc
 
     try
     {
-        pqxx::result selectPosition = database.executeQueryWithTransaction(
+        pqxx::result selectPosition = database.execChecked(
             transaction,
             "get_npc_position",
             {npcId});
@@ -296,6 +308,12 @@ NPCManager::loadNPCPosition(Database &database, pqxx::work &transaction, int npc
                 zoneId = row["zone_id"].as<int>();
             }
         }
+    }
+    catch (const DatabaseError &)
+    {
+        // Transport failure must fail the whole NPC load (outer catch clears
+        // the map), not masquerade as a zero position. Row-parse errors below stay tolerated.
+        throw;
     }
     catch (const std::exception &e)
     {
@@ -330,13 +348,19 @@ NPCManager::loadNPCQuests(Database &database, pqxx::work &transaction, int npcId
 
     try
     {
-        pqxx::result result = database.executeQueryWithTransaction(
+        pqxx::result result = database.execChecked(
             transaction,
             "get_npc_quests",
             {npcId});
 
         for (const auto &row : result)
             slugs.push_back(row["slug"].as<std::string>());
+    }
+    catch (const DatabaseError &)
+    {
+        // Transport failure must fail the whole NPC load (outer catch clears
+        // the map), not masquerade as no quests. Row-parse errors below stay tolerated.
+        throw;
     }
     catch (const std::exception &e)
     {

@@ -15,7 +15,14 @@ GameConfigService::loadConfig(Database &db)
     {
         auto _dbConn = db.getConnectionLocked();
         pqxx::work txn(_dbConn.get());
-        pqxx::result rows = db.executeQueryWithTransaction(txn, "get_game_config", {});
+        pqxx::result rows = db.execChecked(txn, "get_game_config", {});
+        if (rows.empty())
+        {
+            // Empty table must not wipe the last good config (fail-safe like NPC/Item loaders).
+            logger_.logError("GameConfigService::loadConfig: game_config table is empty, keeping previous config");
+            txn.abort();
+            return;
+        }
         txn.commit();
 
         std::unordered_map<std::string, std::string> newConfig;
