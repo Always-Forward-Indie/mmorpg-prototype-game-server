@@ -4,7 +4,10 @@
 #include "events/EventQueue.hpp"
 #include "game_server/GameServer.hpp"
 #include "utils/JSONParser.hpp"
+#include <functional>
 #include <mutex>
+#include <string>
+#include <unordered_map>
 
 class EventDispatcher
 {
@@ -14,6 +17,11 @@ class EventDispatcher
     void dispatch(const std::string &eventType, const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
     void handlePing(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
     void dispatchPingDirectly(const Event &pingEvent);
+
+    /// Wire routing table: eventType -> parse/push handler. Built once in the
+    /// ctor; dispatch() is a map lookup (was a 52-branch if/else chain).
+    using DispatchFn = void (EventDispatcher::*)(const EventPayload &, std::shared_ptr<boost::asio::ip::tcp::socket>);
+    void buildRouteTable();
 
   private:
     void handleJoinGame(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
@@ -101,4 +109,5 @@ class EventDispatcher
     std::vector<Event> eventsBatch_;
     constexpr static int BATCH_SIZE = 10;
     mutable std::mutex dispatchMutex_; ///< CRITICAL-3: serialises concurrent dispatch() calls from io_context threads
+    std::unordered_map<std::string, DispatchFn> routeTable_;
 };

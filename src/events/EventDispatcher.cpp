@@ -14,6 +14,7 @@ EventDispatcher::EventDispatcher(
       jsonParser_(jsonParser)
 {
     log_ = logger.getSystem("events");
+    buildRouteTable();
 }
 
 void
@@ -25,217 +26,10 @@ EventDispatcher::dispatch(const std::string &eventType,
     // so concurrent io_context threads cannot race on it.
     std::lock_guard<std::mutex> dispatchLock(dispatchMutex_);
 
-    if (eventType == "joinGame" || eventType == "joinGameClient")
+    const auto routeIt = routeTable_.find(eventType);
+    if (routeIt != routeTable_.end())
     {
-        handleJoinGame(payload, socket);
-    }
-    else if (eventType == "chunkServerConnection")
-    {
-        handleChunkServerConnection(payload, socket);
-    }
-    else if (eventType == "chunkServerData")
-    {
-        handleChunkInitAck(payload, socket);
-    }
-    else if (eventType == "moveCharacter")
-    {
-        handleMoveCharacter(payload, socket);
-    }
-    else if (eventType == "disconnectClient")
-    {
-        handleDisconnect(payload, socket);
-    }
-    else if (eventType == "pingClient")
-    {
-        handlePing(payload, socket);
-    }
-    else if (eventType == "getSpawnZones")
-    {
-        handleGetSpawnZones(payload, socket);
-    }
-    else if (eventType == "getMobData")
-    {
-        handleGetMobData(payload, socket);
-    }
-    else if (eventType == "getCharacterExpForLevel")
-    {
-        handleGetCharacterExpForLevel(payload, socket);
-    }
-    else if (eventType == "getExpLevelTable")
-    {
-        handleGetExpLevelTable(payload, socket);
-    }
-    else if (eventType == "getNPCsData")
-    {
-        handleGetNPCsData(payload, socket);
-    }
-    else if (eventType == "savePositions")
-    {
-        handleSavePositions(payload, socket);
-    }
-    else if (eventType == "saveHpMana")
-    {
-        handleSaveHpMana(payload, socket);
-    }
-    else if (eventType == "saveCharacterProgress")
-    {
-        handleSaveCharacterProgress(payload, socket);
-    }
-    else if (eventType == "getPlayerQuests")
-    {
-        handleGetPlayerQuests(payload, socket);
-    }
-    else if (eventType == "getPlayerFlags")
-    {
-        handleGetPlayerFlags(payload, socket);
-    }
-    else if (eventType == "getPlayerActiveEffects")
-    {
-        handleGetPlayerActiveEffects(payload, socket);
-    }
-    else if (eventType == "getCharacterAttributes")
-    {
-        handleGetCharacterAttributesRefresh(payload, socket);
-    }
-    else if (eventType == "updatePlayerQuestProgress")
-    {
-        handleUpdatePlayerQuestProgress(payload, socket);
-    }
-    else if (eventType == "updatePlayerFlag")
-    {
-        handleUpdatePlayerFlag(payload, socket);
-    }
-    else if (eventType == "saveInventoryChange")
-    {
-        handleSaveInventoryChange(payload, socket);
-    }
-    else if (eventType == "getPlayerInventory")
-    {
-        handleGetPlayerInventory(payload, socket);
-    }
-    else if (eventType == "saveEquipmentChange")
-    {
-        handleSaveEquipmentChange(payload, socket);
-    }
-    else if (eventType == "saveExperienceDebt")
-    {
-        handleSaveExperienceDebt(payload, socket);
-    }
-    else if (eventType == "saveActiveEffect")
-    {
-        handleSaveActiveEffect(payload, socket);
-    }
-    else if (eventType == "saveDurabilityChange")
-    {
-        handleSaveDurabilityChange(payload, socket);
-    }
-    else if (eventType == "saveItemKillCount")
-    {
-        handleSaveItemKillCount(payload, socket);
-    }
-    else if (eventType == "transferInventoryItem")
-    {
-        handleTransferInventoryItem(payload, socket);
-    }
-    else if (eventType == "nullifyItemOwner")
-    {
-        handleNullifyItemOwner(payload, socket);
-    }
-    else if (eventType == "deleteInventoryItem")
-    {
-        handleDeleteInventoryItem(payload, socket);
-    }
-    else if (eventType == "getPlayerPityData")
-    {
-        handleGetPlayerPityData(payload, socket);
-    }
-    else if (eventType == "getPlayerBestiaryData")
-    {
-        handleGetPlayerBestiaryData(payload, socket);
-    }
-    else if (eventType == "savePityCounter")
-    {
-        handleSavePityCounter(payload, socket);
-    }
-    else if (eventType == "saveBestiaryKill")
-    {
-        handleSaveBestiaryKill(payload, socket);
-    }
-    else if (eventType == "timedChampionKilled")
-    {
-        handleTimedChampionKilled(payload, socket);
-    }
-    else if (eventType == "getPlayerReputationsData")
-    {
-        handleGetPlayerReputationsData(payload, socket);
-    }
-    else if (eventType == "saveReputation")
-    {
-        handleSaveReputation(payload, socket);
-    }
-    else if (eventType == "getPlayerMasteriesData")
-    {
-        handleGetPlayerMasteriesData(payload, socket);
-    }
-    else if (eventType == "saveMastery")
-    {
-        handleSaveMastery(payload, socket);
-    }
-    else if (eventType == "getMasteryDefinitionsData")
-    {
-        handleGetMasteryDefinitionsData(payload, socket);
-    }
-    else if (eventType == "saveLearnedSkill")
-    {
-        handleSaveLearnedSkill(payload, socket);
-    }
-    else if (eventType == "saveSkillBarSlot")
-    {
-        handleSaveSkillBarSlot(payload, socket);
-    }
-    else if (eventType == "saveCurrencyTransaction")
-    {
-        handleSaveCurrencyTransaction(payload, socket);
-    }
-    else if (eventType == "getTitleDefinitionsData")
-    {
-        handleGetTitleDefinitionsData(payload, socket);
-    }
-    else if (eventType == "getPlayerTitlesData")
-    {
-        handleGetPlayerTitlesData(payload, socket);
-    }
-    else if (eventType == "getEmoteDefinitionsData")
-    {
-        handleGetEmoteDefinitionsData(payload, socket);
-    }
-    else if (eventType == "getPlayerEmotesData")
-    {
-        handleGetPlayerEmotesData(payload, socket);
-    }
-    else if (eventType == "savePlayerTitle")
-    {
-        handleSavePlayerTitle(payload, socket);
-    }
-    else if (eventType == "saveSkillCooldown")
-    {
-        handleSaveSkillCooldown(payload, socket);
-    }
-    else if (eventType == "getPlayerSkillCooldowns")
-    {
-        handleGetPlayerSkillCooldowns(payload, socket);
-    }
-    else if (eventType == "analyticsEvent")
-    {
-        handleSaveAnalyticsEvent(payload, socket);
-    }
-    else if (eventType == "savePlayTime")
-    {
-        handleSavePlayTime(payload, socket);
-    }
-    else if (eventType == "markCharactersOnline")
-    {
-        handleMarkCharactersOnline(payload, socket);
+        (this->*(routeIt->second))(payload, socket);
     }
     else
     {
@@ -248,6 +42,70 @@ EventDispatcher::dispatch(const std::string &eventType,
         eventQueue_.pushBatch(eventsBatch_);
         eventsBatch_.clear();
     }
+}
+
+void
+EventDispatcher::buildRouteTable()
+{
+    // Single source of truth for wire routing (was a 52-branch
+    // if/else chain). All handlers share the parse/push
+    // (payload, socket) signature, so the table is uniform.
+    routeTable_ = {
+        {"joinGame", &EventDispatcher::handleJoinGame},
+        {"joinGameClient", &EventDispatcher::handleJoinGame},
+        {"chunkServerConnection", &EventDispatcher::handleChunkServerConnection},
+        {"chunkServerData", &EventDispatcher::handleChunkInitAck},
+        {"moveCharacter", &EventDispatcher::handleMoveCharacter},
+        {"disconnectClient", &EventDispatcher::handleDisconnect},
+        {"pingClient", &EventDispatcher::handlePing},
+        {"getSpawnZones", &EventDispatcher::handleGetSpawnZones},
+        {"getMobData", &EventDispatcher::handleGetMobData},
+        {"getCharacterExpForLevel", &EventDispatcher::handleGetCharacterExpForLevel},
+        {"getExpLevelTable", &EventDispatcher::handleGetExpLevelTable},
+        {"getNPCsData", &EventDispatcher::handleGetNPCsData},
+        {"savePositions", &EventDispatcher::handleSavePositions},
+        {"saveHpMana", &EventDispatcher::handleSaveHpMana},
+        {"saveCharacterProgress", &EventDispatcher::handleSaveCharacterProgress},
+        {"getPlayerQuests", &EventDispatcher::handleGetPlayerQuests},
+        {"getPlayerFlags", &EventDispatcher::handleGetPlayerFlags},
+        {"getPlayerActiveEffects", &EventDispatcher::handleGetPlayerActiveEffects},
+        {"getCharacterAttributes", &EventDispatcher::handleGetCharacterAttributesRefresh},
+        {"updatePlayerQuestProgress", &EventDispatcher::handleUpdatePlayerQuestProgress},
+        {"updatePlayerFlag", &EventDispatcher::handleUpdatePlayerFlag},
+        {"saveInventoryChange", &EventDispatcher::handleSaveInventoryChange},
+        {"getPlayerInventory", &EventDispatcher::handleGetPlayerInventory},
+        {"saveEquipmentChange", &EventDispatcher::handleSaveEquipmentChange},
+        {"saveExperienceDebt", &EventDispatcher::handleSaveExperienceDebt},
+        {"saveActiveEffect", &EventDispatcher::handleSaveActiveEffect},
+        {"saveDurabilityChange", &EventDispatcher::handleSaveDurabilityChange},
+        {"saveItemKillCount", &EventDispatcher::handleSaveItemKillCount},
+        {"transferInventoryItem", &EventDispatcher::handleTransferInventoryItem},
+        {"nullifyItemOwner", &EventDispatcher::handleNullifyItemOwner},
+        {"deleteInventoryItem", &EventDispatcher::handleDeleteInventoryItem},
+        {"getPlayerPityData", &EventDispatcher::handleGetPlayerPityData},
+        {"getPlayerBestiaryData", &EventDispatcher::handleGetPlayerBestiaryData},
+        {"savePityCounter", &EventDispatcher::handleSavePityCounter},
+        {"saveBestiaryKill", &EventDispatcher::handleSaveBestiaryKill},
+        {"timedChampionKilled", &EventDispatcher::handleTimedChampionKilled},
+        {"getPlayerReputationsData", &EventDispatcher::handleGetPlayerReputationsData},
+        {"saveReputation", &EventDispatcher::handleSaveReputation},
+        {"getPlayerMasteriesData", &EventDispatcher::handleGetPlayerMasteriesData},
+        {"saveMastery", &EventDispatcher::handleSaveMastery},
+        {"getMasteryDefinitionsData", &EventDispatcher::handleGetMasteryDefinitionsData},
+        {"saveLearnedSkill", &EventDispatcher::handleSaveLearnedSkill},
+        {"saveSkillBarSlot", &EventDispatcher::handleSaveSkillBarSlot},
+        {"saveCurrencyTransaction", &EventDispatcher::handleSaveCurrencyTransaction},
+        {"getTitleDefinitionsData", &EventDispatcher::handleGetTitleDefinitionsData},
+        {"getPlayerTitlesData", &EventDispatcher::handleGetPlayerTitlesData},
+        {"getEmoteDefinitionsData", &EventDispatcher::handleGetEmoteDefinitionsData},
+        {"getPlayerEmotesData", &EventDispatcher::handleGetPlayerEmotesData},
+        {"savePlayerTitle", &EventDispatcher::handleSavePlayerTitle},
+        {"saveSkillCooldown", &EventDispatcher::handleSaveSkillCooldown},
+        {"getPlayerSkillCooldowns", &EventDispatcher::handleGetPlayerSkillCooldowns},
+        {"analyticsEvent", &EventDispatcher::handleSaveAnalyticsEvent},
+        {"savePlayTime", &EventDispatcher::handleSavePlayTime},
+        {"markCharactersOnline", &EventDispatcher::handleMarkCharactersOnline},
+    };
 }
 
 void
