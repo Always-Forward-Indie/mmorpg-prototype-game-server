@@ -61,3 +61,41 @@ TEST_F(GameClientFixture, OverwriteOnResend)
     EXPECT_EQ(mgr.getClientData(1).hash, "new");
     EXPECT_EQ(mgr.getClientsList().size(), 1u);
 }
+
+TEST_F(GameClientFixture, StaleDisconnectKeepsReboundSession)
+{
+    // Old socket disconnect arriving after a re-bind must not evict.
+    mgr.setClientData(makeClient(1));
+    auto oldSock = std::make_shared<tcp::socket>(ioc);
+    mgr.setClientSocket(1, oldSock);
+    auto newSock = std::make_shared<tcp::socket>(ioc);
+    mgr.setClientSocket(1, newSock);
+    EXPECT_EQ(mgr.getClientSocket(1), newSock);
+    mgr.removeClientDataBySocket(oldSock); // late FIN for the old link
+    EXPECT_EQ(mgr.getClientData(1).clientId, 1);
+    EXPECT_EQ(mgr.getClientSocket(1), newSock);
+    mgr.removeClientDataBySocket(newSock); // live link disconnect evicts
+    EXPECT_EQ(mgr.getClientData(1).clientId, 0);
+}
+
+TEST_F(GameClientFixture, SweepRespectsThreshold)
+{
+    mgr.setClientData(makeClient(1));
+    mgr.setClientData(makeClient(2));
+    // Huge threshold: nothing silent yet.
+    EXPECT_TRUE(mgr.sweepSilentClients(3600000).empty());
+    EXPECT_EQ(mgr.getClientsList().size(), 2u);
+    // Zero threshold: everything is already silent.
+    auto removed = mgr.sweepSilentClients(0);
+    EXPECT_EQ(removed.size(), 2u);
+    EXPECT_TRUE(mgr.getClientsList().empty());
+}
+
+TEST_F(GameClientFixture, TouchRefreshesLiveness)
+{
+    mgr.setClientData(makeClient(1));
+    mgr.touchClientData(1);
+    mgr.touchClientData(424242); // unknown id: safe no-op
+    EXPECT_EQ(mgr.getClientData(1).clientId, 1);
+    EXPECT_TRUE(mgr.sweepSilentClients(3600000).empty());
+}

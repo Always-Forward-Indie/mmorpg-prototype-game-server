@@ -226,6 +226,9 @@ struct ClientDataStruct
     int characterId = 0;
     std::string hash = "";
     std::shared_ptr<boost::asio::ip::tcp::socket> socket;
+    // Last activity (steady clock, ms). Refreshed on bind/ping; the periodic
+    // sweepSilentClients() evicts entries silent beyond threshold.
+    int64_t lastSeenMs = 0;
 };
 
 struct MobDataStruct

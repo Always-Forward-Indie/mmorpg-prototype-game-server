@@ -909,6 +909,9 @@ EventHandler::handlePingClientEvent(const Event &event)
         return;
     }
 
+    // Liveness for sweepSilentClients: a ping proves the session is alive.
+    gameServices_.getClientManager().touchClientData(clientID);
+
     try
     {
         // Try to extract the data

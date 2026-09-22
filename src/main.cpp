@@ -92,6 +92,20 @@ main()
             scheduler.scheduleTask(chunkSweepTask);
         }
 
+        // Client liveness sweep (mirrors the chunk sweep above). Ping refreshes
+        // lastSeenMs; entries silent for 10min (missed FIN, wedged peer) are
+        // evicted. Conservative threshold: only truly dead sessions go.
+        // Scheduler::run already guards task exceptions; id 2.
+        {
+            Task clientSweepTask(
+                [&gameServices]()
+                { gameServices.getClientManager().sweepSilentClients(600000); },
+                60,
+                std::chrono::system_clock::now() + std::chrono::seconds(60),
+                2);
+            scheduler.scheduleTask(clientSweepTask);
+        }
+
         // wait for the signal to stop the server
         while (running)
         {
