@@ -102,6 +102,17 @@ main()
 
         logger.info("Shutting down gracefully...");
 
+        // Ordered shutdown (reverse dependency order): Scheduler first (no new
+        // chunk-sweep tasks), then the event loops (drain + join workers),
+        // then the queues (wake any blocked popBatch). Previously this relied
+        // solely on destructor order — correct today but implicit; explicit
+        // stops make the contract visible and robust to reordering.
+        scheduler.stop();
+        gameServer.stop();
+        eventQueueGameServer.stop();
+        eventQueueChunkServer.stop();
+        eventQueueGameServerPing.stop();
+
         return 0;
     }
     catch (const std::exception &e)
