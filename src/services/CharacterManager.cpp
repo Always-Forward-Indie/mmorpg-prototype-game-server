@@ -316,7 +316,7 @@ CharacterManager::updateCharacterPosition(Database &db, int accountId, int chara
     {
         auto _dbConn = db.getConnectionLocked();
         pqxx::work txn(_dbConn.get());
-        db.executeQueryWithTransaction(txn, "set_character_position", {position.positionX, position.positionY, position.positionZ, position.rotationZ, characterId});
+        static_cast<void>(db.execChecked(txn, "set_character_position", {position.positionX, position.positionY, position.positionZ, position.rotationZ, characterId}));
         txn.commit();
         log_->info("Character position updated successfully");
     }
@@ -333,8 +333,8 @@ CharacterManager::updateBasicCharacterData(Database &db, int accountId, int char
     {
         auto _dbConn = db.getConnectionLocked();
         pqxx::work txn(_dbConn.get());
-        db.executeQueryWithTransaction(txn, "set_basic_character_data", {characterId, characterData.characterLevel, characterData.characterExperiencePoints});
-        db.executeQueryWithTransaction(txn, "upsert_character_current_state", {characterId, characterData.characterCurrentHealth, characterData.characterCurrentMana});
+        static_cast<void>(db.execChecked(txn, "set_basic_character_data", {characterId, characterData.characterLevel, characterData.characterExperiencePoints}));
+        static_cast<void>(db.execChecked(txn, "upsert_character_current_state", {characterId, characterData.characterCurrentHealth, characterData.characterCurrentMana}));
         txn.commit();
         log_->info("Character data updated successfully");
     }
@@ -351,7 +351,7 @@ CharacterManager::updateCharacterExperienceAndLevel(Database &db, int characterI
     {
         auto _dbConn = db.getConnectionLocked();
         pqxx::work txn(_dbConn.get());
-        db.executeQueryWithTransaction(txn, "set_character_exp_level", {characterId, experiencePoints, level});
+        static_cast<void>(db.execChecked(txn, "set_character_exp_level", {characterId, experiencePoints, level}));
         txn.commit();
         logger_.log("Character exp/level saved: id=" + std::to_string(characterId) +
                         " exp=" + std::to_string(experiencePoints) +
@@ -381,7 +381,7 @@ CharacterManager::saveCharacterHpMana(Database &db, int characterId, int current
     {
         auto _dbConn = db.getConnectionLocked();
         pqxx::work txn(_dbConn.get());
-        db.executeQueryWithTransaction(txn, "upsert_character_current_state", {characterId, currentHp, currentMana});
+        static_cast<void>(db.execChecked(txn, "upsert_character_current_state", {characterId, currentHp, currentMana}));
         txn.commit();
     }
     catch (const std::exception &e)
@@ -397,7 +397,7 @@ CharacterManager::setCharacterOnline(Database &db, int characterId)
     {
         auto _dbConn = db.getConnectionLocked();
         pqxx::work txn(_dbConn.get());
-        db.executeQueryWithTransaction(txn, "set_character_online", {characterId});
+        static_cast<void>(db.execChecked(txn, "set_character_online", {characterId}));
         txn.commit();
     }
     catch (const std::exception &e)
@@ -414,9 +414,9 @@ CharacterManager::updatePlayTime(Database &db, int characterId, int64_t sessionP
         auto _dbConn = db.getConnectionLocked();
         pqxx::work txn(_dbConn.get());
         if (isDisconnect)
-            db.executeQueryWithTransaction(txn, "save_character_playtime_disconnect", {characterId, sessionPlayTimeSec, lastSessionPlayTimeSec});
+            static_cast<void>(db.execChecked(txn, "save_character_playtime_disconnect", {characterId, sessionPlayTimeSec, lastSessionPlayTimeSec}));
         else
-            db.executeQueryWithTransaction(txn, "save_character_playtime", {characterId, sessionPlayTimeSec});
+            static_cast<void>(db.execChecked(txn, "save_character_playtime", {characterId, sessionPlayTimeSec}));
         txn.commit();
     }
     catch (const std::exception &e)

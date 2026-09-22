@@ -253,7 +253,7 @@ DialogueQuestManager::savePlayerQuestProgress(int characterId, int questId, cons
     {
         auto _dbConn = database_.getConnectionLocked();
         pqxx::work txn(_dbConn.get());
-        database_.executeQueryWithTransaction(txn, "upsert_player_quest", {(int)characterId, (int)questId, state, (int)currentStep, progressJson});
+        static_cast<void>(database_.execChecked(txn, "upsert_player_quest", {(int)characterId, (int)questId, state, (int)currentStep, progressJson}));
         txn.commit();
         logger_.log("[DQM] Saved quest characterId=" + std::to_string(characterId) +
                         " questId=" + std::to_string(questId) + " state=" + state,
@@ -272,7 +272,7 @@ DialogueQuestManager::savePlayerFlag(int characterId, const std::string &flagKey
     {
         auto _dbConn = database_.getConnectionLocked();
         pqxx::work txn(_dbConn.get());
-        database_.executeQueryWithTransaction(txn, "upsert_player_flag", {(int)characterId, flagKey, (int)intValue, std::string(boolValue ? "true" : "false")});
+        static_cast<void>(database_.execChecked(txn, "upsert_player_flag", {(int)characterId, flagKey, (int)intValue, std::string(boolValue ? "true" : "false")}));
         txn.commit();
         log_->info("[DQM] Saved flag characterId=" + std::to_string(characterId) +
                    " key=" + flagKey);
