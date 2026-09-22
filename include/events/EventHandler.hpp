@@ -7,6 +7,7 @@
 #include <unordered_map>
 
 #include "Event.hpp"
+#include "events/handlers/VendorEventHandler.hpp"
 #include "network/NetworkManager.hpp"
 #include "services/GameServices.hpp"
 #include "utils/ResponseBuilder.hpp"
@@ -59,9 +60,8 @@ class EventHandler
     // Game config
     void handleGetGameConfigEvent(const Event &event);
 
-    // Vendor / durability
-    void handleGetVendorDataEvent(const Event &event);
-    void handleGetTrainerDataEvent(const Event &event);
+    // Vendor / trainer catalog (extracted domain, see events/handlers/).
+    // Durability / items / currency saves stay here until the next domain split.
     void handleSaveDurabilityChangeEvent(const Event &event);
     void handleSaveItemKillCountEvent(const Event &event);
     void handleTransferInventoryItemEvent(const Event &event);
@@ -130,6 +130,9 @@ class EventHandler
     NetworkManager &networkManager_;
     GameServices &gameServices_;
     std::shared_ptr<spdlog::logger> log_;
+
+    // Extracted domain handlers (god-object split, one domain per commit).
+    VendorEventHandler vendorHandler_;
 
     /// Per-chunk-id JOIN serialization. The full catalog push is ~24 sequential
     /// DB round-trips in this worker; two concurrent JOINs for one chunk id
