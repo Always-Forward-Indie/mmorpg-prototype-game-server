@@ -2481,15 +2481,15 @@ EventHandler::handleSaveInventoryChangeEvent(const Event &event)
             if (inventoryItemId > 0)
             {
                 // Row already exists in DB — UPDATE quantity in-place, no new row.
-                gameServices_.getDatabase().executeQueryWithTransaction(
-                    txn, "update_player_inventory_quantity", {quantity, inventoryItemId, characterId});
+                static_cast<void>(gameServices_.getDatabase().execChecked(
+                    txn, "update_player_inventory_quantity", {quantity, inventoryItemId, characterId}));
                 txn.commit();
                 // No id sync needed — the id didn't change.
             }
             else
             {
                 // New item — INSERT and send assigned id back to chunk server.
-                auto result = gameServices_.getDatabase().executeQueryWithTransaction(
+                auto result = gameServices_.getDatabase().execChecked(
                     txn, "upsert_player_inventory_item", {characterId, itemId, quantity});
                 txn.commit();
 
@@ -2525,13 +2525,13 @@ EventHandler::handleSaveInventoryChangeEvent(const Event &event)
             if (inventoryItemId > 0)
             {
                 // Prefer deleting by exact id to avoid affecting other stacks.
-                gameServices_.getDatabase().executeQueryWithTransaction(
-                    txn, "delete_player_inventory_item_by_char_id", {inventoryItemId, characterId});
+                static_cast<void>(gameServices_.getDatabase().execChecked(
+                    txn, "delete_player_inventory_item_by_char_id", {inventoryItemId, characterId}));
             }
             else
             {
-                gameServices_.getDatabase().executeQueryWithTransaction(
-                    txn, "delete_player_inventory_item", {characterId, itemId});
+                static_cast<void>(gameServices_.getDatabase().execChecked(
+                    txn, "delete_player_inventory_item", {characterId, itemId}));
             }
             txn.commit();
         }
@@ -2932,8 +2932,8 @@ EventHandler::handleGetPlayerActiveEffectsEvent(const Event &event)
         auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
         pqxx::work txn(_dbConn.get());
         // Prune expired rows first to prevent unbounded table growth.
-        gameServices_.getDatabase().executeQueryWithTransaction(
-            txn, "cleanup_expired_active_effects", {});
+        static_cast<void>(gameServices_.getDatabase().execChecked(
+            txn, "cleanup_expired_active_effects", {}));
         auto result = gameServices_.getDatabase().executeQueryWithTransaction(
             txn, "get_player_active_effects", {characterId});
 
@@ -3240,8 +3240,8 @@ EventHandler::handleSaveDurabilityChangeEvent(const Event &event)
             if (durClaimed < 0)
                 return;
         }
-        gameServices_.getDatabase().executeQueryWithTransaction(
-            txn, "update_durability_current", {durabilityCurrent, inventoryItemId, characterId});
+        static_cast<void>(gameServices_.getDatabase().execChecked(
+            txn, "update_durability_current", {durabilityCurrent, inventoryItemId, characterId}));
         txn.commit();
         if (!durFactKey.empty())
             outboxSendFactAck(networkManager_, event.getClientSocket(), durFactKey, "applied");
@@ -3295,8 +3295,8 @@ EventHandler::handleSaveCurrencyTransactionEvent(const Event &event)
             if (curClaimed < 0)
                 return;
         }
-        gameServices_.getDatabase().executeQueryWithTransaction(
-            txn, "insert_currency_transaction", {characterId, npcId, totalPrice, txType});
+        static_cast<void>(gameServices_.getDatabase().execChecked(
+            txn, "insert_currency_transaction", {characterId, npcId, totalPrice, txType}));
         txn.commit();
         if (!curFactKey.empty())
             outboxSendFactAck(networkManager_, event.getClientSocket(), curFactKey, "applied");
@@ -3356,13 +3356,13 @@ EventHandler::handleSaveEquipmentChangeEvent(const Event &event)
                 log_->error("[SAVE_EQUIP] equipSlotSlug is empty for char=" + std::to_string(characterId));
                 return;
             }
-            gameServices_.getDatabase().executeQueryWithTransaction(
-                txn, "insert_character_equipment", {characterId, equipSlotSlug, inventoryItemId});
+            static_cast<void>(gameServices_.getDatabase().execChecked(
+                txn, "insert_character_equipment", {characterId, equipSlotSlug, inventoryItemId}));
         }
         else if (action == "unequip")
         {
-            gameServices_.getDatabase().executeQueryWithTransaction(
-                txn, "delete_character_equipment", {characterId, inventoryItemId});
+            static_cast<void>(gameServices_.getDatabase().execChecked(
+                txn, "delete_character_equipment", {characterId, inventoryItemId}));
         }
         else
         {
@@ -3525,7 +3525,7 @@ EventHandler::handleSaveExperienceDebtEvent(const Event &event)
             if (debtClaimed < 0)
                 return;
         }
-        gameServices_.getDatabase().executeQueryWithTransaction(txn, "set_character_experience_debt", {characterId, debt});
+        static_cast<void>(gameServices_.getDatabase().execChecked(txn, "set_character_experience_debt", {characterId, debt}));
         txn.commit();
         if (!debtFactKey.empty())
             outboxSendFactAck(networkManager_, event.getClientSocket(), debtFactKey, "applied");
@@ -3587,8 +3587,8 @@ EventHandler::handleSaveActiveEffectEvent(const Event &event)
             if (effClaimed < 0)
                 return;
         }
-        gameServices_.getDatabase().executeQueryWithTransaction(
-            txn, "insert_player_active_effect", params);
+        static_cast<void>(gameServices_.getDatabase().execChecked(
+            txn, "insert_player_active_effect", params));
         txn.commit();
         if (!effFactKey.empty())
             outboxSendFactAck(networkManager_, event.getClientSocket(), effFactKey, "applied");
@@ -3637,8 +3637,8 @@ EventHandler::handleSaveItemKillCountEvent(const Event &event)
             if (killClaimed < 0)
                 return;
         }
-        gameServices_.getDatabase().executeQueryWithTransaction(
-            txn, "update_item_kill_count", {killCount, inventoryItemId, characterId});
+        static_cast<void>(gameServices_.getDatabase().execChecked(
+            txn, "update_item_kill_count", {killCount, inventoryItemId, characterId}));
         txn.commit();
         if (!killFactKey.empty())
             outboxSendFactAck(networkManager_, event.getClientSocket(), killFactKey, "applied");
@@ -3678,14 +3678,14 @@ EventHandler::handleTransferInventoryItemEvent(const Event &event)
         if (fromCharId > 0)
         {
             // P2P trade: item still owned by the sender in DB
-            gameServices_.getDatabase().executeQueryWithTransaction(
-                txn, "transfer_item_between_chars", {toCharId, inventoryItemId, fromCharId});
+            static_cast<void>(gameServices_.getDatabase().execChecked(
+                txn, "transfer_item_between_chars", {toCharId, inventoryItemId, fromCharId}));
         }
         else
         {
             // Ground pickup: character_id IS NULL in DB
-            gameServices_.getDatabase().executeQueryWithTransaction(
-                txn, "transfer_item_ownership", {toCharId, inventoryItemId});
+            static_cast<void>(gameServices_.getDatabase().execChecked(
+                txn, "transfer_item_ownership", {toCharId, inventoryItemId}));
         }
         txn.commit();
 
@@ -3715,8 +3715,8 @@ EventHandler::handleNullifyItemOwnerEvent(const Event &event)
 
         auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
         pqxx::work txn(_dbConn.get());
-        gameServices_.getDatabase().executeQueryWithTransaction(
-            txn, "nullify_item_owner", {inventoryItemId, fromCharId});
+        static_cast<void>(gameServices_.getDatabase().execChecked(
+            txn, "nullify_item_owner", {inventoryItemId, fromCharId}));
         txn.commit();
 
         log_->info("[NULLIFY_OWNER] char=" + std::to_string(fromCharId) +
@@ -3743,8 +3743,8 @@ EventHandler::handleDeleteInventoryItemEvent(const Event &event)
 
         auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
         pqxx::work txn(_dbConn.get());
-        gameServices_.getDatabase().executeQueryWithTransaction(
-            txn, "delete_inventory_item_by_id", {inventoryItemId});
+        static_cast<void>(gameServices_.getDatabase().execChecked(
+            txn, "delete_inventory_item_by_id", {inventoryItemId}));
         txn.commit();
 
         log_->info("[DELETE_ITEM] invItem=" + std::to_string(inventoryItemId));
@@ -4024,8 +4024,8 @@ EventHandler::handleSavePityCounterEvent(const Event &event)
             if (pityClaimed < 0)
                 return;
         }
-        gameServices_.getDatabase().executeQueryWithTransaction(
-            txn, "upsert_pity_counter", {characterId, itemId, killCount});
+        static_cast<void>(gameServices_.getDatabase().execChecked(
+            txn, "upsert_pity_counter", {characterId, itemId, killCount}));
         txn.commit();
         if (!pityFactKey.empty())
             outboxSendFactAck(networkManager_, event.getClientSocket(), pityFactKey, "applied");
@@ -4077,8 +4077,8 @@ EventHandler::handleSaveBestiaryKillEvent(const Event &event)
             if (bestClaimed < 0)
                 return;
         }
-        gameServices_.getDatabase().executeQueryWithTransaction(
-            txn, "upsert_bestiary_kill", {characterId, mobTemplateId, killCount});
+        static_cast<void>(gameServices_.getDatabase().execChecked(
+            txn, "upsert_bestiary_kill", {characterId, mobTemplateId, killCount}));
         txn.commit();
         if (!bestFactKey.empty())
             outboxSendFactAck(networkManager_, event.getClientSocket(), bestFactKey, "applied");
@@ -4190,8 +4190,8 @@ EventHandler::handleTimedChampionKilledEvent(const Event &event)
             int intervalHours = rows[0]["interval_hours"].as<int>();
             int64_t nextSpawnAt = killedAt + static_cast<int64_t>(intervalHours) * 3600;
 
-            gameServices_.getDatabase().executeQueryWithTransaction(
-                txn, "update_timed_champion_next_spawn", {slug, nextSpawnAt});
+            static_cast<void>(gameServices_.getDatabase().execChecked(
+                txn, "update_timed_champion_next_spawn", {slug, nextSpawnAt}));
         }
         txn.commit();
         if (!champFactKey.empty())
@@ -4297,13 +4297,13 @@ EventHandler::handleSaveReputationEvent(const Event &event)
         // Legacy absolute-only senders keep the old upsert path.
         if (j.contains("delta") && j["delta"].is_number_integer() && j["delta"].get<int>() != 0)
         {
-            gameServices_.getDatabase().executeQueryWithTransaction(
-                txn, "add_reputation", {characterId, faction, j["delta"].get<int>()});
+            static_cast<void>(gameServices_.getDatabase().execChecked(
+                txn, "add_reputation", {characterId, faction, j["delta"].get<int>()}));
         }
         else
         {
-            gameServices_.getDatabase().executeQueryWithTransaction(
-                txn, "upsert_reputation", {characterId, faction, value});
+            static_cast<void>(gameServices_.getDatabase().execChecked(
+                txn, "upsert_reputation", {characterId, faction, value}));
         }
         txn.commit();
 
@@ -4405,8 +4405,8 @@ EventHandler::handleSaveMasteryEvent(const Event &event)
             if (mastClaimed < 0)
                 return;
         }
-        gameServices_.getDatabase().executeQueryWithTransaction(
-            txn, "upsert_mastery", {characterId, masterySlug, value});
+        static_cast<void>(gameServices_.getDatabase().execChecked(
+            txn, "upsert_mastery", {characterId, masterySlug, value}));
         txn.commit();
         if (!mastFactKey.empty())
             outboxSendFactAck(networkManager_, event.getClientSocket(), mastFactKey, "applied");
@@ -4512,8 +4512,8 @@ EventHandler::handleSaveLearnedSkillEvent(const Event &event)
         }
 
         // Persist the skill
-        gameServices_.getDatabase().executeQueryWithTransaction(
-            txn, "save_learned_skill", {characterId, skillSlug});
+        static_cast<void>(gameServices_.getDatabase().execChecked(
+            txn, "save_learned_skill", {characterId, skillSlug}));
 
         // Persist SP as the authoritative value decided by chunk (single
         // owner: chunk validates+deducts in-session, game stores the fact).
@@ -4521,9 +4521,9 @@ EventHandler::handleSaveLearnedSkillEvent(const Event &event)
         // without the fact fall back to the old cost-table decrement.
         if (j.contains("freeSkillPoints") && j["freeSkillPoints"].is_number_integer())
         {
-            gameServices_.getDatabase().executeQueryWithTransaction(
+            static_cast<void>(gameServices_.getDatabase().execChecked(
                 txn, "set_free_skill_points",
-                {characterId, j["freeSkillPoints"].get<int>()});
+                {characterId, j["freeSkillPoints"].get<int>()}));
         }
         else
         {
@@ -4533,8 +4533,8 @@ EventHandler::handleSaveLearnedSkillEvent(const Event &event)
             {
                 int spCost = costRows[0]["skill_point_cost"].as<int>(0);
                 if (spCost > 0)
-                    gameServices_.getDatabase().executeQueryWithTransaction(
-                        txn, "decrement_skill_points", {characterId, spCost});
+                    static_cast<void>(gameServices_.getDatabase().execChecked(
+                        txn, "decrement_skill_points", {characterId, spCost}));
             }
         }
 
@@ -4703,13 +4703,13 @@ EventHandler::handleSaveSkillBarSlotEvent(const Event &event)
 
         if (skillSlug.empty())
         {
-            gameServices_.getDatabase().executeQueryWithTransaction(
-                txn, "clear_skill_bar_slot", {characterId, slotIndex});
+            static_cast<void>(gameServices_.getDatabase().execChecked(
+                txn, "clear_skill_bar_slot", {characterId, slotIndex}));
         }
         else
         {
-            gameServices_.getDatabase().executeQueryWithTransaction(
-                txn, "save_skill_bar_slot", {characterId, slotIndex, skillSlug});
+            static_cast<void>(gameServices_.getDatabase().execChecked(
+                txn, "save_skill_bar_slot", {characterId, slotIndex, skillSlug}));
         }
         txn.commit();
         if (!barFactKey.empty())
@@ -4960,14 +4960,14 @@ EventHandler::handleSavePlayerTitleEvent(const Event &event)
                 continue;
             std::string slug = slugVal.get<std::string>();
             bool equipped = (!equippedSlug.empty() && slug == equippedSlug);
-            gameServices_.getDatabase().executeQueryWithTransaction(
-                txn, "upsert_player_title", {characterId, slug, equipped});
+            static_cast<void>(gameServices_.getDatabase().execChecked(
+                txn, "upsert_player_title", {characterId, slug, equipped}));
         }
 
         // Ensure at most one title has equipped=true (clear all, then re-flag the chosen one)
         if (!equippedSlug.empty())
-            gameServices_.getDatabase().executeQueryWithTransaction(
-                txn, "set_character_equipped_title", {characterId, equippedSlug});
+            static_cast<void>(gameServices_.getDatabase().execChecked(
+                txn, "set_character_equipped_title", {characterId, equippedSlug}));
 
         txn.commit();
         if (!titleFactKey.empty())
@@ -5050,8 +5050,8 @@ EventHandler::handleGetPlayerEmotesEvent(const Event &event)
         pqxx::work txn(_dbConn.get());
 
         // Auto-grant default emotes for new characters (idempotent)
-        gameServices_.getDatabase().executeQueryWithTransaction(
-            txn, "grant_default_emotes", {characterId});
+        static_cast<void>(gameServices_.getDatabase().execChecked(
+            txn, "grant_default_emotes", {characterId}));
 
         auto result = gameServices_.getDatabase().executeQueryWithTransaction(
             txn, "get_player_emotes", {characterId});
@@ -5288,7 +5288,7 @@ EventHandler::handleSaveSkillCooldownEvent(const Event &event)
         // Pass cooldownEndsAtMs as string to avoid std::to_string(double) producing
         // "1776627283138.000000" which PostgreSQL cannot cast with ::bigint.
         std::vector<DbParam> params{characterId, skillSlug, std::to_string(cooldownEndsAtMs)};
-        gameServices_.getDatabase().executeQueryWithTransaction(txn, "upsert_skill_cooldown", params);
+        static_cast<void>(gameServices_.getDatabase().execChecked(txn, "upsert_skill_cooldown", params));
         txn.commit();
         if (!cdFactKey.empty())
             outboxSendFactAck(networkManager_, event.getClientSocket(), cdFactKey, "applied");
