@@ -8,6 +8,7 @@
 
 #include "Event.hpp"
 #include "events/handlers/ItemEventHandler.hpp"
+#include "events/handlers/CatalogEventHandler.hpp"
 #include "events/handlers/InventoryEventHandler.hpp"
 #include "events/handlers/CharacterEventHandler.hpp"
 #include "events/handlers/DialogueQuestEventHandler.hpp"
@@ -31,8 +32,6 @@ class EventHandler
     void handleMoveCharacterChunkEvent(const Event &event);
     void handleGetSpawnZonesEvent(const Event &event);
     void handleGetMobDataEvent(const Event &event);
-    void handleGetCharacterExpForLevelEvent(const Event &event);
-    void handleGetExpLevelTableEvent(const Event &event);
     void handleGetMobsListEvent(const Event &event);
     void handleDisconnectChunkEvent(const Event &event);
     void handleJoinChunkServerEvent(const Event &event);
@@ -49,17 +48,12 @@ class EventHandler
     // Dialogue & Quest events
 
     // Game config
-    void handleGetGameConfigEvent(const Event &event);
 
     // Vendor / trainer catalog (extracted domain, see events/handlers/).
     // Item lifecycle / economy saves (extracted domain).
     // (Transfer/equipment/currency bodies moved to ItemEventHandler.)
 
     // Respawn zones
-    void handleGetRespawnZonesEvent(const Event &event);
-    void handleGetClassSpawnZonesEvent(const Event &event);
-    void handleGetStatusEffectTemplatesEvent(const Event &event);
-    void handleGetGameZonesEvent(const Event &event);
 
     // Pity & Bestiary
     void handleGetPlayerPityEvent(const Event &event);
@@ -78,9 +72,7 @@ class EventHandler
     void handleSaveMasteryEvent(const Event &event);
     void handleSaveLearnedSkillEvent(const Event &event);
     void handleSaveSkillBarSlotEvent(const Event &event);
-    void handleGetZoneEventTemplatesEvent(const Event &event);
     // Mastery definition system
-    void handleGetMasteryDefinitionsEvent(const Event &event);
     // Title system
     void handleGetTitleDefinitionsEvent(const Event &event);
     void handleGetPlayerTitlesEvent(const Event &event);
@@ -89,7 +81,6 @@ class EventHandler
     void handleGetEmoteDefinitionsEvent(const Event &event);
     void handleGetPlayerEmotesEvent(const Event &event);
     // NPC Ambient Speech system
-    void handleGetNPCAmbientSpeechEvent(const Event &event);
 
     // Experience debt
 
@@ -97,7 +88,6 @@ class EventHandler
     void handleSaveActiveEffectEvent(const Event &event);
 
     // World Interactive Objects (migration 043)
-    void handleGetWorldObjectsEvent(const Event &event);
 
     // Skill cooldown persistence (migration 067)
     void handleSaveSkillCooldownEvent(const Event &event);
@@ -115,6 +105,7 @@ class EventHandler
     // Extracted domain handlers (god-object split, one domain per commit).
     VendorEventHandler vendorHandler_;
     ItemEventHandler itemHandler_;
+    CatalogEventHandler catalogHandler_;
     InventoryEventHandler inventoryHandler_;
     CharacterEventHandler characterHandler_;
     DialogueQuestEventHandler dialogueQuestHandler_;

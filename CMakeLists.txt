@@ -35,6 +35,7 @@ set(SOURCE_FILES
     src/events/Outbox.cpp
     src/events/handlers/BaseEventHandler.cpp
     src/events/handlers/ItemEventHandler.cpp
+    src/events/handlers/CatalogEventHandler.cpp
     src/events/handlers/InventoryEventHandler.cpp
     src/events/handlers/CharacterEventHandler.cpp
     src/events/handlers/DialogueQuestEventHandler.cpp
@@ -79,6 +80,7 @@ set(HEADER_FILES
     include/events/Outbox.hpp
     include/events/handlers/BaseEventHandler.hpp
     include/events/handlers/ItemEventHandler.hpp
+    include/events/handlers/CatalogEventHandler.hpp
     include/events/handlers/InventoryEventHandler.hpp
     include/events/handlers/CharacterEventHandler.hpp
     include/events/handlers/DialogueQuestEventHandler.hpp
