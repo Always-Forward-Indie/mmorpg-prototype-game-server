@@ -152,23 +152,3 @@ Database::execChecked(
         throw DatabaseError("execChecked[" + preparedQueryName + "]: " + e.what());
     }
 }
-
-// Function to execute a query with a transaction (legacy swallow contract;
-// new code must use execChecked above).
-pqxx::result
-Database::executeQueryWithTransaction(
-    pqxx::work &transaction,
-    const std::string &preparedQueryName,
-    const std::vector<std::variant<int, int64_t, float, double, std::string>> &parameters)
-{
-    try
-    {
-        return execChecked(transaction, preparedQueryName, parameters);
-    }
-    catch (const std::exception &)
-    {
-        // Swallow preserved for the 60+ existing call sites (their empty() and
-        // [0]-indexing behavior is unchanged); the error is already logged.
-        return pqxx::result();
-    }
-}

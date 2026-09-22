@@ -59,18 +59,10 @@ class Database
 
     // Handle database connection or query errors
     void handleDatabaseError(const std::exception &e);
-    // Execute a query with a transaction.
-    // Legacy contract (kept for the 60+ existing call sites): transport errors
-    // are logged and surface as an empty result. Callers that need to tell
-    // "no rows" from "query failed" must use execChecked below instead.
-    // New code MUST call execChecked; do not add new callers of this method.
-    pqxx::result executeQueryWithTransaction(
-        pqxx::work &transaction,
-        const std::string &preparedQueryName,
-        const std::vector<std::variant<int, int64_t, float, double, std::string>> &parameters);
-    // Fail-loud variant: throws DatabaseError (with query-name context) on
+    // Fail-loud query: throws DatabaseError (with query-name context) on
     // transport failure instead of returning an empty result. Aborts the
     // passed transaction before throwing; the caller must not commit after.
+    // An empty pqxx::result is a valid "no rows" answer, never an error signal.
     [[nodiscard]] pqxx::result execChecked(
         pqxx::work &transaction,
         const std::string &preparedQueryName,
