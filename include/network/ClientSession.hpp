@@ -30,6 +30,12 @@ class ClientSession : public std::enable_shared_from_this<ClientSession>
 
     void start();
     void setDisconnectCallback(std::function<void(std::shared_ptr<ClientSession>)> callback);
+    /// Strand-safe error path: NetworkManager installs this at session setup
+    /// so framing failures (oversize/malformed) get an explicit wire ERR_*
+    /// instead of a silent drop. Goes through the per-socket strand queue
+    /// (direct async_write here would race with in-flight writes = Asio UB).
+    /// Same lifetime pattern as disconnectCallback_ (NetworkManager outlives sessions).
+    void setSendCallback(std::function<void(std::shared_ptr<boost::asio::ip::tcp::socket>, const std::string &)> callback);
     /// Owning socket (for write-state reclamation in NetworkManager).
     std::shared_ptr<boost::asio::ip::tcp::socket> socket() const { return socket_; }
 
@@ -49,4 +55,5 @@ class ClientSession : public std::enable_shared_from_this<ClientSession>
     EventDispatcher &eventDispatcher_;
     MessageHandler &messageHandler_;
     std::function<void(std::shared_ptr<ClientSession>)> disconnectCallback_;
+    std::function<void(std::shared_ptr<boost::asio::ip::tcp::socket>, const std::string &)> sendCallback_;
 };

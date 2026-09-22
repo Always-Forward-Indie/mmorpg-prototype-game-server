@@ -4,7 +4,35 @@
 #include "game_server/GameServer.hpp"
 #include "handlers/MessageHandler.hpp"
 #include "utils/ProtocolLimits.hpp"
+#include "utils/TimestampUtils.hpp"
 #include <spdlog/logger.h>
+
+namespace {
+
+// Best-effort eventType so the client can correlate a framing error.
+std::string probeEventType(const std::string &message) {
+    try {
+        auto probe = nlohmann::json::parse(message.substr(0, 512), nullptr, false);
+        if (!probe.is_discarded() && probe.is_object() && probe.contains("header") &&
+            probe["header"].is_object() && probe["header"].contains("eventType") &&
+            probe["header"]["eventType"].is_string())
+            return probe["header"]["eventType"].get<std::string>();
+    } catch (...) {}
+    return "unknown";
+}
+
+std::string framingError(const std::string &eventType, const char *code) {
+    nlohmann::json err;
+    err["header"]["eventType"] = eventType;
+    err["header"]["message"] = code;
+    err["header"]["status"] = "error";
+    err["header"]["timestamp"] = TimestampUtils::getCurrentTimestamp();
+    err["header"]["version"] = protocol::kProtocolVersion;
+    err["body"] = nlohmann::json::object();
+    return err.dump() + "\n";
+}
+
+} // namespace
 
 ClientSession::ClientSession(std::shared_ptr<boost::asio::ip::tcp::socket> socket,
     GameServer *gameServer,
@@ -37,6 +65,13 @@ ClientSession::setDisconnectCallback(std::function<void(std::shared_ptr<ClientSe
 }
 
 void
+ClientSession::setSendCallback(
+    std::function<void(std::shared_ptr<boost::asio::ip::tcp::socket>, const std::string &)> callback)
+{
+    sendCallback_ = std::move(callback);
+}
+
+void
 ClientSession::doRead()
 {
     auto self(shared_from_this());
@@ -60,23 +95,37 @@ ClientSession::doRead()
 
                 std::string delimiter = "\n";
                 size_t pos;
+                size_t processed = 0;
+                // Bound per read cycle (parity with chunk): an unbounded loop
+                // lets one flooding connection starve the io_context worker.
+                constexpr size_t MAX_MESSAGES_PER_READ = 10;
                 // Process all complete messages found.
-                while ((pos = accumulatedData_.find(delimiter)) != std::string::npos)
+                while ((pos = accumulatedData_.find(delimiter)) != std::string::npos &&
+                       processed < MAX_MESSAGES_PER_READ)
                 {
                     std::string message = accumulatedData_.substr(0, pos);
-                    // 8KB/message matches proto/mmo_proto.py. Oversize is dropped
-                    // with an explicit ERR_OVERSIZE log (wire reply needs strand — Phase 1).
+                    // 8KB/message matches proto/mmo_proto.py. Oversize gets an
+                    // explicit wire ERR_OVERSIZE (previously silent drop).
                     if (message.size() > protocol::kMaxMessageBytes)
                     {
                         logger_.logError(std::string(protocol::kErrOversize) + ": message too large, skipping: " +
                                              std::to_string(message.size()) + " bytes",
                             RED);
+                        if (sendCallback_)
+                        {
+                            try {
+                                sendCallback_(socket_,
+                                    framingError(probeEventType(message), protocol::kErrOversize));
+                            } catch (...) {}
+                        }
                         accumulatedData_.erase(0, pos + delimiter.size());
+                        ++processed;
                         continue;
                     }
                     log_->info("Received data from client: " + message);
                     processMessage(message);
                     accumulatedData_.erase(0, pos + delimiter.size());
+                    ++processed;
                 }
                 // Clear a large incomplete buffer (client never sends '\n').
                 if (accumulatedData_.size() > protocol::kMaxAccumulatedBytes / 2 &&
@@ -136,13 +185,24 @@ ClientSession::processMessage(const std::string &message)
     }
     catch (const nlohmann::json::parse_error &e)
     {
-        // Explicit ERR_MALFORMED log (was silent drop => client timeout).
-        // Wire ERR_* reply needs NetworkManager strand path — Phase 1.
+        // Explicit wire ERR_MALFORMED (was silent drop => client timeout).
         logger_.logError(std::string(protocol::kErrMalformed) + ": JSON parsing error: " + std::string(e.what()), RED);
+        if (sendCallback_)
+        {
+            try {
+                sendCallback_(socket_, framingError("unknown", protocol::kErrMalformed));
+            } catch (...) {}
+        }
     }
     catch (const std::exception &e)
     {
         logger_.logError(std::string(protocol::kErrMalformed) + ": message handling error: " + std::string(e.what()), RED);
+        if (sendCallback_)
+        {
+            try {
+                sendCallback_(socket_, framingError("unknown", protocol::kErrMalformed));
+            } catch (...) {}
+        }
     }
 }
 

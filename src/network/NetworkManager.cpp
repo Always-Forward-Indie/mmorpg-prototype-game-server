@@ -70,6 +70,10 @@ NetworkManager::startAccept()
             // Pass the shared pointer to the ClientSession
             auto session = std::make_shared<ClientSession>(clientSocket, gameServer_, logger_, eventQueue_, eventQueuePing_, *eventDispatcher_, *messageHandler_);
             session->setDisconnectCallback([this](std::shared_ptr<ClientSession> s) { removeActiveSession(s); });
+            // Strand-safe error path for framing failures (see ClientSession::setSendCallback).
+            session->setSendCallback(
+                [this](std::shared_ptr<boost::asio::ip::tcp::socket> s, const std::string &data)
+                { sendResponse(std::move(s), data); });
             addActiveSession(session);
             session->start();
         }
