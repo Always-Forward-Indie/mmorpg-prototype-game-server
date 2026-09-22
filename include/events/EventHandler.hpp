@@ -8,6 +8,7 @@
 
 #include "Event.hpp"
 #include "events/handlers/ItemEventHandler.hpp"
+#include "events/handlers/InventoryEventHandler.hpp"
 #include "events/handlers/CharacterEventHandler.hpp"
 #include "events/handlers/DialogueQuestEventHandler.hpp"
 #include "events/handlers/VendorEventHandler.hpp"
@@ -44,8 +45,6 @@ class EventHandler
     void handleGetNPCsListEvent(const Event &event);
     void handleGetNPCsAttributesEvent(const Event &event);
     void handleSaveHpManaEvent(const Event &event); // ARCH-4
-    void handleSaveInventoryChangeEvent(const Event &event);
-    void handleGetPlayerInventoryEvent(const Event &event);
 
     // Dialogue & Quest events
 
@@ -116,6 +115,7 @@ class EventHandler
     // Extracted domain handlers (god-object split, one domain per commit).
     VendorEventHandler vendorHandler_;
     ItemEventHandler itemHandler_;
+    InventoryEventHandler inventoryHandler_;
     CharacterEventHandler characterHandler_;
     DialogueQuestEventHandler dialogueQuestHandler_;
 
