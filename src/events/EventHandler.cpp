@@ -1103,9 +1103,9 @@ EventHandler::handleGetMobsListEvent(const Event &event)
             auto _dbConn2 = gameServices_.getDatabase().getConnectionLocked();
             pqxx::work txnWR(_dbConn2.get());
 
-            auto weakRows = gameServices_.getDatabase().executeQueryWithTransaction(
+            auto weakRows = gameServices_.getDatabase().execChecked(
                 txnWR, "get_mob_weaknesses_all", {});
-            auto resistRows = gameServices_.getDatabase().executeQueryWithTransaction(
+            auto resistRows = gameServices_.getDatabase().execChecked(
                 txnWR, "get_mob_resistances_all", {});
 
             // Build per-mob weaknesses map
@@ -2021,7 +2021,7 @@ EventHandler::handleGetExpLevelTableEvent(const Event &event)
             {
                 auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
                 pqxx::work txn(_dbConn.get());
-                auto result = gameServices_.getDatabase().executeQueryWithTransaction(txn, "get_exp_level_table", {});
+                auto result = gameServices_.getDatabase().execChecked(txn, "get_exp_level_table", {});
 
                 for (const auto &row : result)
                 {
@@ -2036,6 +2036,12 @@ EventHandler::handleGetExpLevelTableEvent(const Event &event)
                 gameServices_.getLogger().log("Retrieved " + std::to_string(expLevelTable.size()) +
                                                   " experience level entries from database",
                     GREEN);
+            }
+            catch (const DatabaseError &)
+            {
+                // Catalog entry: DB failure must reach dispatchCatalog
+                // (catalogFailed -> incomplete JOIN), never a partial success.
+                throw;
             }
             catch (const std::exception &e)
             {
@@ -2075,6 +2081,12 @@ EventHandler::handleGetExpLevelTableEvent(const Event &event)
             std::string responseData = networkManager_.generateResponseMessage("error", errorResponse);
             networkManager_.sendResponse(clientSocket, responseData);
         }
+    }
+    catch (const DatabaseError &)
+    {
+        // Catalog entry: DB failure must reach dispatchCatalog
+        // (catalogFailed -> incomplete JOIN), never a partial success.
+        throw;
     }
     catch (const std::exception &ex)
     {
@@ -3084,14 +3096,14 @@ EventHandler::handleGetVendorDataEvent(const Event &event)
         pqxx::work txn(_dbConn.get());
 
         // Get all vendor NPC IDs
-        auto npcRows = gameServices_.getDatabase().executeQueryWithTransaction(txn, "get_vendor_npcs", {});
+        auto npcRows = gameServices_.getDatabase().execChecked(txn, "get_vendor_npcs", {});
 
         nlohmann::json vendorList = nlohmann::json::array();
         for (const auto &npcRow : npcRows)
         {
             int npcId = npcRow["npc_id"].as<int>();
 
-            auto itemRows = gameServices_.getDatabase().executeQueryWithTransaction(
+            auto itemRows = gameServices_.getDatabase().execChecked(
                 txn, "get_vendor_inventory", {npcId});
 
             nlohmann::json items = nlohmann::json::array();
@@ -3130,6 +3142,12 @@ EventHandler::handleGetVendorDataEvent(const Event &event)
         gameServices_.getLogger().log("[EH] Sent vendor data: " +
                                       std::to_string(vendorList.size()) + " vendors.");
     }
+    catch (const DatabaseError &)
+    {
+        // Catalog entry: DB failure must reach dispatchCatalog
+        // (catalogFailed -> incomplete JOIN), never a partial success.
+        throw;
+    }
     catch (const std::exception &e)
     {
         gameServices_.getLogger().logError("handleGetVendorDataEvent error: " + std::string(e.what()));
@@ -3147,7 +3165,7 @@ EventHandler::handleGetTrainerDataEvent(const Event &event)
         auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
         pqxx::work txn(_dbConn.get());
 
-        auto npcRows = gameServices_.getDatabase().executeQueryWithTransaction(txn, "get_trainer_npcs", {});
+        auto npcRows = gameServices_.getDatabase().execChecked(txn, "get_trainer_npcs", {});
 
         nlohmann::json trainerList = nlohmann::json::array();
         for (const auto &npcRow : npcRows)
@@ -3155,7 +3173,7 @@ EventHandler::handleGetTrainerDataEvent(const Event &event)
             int npcId = npcRow["npc_id"].as<int>();
             int classId = npcRow["class_id"].as<int>(0);
 
-            auto skillRows = gameServices_.getDatabase().executeQueryWithTransaction(
+            auto skillRows = gameServices_.getDatabase().execChecked(
                 txn, "get_trainer_skills", {npcId});
 
             nlohmann::json skills = nlohmann::json::array();
@@ -3197,6 +3215,12 @@ EventHandler::handleGetTrainerDataEvent(const Event &event)
 
         gameServices_.getLogger().log("[EH] Sent trainer data: " +
                                       std::to_string(trainerList.size()) + " trainers.");
+    }
+    catch (const DatabaseError &)
+    {
+        // Catalog entry: DB failure must reach dispatchCatalog
+        // (catalogFailed -> incomplete JOIN), never a partial success.
+        throw;
     }
     catch (const std::exception &e)
     {
@@ -3394,7 +3418,7 @@ EventHandler::handleGetRespawnZonesEvent(const Event &event)
     {
         auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
         pqxx::work txn(_dbConn.get());
-        auto rows = gameServices_.getDatabase().executeQueryWithTransaction(txn, "get_respawn_zones", {});
+        auto rows = gameServices_.getDatabase().execChecked(txn, "get_respawn_zones", {});
         txn.commit();
 
         nlohmann::json zonesJson = nlohmann::json::array();
@@ -3435,6 +3459,12 @@ EventHandler::handleGetRespawnZonesEvent(const Event &event)
         networkManager_.sendResponse(clientSocket, responseData);
 
         log_->info("[RESPAWN_ZONES] Sent " + std::to_string(zonesJson.size()) + " respawn zones to chunk server");
+    }
+    catch (const DatabaseError &)
+    {
+        // Catalog entry: DB failure must reach dispatchCatalog
+        // (catalogFailed -> incomplete JOIN), never a partial success.
+        throw;
     }
     catch (const std::exception &ex)
     {
@@ -3765,7 +3795,7 @@ EventHandler::handleGetStatusEffectTemplatesEvent(const Event &event)
     {
         auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
         pqxx::work txn(_dbConn.get());
-        auto rows = gameServices_.getDatabase().executeQueryWithTransaction(txn, "get_status_effect_templates", {});
+        auto rows = gameServices_.getDatabase().execChecked(txn, "get_status_effect_templates", {});
         txn.commit();
 
         // Group rows by effect_slug into a nested JSON structure:
@@ -3822,6 +3852,12 @@ EventHandler::handleGetStatusEffectTemplatesEvent(const Event &event)
 
         log_->info("[STATUS_EFFECT_TEMPLATES] Sent " + std::to_string(effectsJson.size()) + " templates to chunk server");
     }
+    catch (const DatabaseError &)
+    {
+        // Catalog entry: DB failure must reach dispatchCatalog
+        // (catalogFailed -> incomplete JOIN), never a partial success.
+        throw;
+    }
     catch (const std::exception &ex)
     {
         gameServices_.getLogger().logError("handleGetStatusEffectTemplatesEvent error: " + std::string(ex.what()));
@@ -3838,7 +3874,7 @@ EventHandler::handleGetGameZonesEvent(const Event &event)
     {
         auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
         pqxx::work txn(_dbConn.get());
-        auto rows = gameServices_.getDatabase().executeQueryWithTransaction(txn, "get_game_zones", {});
+        auto rows = gameServices_.getDatabase().execChecked(txn, "get_game_zones", {});
         txn.commit();
 
         nlohmann::json zonesJson = nlohmann::json::array();
@@ -3878,6 +3914,12 @@ EventHandler::handleGetGameZonesEvent(const Event &event)
         networkManager_.sendResponse(clientSocket, responseData);
 
         log_->info("[GAME_ZONES] Sent " + std::to_string(zonesJson.size()) + " game zones to chunk server");
+    }
+    catch (const DatabaseError &)
+    {
+        // Catalog entry: DB failure must reach dispatchCatalog
+        // (catalogFailed -> incomplete JOIN), never a partial success.
+        throw;
     }
     catch (const std::exception &ex)
     {
@@ -4105,7 +4147,7 @@ EventHandler::handleGetTimedChampionTemplatesEvent(const Event &event)
     {
         auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
         pqxx::work txn(_dbConn.get());
-        auto rows = gameServices_.getDatabase().executeQueryWithTransaction(txn, "get_timed_champion_templates", {});
+        auto rows = gameServices_.getDatabase().execChecked(txn, "get_timed_champion_templates", {});
         txn.commit();
 
         nlohmann::json arr = nlohmann::json::array();
@@ -4136,6 +4178,12 @@ EventHandler::handleGetTimedChampionTemplatesEvent(const Event &event)
         networkManager_.sendResponse(clientSocket, responseData);
 
         log_->info("[TIMED_CHAMP] Sent {} timed champion templates to chunk server", arr.size());
+    }
+    catch (const DatabaseError &)
+    {
+        // Catalog entry: DB failure must reach dispatchCatalog
+        // (catalogFailed -> incomplete JOIN), never a partial success.
+        throw;
     }
     catch (const std::exception &ex)
     {
@@ -4430,7 +4478,7 @@ EventHandler::handleGetMasteryDefinitionsEvent(const Event &event)
     {
         auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
         pqxx::work txn(_dbConn.get());
-        auto result = gameServices_.getDatabase().executeQueryWithTransaction(
+        auto result = gameServices_.getDatabase().execChecked(
             txn, "get_mastery_definitions", {});
 
         nlohmann::json defsJson = nlohmann::json::array();
@@ -4459,6 +4507,12 @@ EventHandler::handleGetMasteryDefinitionsEvent(const Event &event)
             networkManager_.generateResponseMessage("success", response));
 
         log_->info("[MASTERY] Sent {} mastery definitions to chunk server", defsJson.size());
+    }
+    catch (const DatabaseError &)
+    {
+        // Catalog entry: DB failure must reach dispatchCatalog
+        // (catalogFailed -> incomplete JOIN), never a partial success.
+        throw;
     }
     catch (const std::exception &ex)
     {
@@ -4734,7 +4788,7 @@ EventHandler::handleGetZoneEventTemplatesEvent(const Event &event)
     {
         auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
         pqxx::work txn(_dbConn.get());
-        auto rows = gameServices_.getDatabase().executeQueryWithTransaction(
+        auto rows = gameServices_.getDatabase().execChecked(
             txn, "get_zone_event_templates", {});
 
         nlohmann::json arr = nlohmann::json::array();
@@ -4773,6 +4827,12 @@ EventHandler::handleGetZoneEventTemplatesEvent(const Event &event)
 
         log_->info("[ZONE_EVENT] Sent {} zone event templates to chunk server", arr.size());
     }
+    catch (const DatabaseError &)
+    {
+        // Catalog entry: DB failure must reach dispatchCatalog
+        // (catalogFailed -> incomplete JOIN), never a partial success.
+        throw;
+    }
     catch (const std::exception &ex)
     {
         gameServices_.getLogger().logError("handleGetZoneEventTemplatesEvent error: " + std::string(ex.what()));
@@ -4792,7 +4852,7 @@ EventHandler::handleGetTitleDefinitionsEvent(const Event &event)
     {
         auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
         pqxx::work txn(_dbConn.get());
-        auto result = gameServices_.getDatabase().executeQueryWithTransaction(
+        auto result = gameServices_.getDatabase().execChecked(
             txn, "get_title_definitions", {});
 
         nlohmann::json titlesJson = nlohmann::json::array();
@@ -4852,6 +4912,12 @@ EventHandler::handleGetTitleDefinitionsEvent(const Event &event)
             networkManager_.generateResponseMessage("success", response));
 
         log_->info("[TITLE] Sent {} title definitions to chunk server", titlesJson.size());
+    }
+    catch (const DatabaseError &)
+    {
+        // Catalog entry: DB failure must reach dispatchCatalog
+        // (catalogFailed -> incomplete JOIN), never a partial success.
+        throw;
     }
     catch (const std::exception &ex)
     {
@@ -4994,7 +5060,7 @@ EventHandler::handleGetEmoteDefinitionsEvent(const Event &event)
     {
         auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
         pqxx::work txn(_dbConn.get());
-        auto result = gameServices_.getDatabase().executeQueryWithTransaction(
+        auto result = gameServices_.getDatabase().execChecked(
             txn, "get_emote_definitions", {});
 
         nlohmann::json emotesJson = nlohmann::json::array();
@@ -5023,6 +5089,12 @@ EventHandler::handleGetEmoteDefinitionsEvent(const Event &event)
             networkManager_.generateResponseMessage("success", response));
 
         log_->info("[EMOTE] Sent {} emote definitions to chunk server", emotesJson.size());
+    }
+    catch (const DatabaseError &)
+    {
+        // Catalog entry: DB failure must reach dispatchCatalog
+        // (catalogFailed -> incomplete JOIN), never a partial success.
+        throw;
     }
     catch (const std::exception &ex)
     {
@@ -5093,7 +5165,7 @@ EventHandler::handleGetNPCAmbientSpeechEvent(const Event &event)
     {
         auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
         pqxx::work txn(_dbConn.get());
-        auto result = gameServices_.getDatabase().executeQueryWithTransaction(
+        auto result = gameServices_.getDatabase().execChecked(
             txn, "get_npc_ambient_speech", {});
         txn.commit();
 
@@ -5169,6 +5241,12 @@ EventHandler::handleGetNPCAmbientSpeechEvent(const Event &event)
 
         log_->info("[AMBIENT] Sent ambient speech for {} NPCs to chunk server", ambientArray.size());
     }
+    catch (const DatabaseError &)
+    {
+        // Catalog entry: DB failure must reach dispatchCatalog
+        // (catalogFailed -> incomplete JOIN), never a partial success.
+        throw;
+    }
     catch (const std::exception &ex)
     {
         gameServices_.getLogger().logError("handleGetNPCAmbientSpeechEvent error: " + std::string(ex.what()));
@@ -5186,7 +5264,7 @@ EventHandler::handleGetWorldObjectsEvent(const Event &event)
     {
         auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
         pqxx::work txn(_dbConn.get());
-        auto result = gameServices_.getDatabase().executeQueryWithTransaction(
+        auto result = gameServices_.getDatabase().execChecked(
             txn, "get_world_objects", {});
         txn.commit();
 
@@ -5239,6 +5317,12 @@ EventHandler::handleGetWorldObjectsEvent(const Event &event)
             networkManager_.generateResponseMessage("success", response));
 
         log_->info("[WIO] Sent {} world objects to chunk server", objectsArray.size());
+    }
+    catch (const DatabaseError &)
+    {
+        // Catalog entry: DB failure must reach dispatchCatalog
+        // (catalogFailed -> incomplete JOIN), never a partial success.
+        throw;
     }
     catch (const std::exception &ex)
     {
