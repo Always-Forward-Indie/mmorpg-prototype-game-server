@@ -8,6 +8,7 @@
 
 #include "Event.hpp"
 #include "events/handlers/ItemEventHandler.hpp"
+#include "events/handlers/SkillsEventHandler.hpp"
 #include "events/handlers/ProgressionEventHandler.hpp"
 #include "events/handlers/WorldEventHandler.hpp"
 #include "events/handlers/CatalogEventHandler.hpp"
@@ -53,12 +54,6 @@ class EventHandler
     // Champion system (Stage 3)
 
     // Stage 4: Reputation, Mastery, Zone Events
-    void handleGetPlayerReputationsEvent(const Event &event);
-    void handleSaveReputationEvent(const Event &event);
-    void handleGetPlayerMasteriesEvent(const Event &event);
-    void handleSaveMasteryEvent(const Event &event);
-    void handleSaveLearnedSkillEvent(const Event &event);
-    void handleSaveSkillBarSlotEvent(const Event &event);
     // Mastery definition system
     // Title system
     void handleGetTitleDefinitionsEvent(const Event &event);
@@ -92,6 +87,7 @@ class EventHandler
     // Extracted domain handlers (god-object split, one domain per commit).
     VendorEventHandler vendorHandler_;
     ItemEventHandler itemHandler_;
+    SkillsEventHandler skillsHandler_;
     ProgressionEventHandler progressionHandler_;
     WorldEventHandler worldHandler_;
     CatalogEventHandler catalogHandler_;
