@@ -17,10 +17,10 @@ if(GTest_FOUND)
         test_game_spawns.cpp
         test_game_config.cpp
         test_random_utils.cpp
+        test_config.cpp
         ../src/services/ChunkManager.cpp
         ../src/services/ClientManager.cpp
         ../src/services/CharacterManager.cpp
-        ../src/services/ClassSpawnZoneManager.cpp
         ../src/services/ItemManager.cpp
         ../src/services/NPCManager.cpp
         ../src/services/MobManager.cpp
@@ -28,6 +28,7 @@ if(GTest_FOUND)
         ../src/services/ClassSpawnZoneManager.cpp
         ../src/services/GameConfigService.cpp
         ../src/utils/ThreadPool.cpp
+        ../src/utils/Config.cpp
         ../src/events/Event.cpp
         ../src/events/EventQueue.cpp
         ../src/utils/Logger.cpp

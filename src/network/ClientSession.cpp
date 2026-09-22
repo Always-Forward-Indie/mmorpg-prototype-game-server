@@ -3,6 +3,7 @@
 #include "events/EventDispatcher.hpp"
 #include "game_server/GameServer.hpp"
 #include "handlers/MessageHandler.hpp"
+#include "utils/ProtocolLimits.hpp"
 #include <spdlog/logger.h>
 
 ClientSession::ClientSession(std::shared_ptr<boost::asio::ip::tcp::socket> socket,
@@ -44,6 +45,13 @@ ClientSession::doRead()
         {
             if (!ec)
             {
+                // Framing DoS guard (see utils/ProtocolLimits.hpp, mirrors chunk + login).
+                if (accumulatedData_.size() + bytes_transferred > protocol::kMaxAccumulatedBytes)
+                {
+                    log_->error("Buffer overflow detected, disconnecting client");
+                    handleClientDisconnect();
+                    return;
+                }
                 // Append new data to our session-specific buffer.
                 accumulatedData_.append(dataBuffer_.data(), bytes_transferred);
 
@@ -56,9 +64,26 @@ ClientSession::doRead()
                 while ((pos = accumulatedData_.find(delimiter)) != std::string::npos)
                 {
                     std::string message = accumulatedData_.substr(0, pos);
+                    // 8KB/message matches proto/mmo_proto.py. Oversize is dropped
+                    // with an explicit ERR_OVERSIZE log (wire reply needs strand — Phase 1).
+                    if (message.size() > protocol::kMaxMessageBytes)
+                    {
+                        logger_.logError(std::string(protocol::kErrOversize) + ": message too large, skipping: " +
+                                             std::to_string(message.size()) + " bytes",
+                            RED);
+                        accumulatedData_.erase(0, pos + delimiter.size());
+                        continue;
+                    }
                     log_->info("Received data from client: " + message);
                     processMessage(message);
                     accumulatedData_.erase(0, pos + delimiter.size());
+                }
+                // Clear a large incomplete buffer (client never sends '\n').
+                if (accumulatedData_.size() > protocol::kMaxAccumulatedBytes / 2 &&
+                    accumulatedData_.find(delimiter) == std::string::npos)
+                {
+                    log_->error("Clearing large incomplete buffer to prevent memory leak");
+                    accumulatedData_.clear();
                 }
                 doRead();
             }
@@ -111,7 +136,13 @@ ClientSession::processMessage(const std::string &message)
     }
     catch (const nlohmann::json::parse_error &e)
     {
-        logger_.logError("JSON parsing error: " + std::string(e.what()), RED);
+        // Explicit ERR_MALFORMED log (was silent drop => client timeout).
+        // Wire ERR_* reply needs NetworkManager strand path — Phase 1.
+        logger_.logError(std::string(protocol::kErrMalformed) + ": JSON parsing error: " + std::string(e.what()), RED);
+    }
+    catch (const std::exception &e)
+    {
+        logger_.logError(std::string(protocol::kErrMalformed) + ": message handling error: " + std::string(e.what()), RED);
     }
 }
 

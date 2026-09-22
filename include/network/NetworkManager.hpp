@@ -17,6 +17,7 @@
 #include "utils/Config.hpp"
 #include "utils/JSONParser.hpp"
 #include "utils/Logger.hpp"
+#include "utils/ProtocolLimits.hpp"
 
 class GameServer;
 class EventDispatcher; // ✅ Forward declare EventDispatcher
@@ -69,7 +70,7 @@ class NetworkManager
     void doNextWrite(std::shared_ptr<boost::asio::ip::tcp::socket> socket,
         std::shared_ptr<SocketWriteState> state);
 
-    static constexpr size_t max_length = 1024;
+    static constexpr size_t max_length = protocol::kMaxMessageBytes;
     boost::asio::io_context io_context_;
     boost::asio::ip::tcp::acceptor acceptor_;
     std::vector<std::thread> threadPool_;

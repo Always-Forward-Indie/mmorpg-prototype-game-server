@@ -8,6 +8,7 @@
 
 #include "events/EventQueue.hpp"
 #include "utils/Logger.hpp"
+#include "utils/ProtocolLimits.hpp"
 
 #include <functional>
 
@@ -38,7 +39,7 @@ class ClientSession : public std::enable_shared_from_this<ClientSession>
     void handleClientDisconnect();
 
     std::shared_ptr<boost::asio::ip::tcp::socket> socket_;
-    std::array<char, 1024> dataBuffer_;
+    std::array<char, protocol::kReadChunkBytes> dataBuffer_;
     std::string accumulatedData_;
     Logger &logger_;
     std::shared_ptr<spdlog::logger> log_;

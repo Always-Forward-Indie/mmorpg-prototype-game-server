@@ -1,10 +1,13 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.16)
 
 project(MMOGameServer)
 
-# Set C++ standard
-set(CMAKE_CXX_STANDARD 17)
+# C++20 (was 17): invoke_result, concepts-ready.
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+add_compile_options(-Wall -Wextra -Wswitch -Wimplicit-fallthrough)
 
 # Build type is set via -DCMAKE_BUILD_TYPE=Debug|Release (defaults to none if omitted)
 
@@ -60,6 +63,7 @@ set(HEADER_FILES
     include/services/ItemManager.hpp
     include/services/NPCManager.hpp
     include/services/DialogueQuestManager.hpp
+    include/services/GameConfigService.hpp
     include/network/NetworkManager.hpp
     include/network/ClientSession.hpp
     include/events/Event.hpp
@@ -72,6 +76,7 @@ set(HEADER_FILES
     include/utils/Scheduler.hpp
     include/utils/ThreadPool.hpp
     include/utils/JSONParser.hpp
+    include/utils/ProtocolLimits.hpp
     include/utils/ResponseBuilder.hpp
     include/utils/TimeConverter.hpp
     include/utils/Generators.hpp
@@ -79,6 +84,7 @@ set(HEADER_FILES
     include/utils/Logger.hpp
     include/utils/TerminalColors.hpp
     include/utils/Database.hpp
+    include/utils/DatabasePool.hpp
     include/utils/Config.hpp
     include/utils/TimeUtils.hpp
     include/utils/TimestampUtils.hpp
