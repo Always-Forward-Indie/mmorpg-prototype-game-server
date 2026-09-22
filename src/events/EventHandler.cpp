@@ -1,5 +1,6 @@
 #include "events/EventHandler.hpp"
 #include "data/DataStructs.hpp"
+#include "events/Outbox.hpp"
 #include "utils/TerminalColors.hpp"
 #include "utils/TimestampUtils.hpp"
 
@@ -13,7 +14,8 @@ EventHandler::EventHandler(
     GameServices &gameServices)
     : networkManager_(networkManager),
       gameServices_(gameServices),
-      vendorHandler_(networkManager, gameServices)
+      vendorHandler_(networkManager, gameServices),
+      itemHandler_(networkManager, gameServices)
 {
     log_ = gameServices_.getLogger().getSystem("events");
 }
@@ -1512,13 +1514,13 @@ EventHandler::dispatchEvent(const Event &event)
         vendorHandler_.handleGetTrainerDataEvent(event);
         break;
     case Event::SAVE_DURABILITY_CHANGE:
-        handleSaveDurabilityChangeEvent(event);
+        itemHandler_.handleSaveDurabilityChangeEvent(event);
         break;
     case Event::SAVE_CURRENCY_TRANSACTION:
-        handleSaveCurrencyTransactionEvent(event);
+        itemHandler_.handleSaveCurrencyTransactionEvent(event);
         break;
     case Event::SAVE_EQUIPMENT_CHANGE:
-        handleSaveEquipmentChangeEvent(event);
+        itemHandler_.handleSaveEquipmentChangeEvent(event);
         break;
     case Event::GET_RESPAWN_ZONES:
         handleGetRespawnZonesEvent(event);
@@ -1539,16 +1541,16 @@ EventHandler::dispatchEvent(const Event &event)
         handleSaveActiveEffectEvent(event);
         break;
     case Event::SAVE_ITEM_KILL_COUNT:
-        handleSaveItemKillCountEvent(event);
+        itemHandler_.handleSaveItemKillCountEvent(event);
         break;
     case Event::TRANSFER_INVENTORY_ITEM:
-        handleTransferInventoryItemEvent(event);
+        itemHandler_.handleTransferInventoryItemEvent(event);
         break;
     case Event::NULLIFY_ITEM_OWNER:
-        handleNullifyItemOwnerEvent(event);
+        itemHandler_.handleNullifyItemOwnerEvent(event);
         break;
     case Event::DELETE_INVENTORY_ITEM:
-        handleDeleteInventoryItemEvent(event);
+        itemHandler_.handleDeleteInventoryItemEvent(event);
         break;
     case Event::GET_PLAYER_PITY:
         handleGetPlayerPityEvent(event);
@@ -2343,64 +2345,6 @@ EventHandler::handleGetNPCsAttributesEvent(const Event &event)
     }
 }
 
-namespace
-{
-// ── Outbox fact helpers (see Tools/Tests/OUTBOX_PLAN.md) ─────────────────
-// factKeyOf: "" when the sender carries no key (legacy path: proceed,
-// no ack — backward compatible).
-std::string outboxFactKeyOf(const nlohmann::json &body)
-{
-    // Only object bodies carry keys (array bodies = batched snapshots that
-    // self-heal on the next period; they stay on the legacy path).
-    if (!body.is_object())
-        return "";
-    const auto it = body.find("factKey");
-    if (it == body.end() || !it->is_string() || it->get<std::string>().empty())
-        return "";
-    return it->get<std::string>();
-}
-
-// Claim a fact key atomically inside the caller's txn. Returns 1 = fresh
-// (proceed), 0 = duplicate (skip business writes, caller sends
-// ack-duplicate), -1 = transport error (caller must abort WITHOUT ack so
-// the chunk retries). Distinguishes conflict from error explicitly via
-// execChecked: the legacy wrapper swallows exceptions into an empty result,
-// while a real duplicate still yields exactly one row with count 0.
-int outboxClaimFactKey(Database &db, pqxx::work &txn, const std::string &key)
-{
-    pqxx::result rows;
-    try
-    {
-        rows = db.execChecked(txn, "claim_fact_key", {key});
-    }
-    catch (const DatabaseError &)
-    {
-        return -1;
-    }
-    if (rows.empty())
-        return -1;
-    return rows[0][0].as<int>(0) == 1 ? 1 : 0;
-}
-
-void outboxSendFactAck(NetworkManager &net,
-    const std::shared_ptr<boost::asio::ip::tcp::socket> &socket,
-    const std::string &key,
-    const std::string &status)
-{
-    if (!socket || key.empty())
-        return;
-    nlohmann::json response = ResponseBuilder()
-                                  .setHeader("message", "Fact ack")
-                                  .setHeader("hash", "")
-                                  .setHeader("clientId", 0)
-                                  .setHeader("eventType", "factAck")
-                                  .setBody("key", key)
-                                  .setBody("status", status)
-                                  .build();
-    net.sendResponse(socket, net.generateResponseMessage("success", response));
-}
-} // namespace
-
 void
 EventHandler::handleSavePositionsEvent(const Event &event)
 {
@@ -3142,186 +3086,6 @@ EventHandler::handleGetCharacterAttributesRefreshEvent(const Event &event)
 }
 
 void
-EventHandler::handleSaveDurabilityChangeEvent(const Event &event)
-{
-    const auto &data = event.getData();
-
-    try
-    {
-        if (!std::holds_alternative<nlohmann::json>(data))
-        {
-            log_->error("handleSaveDurabilityChangeEvent: unexpected data type");
-            return;
-        }
-        const auto &j = std::get<nlohmann::json>(data);
-        int characterId = j.value("characterId", 0);
-        int inventoryItemId = j.value("inventoryItemId", 0);
-        int durabilityCurrent = j.value("durabilityCurrent", 0);
-
-        if (characterId <= 0 || inventoryItemId <= 0)
-            return;
-
-        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
-        pqxx::work txn(_dbConn.get());
-        // Outbox idempotency: claim first (atomic with the writes below).
-        const std::string durFactKey = outboxFactKeyOf(j);
-        if (!durFactKey.empty())
-        {
-            const int durClaimed = outboxClaimFactKey(
-                gameServices_.getDatabase(), txn, durFactKey);
-            if (durClaimed == 0)
-            {
-                outboxSendFactAck(networkManager_, event.getClientSocket(), durFactKey, "duplicate");
-                return;
-            }
-            if (durClaimed < 0)
-                return;
-        }
-        static_cast<void>(gameServices_.getDatabase().execChecked(
-            txn, "update_durability_current", {durabilityCurrent, inventoryItemId, characterId}));
-        txn.commit();
-        if (!durFactKey.empty())
-            outboxSendFactAck(networkManager_, event.getClientSocket(), durFactKey, "applied");
-
-        log_->info("[SAVE_DUR] char=" + std::to_string(characterId) +
-                   " item=" + std::to_string(inventoryItemId) +
-                   " dur=" + std::to_string(durabilityCurrent));
-    }
-    catch (const std::exception &ex)
-    {
-        gameServices_.getLogger().logError("Error in handleSaveDurabilityChangeEvent: " + std::string(ex.what()));
-    }
-}
-
-void
-EventHandler::handleSaveCurrencyTransactionEvent(const Event &event)
-{
-    const auto &data = event.getData();
-
-    try
-    {
-        if (!std::holds_alternative<nlohmann::json>(data))
-        {
-            log_->error("handleSaveCurrencyTransactionEvent: unexpected data type");
-            return;
-        }
-        const auto &j = std::get<nlohmann::json>(data);
-        int characterId = j.value("characterId", 0);
-        int npcId = j.value("npcId", 0);
-        int itemId = j.value("itemId", 0);
-        int quantity = j.value("quantity", 0);
-        int totalPrice = j.value("totalPrice", 0);
-        std::string txType = j.value("transactionType", "");
-
-        if (characterId <= 0)
-            return;
-
-        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
-        pqxx::work txn(_dbConn.get());
-        // Outbox idempotency: claim first (atomic with the writes below).
-        const std::string curFactKey = outboxFactKeyOf(j);
-        if (!curFactKey.empty())
-        {
-            const int curClaimed = outboxClaimFactKey(
-                gameServices_.getDatabase(), txn, curFactKey);
-            if (curClaimed == 0)
-            {
-                outboxSendFactAck(networkManager_, event.getClientSocket(), curFactKey, "duplicate");
-                return;
-            }
-            if (curClaimed < 0)
-                return;
-        }
-        static_cast<void>(gameServices_.getDatabase().execChecked(
-            txn, "insert_currency_transaction", {characterId, npcId, totalPrice, txType}));
-        txn.commit();
-        if (!curFactKey.empty())
-            outboxSendFactAck(networkManager_, event.getClientSocket(), curFactKey, "applied");
-
-        log_->info("[CURRENCY_TX] char=" + std::to_string(characterId) +
-                   " type=" + txType + " item=" + std::to_string(itemId) +
-                   " qty=" + std::to_string(quantity) + " price=" + std::to_string(totalPrice));
-    }
-    catch (const std::exception &ex)
-    {
-        gameServices_.getLogger().logError("Error in handleSaveCurrencyTransactionEvent: " + std::string(ex.what()));
-    }
-}
-
-void
-EventHandler::handleSaveEquipmentChangeEvent(const Event &event)
-{
-    const auto &data = event.getData();
-
-    try
-    {
-        if (!std::holds_alternative<nlohmann::json>(data))
-        {
-            log_->error("handleSaveEquipmentChangeEvent: unexpected data type");
-            return;
-        }
-        const auto &j = std::get<nlohmann::json>(data);
-        int characterId = j.value("characterId", 0);
-        int inventoryItemId = j.value("inventoryItemId", 0);
-        std::string action = j.value("action", "");
-        std::string equipSlotSlug = j.value("equipSlotSlug", "");
-
-        if (characterId <= 0 || inventoryItemId <= 0 || action.empty())
-            return;
-
-        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
-        pqxx::work txn(_dbConn.get());
-        // Outbox idempotency: claim first (atomic with the writes below).
-        const std::string equipFactKey = outboxFactKeyOf(j);
-        if (!equipFactKey.empty())
-        {
-            const int equipClaimed = outboxClaimFactKey(
-                gameServices_.getDatabase(), txn, equipFactKey);
-            if (equipClaimed == 0)
-            {
-                outboxSendFactAck(networkManager_, event.getClientSocket(), equipFactKey, "duplicate");
-                return;
-            }
-            if (equipClaimed < 0)
-                return;
-        }
-
-        if (action == "equip")
-        {
-            if (equipSlotSlug.empty())
-            {
-                log_->error("[SAVE_EQUIP] equipSlotSlug is empty for char=" + std::to_string(characterId));
-                return;
-            }
-            static_cast<void>(gameServices_.getDatabase().execChecked(
-                txn, "insert_character_equipment", {characterId, equipSlotSlug, inventoryItemId}));
-        }
-        else if (action == "unequip")
-        {
-            static_cast<void>(gameServices_.getDatabase().execChecked(
-                txn, "delete_character_equipment", {characterId, inventoryItemId}));
-        }
-        else
-        {
-            log_->error("[SAVE_EQUIP] Unknown action: " + action);
-            return;
-        }
-        txn.commit();
-        if (!equipFactKey.empty())
-            outboxSendFactAck(networkManager_, event.getClientSocket(), equipFactKey, "applied");
-
-        log_->info("[SAVE_EQUIP] char=" + std::to_string(characterId) +
-                   " action=" + action +
-                   " slot=" + equipSlotSlug +
-                   " invItemId=" + std::to_string(inventoryItemId));
-    }
-    catch (const std::exception &ex)
-    {
-        gameServices_.getLogger().logError("Error in handleSaveEquipmentChangeEvent: " + std::string(ex.what()));
-    }
-}
-
-void
 EventHandler::handleGetRespawnZonesEvent(const Event &event)
 {
     int clientID = event.getClientID();
@@ -3548,160 +3312,6 @@ EventHandler::handleSaveActiveEffectEvent(const Event &event)
     catch (const std::exception &ex)
     {
         gameServices_.getLogger().logError("handleSaveActiveEffectEvent error: " + std::string(ex.what()));
-    }
-}
-
-void
-EventHandler::handleSaveItemKillCountEvent(const Event &event)
-{
-    const auto &data = event.getData();
-
-    try
-    {
-        if (!std::holds_alternative<nlohmann::json>(data))
-        {
-            log_->error("handleSaveItemKillCountEvent: unexpected data type");
-            return;
-        }
-        const auto &j = std::get<nlohmann::json>(data);
-        int characterId = j.value("characterId", 0);
-        int inventoryItemId = j.value("inventoryItemId", 0);
-        int killCount = j.value("killCount", 0);
-
-        if (characterId <= 0 || inventoryItemId <= 0)
-            return;
-
-        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
-        pqxx::work txn(_dbConn.get());
-        // Outbox idempotency: claim first (atomic with the writes below).
-        const std::string killFactKey = outboxFactKeyOf(j);
-        if (!killFactKey.empty())
-        {
-            const int killClaimed = outboxClaimFactKey(
-                gameServices_.getDatabase(), txn, killFactKey);
-            if (killClaimed == 0)
-            {
-                outboxSendFactAck(networkManager_, event.getClientSocket(), killFactKey, "duplicate");
-                return;
-            }
-            if (killClaimed < 0)
-                return;
-        }
-        static_cast<void>(gameServices_.getDatabase().execChecked(
-            txn, "update_item_kill_count", {killCount, inventoryItemId, characterId}));
-        txn.commit();
-        if (!killFactKey.empty())
-            outboxSendFactAck(networkManager_, event.getClientSocket(), killFactKey, "applied");
-
-        log_->info("[SAVE_KILL_COUNT] char=" + std::to_string(characterId) +
-                   " item=" + std::to_string(inventoryItemId) +
-                   " kills=" + std::to_string(killCount));
-    }
-    catch (const std::exception &ex)
-    {
-        gameServices_.getLogger().logError("Error in handleSaveItemKillCountEvent: " + std::string(ex.what()));
-    }
-}
-
-void
-EventHandler::handleTransferInventoryItemEvent(const Event &event)
-{
-    const auto &data = event.getData();
-
-    try
-    {
-        if (!std::holds_alternative<nlohmann::json>(data))
-        {
-            log_->error("handleTransferInventoryItemEvent: unexpected data type");
-            return;
-        }
-        const auto &j = std::get<nlohmann::json>(data);
-        int toCharId = j.value("toCharId", 0);
-        int inventoryItemId = j.value("inventoryItemId", 0);
-        int fromCharId = j.value("fromCharId", 0);
-
-        if (toCharId <= 0 || inventoryItemId <= 0)
-            return;
-
-        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
-        pqxx::work txn(_dbConn.get());
-        if (fromCharId > 0)
-        {
-            // P2P trade: item still owned by the sender in DB
-            static_cast<void>(gameServices_.getDatabase().execChecked(
-                txn, "transfer_item_between_chars", {toCharId, inventoryItemId, fromCharId}));
-        }
-        else
-        {
-            // Ground pickup: character_id IS NULL in DB
-            static_cast<void>(gameServices_.getDatabase().execChecked(
-                txn, "transfer_item_ownership", {toCharId, inventoryItemId}));
-        }
-        txn.commit();
-
-        log_->info("[TRANSFER_ITEM] to=" + std::to_string(toCharId) +
-                   " invItem=" + std::to_string(inventoryItemId) +
-                   (fromCharId > 0 ? " from=" + std::to_string(fromCharId) : " (ground)"));
-    }
-    catch (const std::exception &ex)
-    {
-        gameServices_.getLogger().logError("Error in handleTransferInventoryItemEvent: " + std::string(ex.what()));
-    }
-}
-
-void
-EventHandler::handleNullifyItemOwnerEvent(const Event &event)
-{
-    const auto &data = event.getData();
-    try
-    {
-        if (!std::holds_alternative<nlohmann::json>(data))
-            return;
-        const auto &j = std::get<nlohmann::json>(data);
-        int inventoryItemId = j.value("inventoryItemId", 0);
-        int fromCharId = j.value("fromCharId", 0);
-        if (inventoryItemId <= 0 || fromCharId <= 0)
-            return;
-
-        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
-        pqxx::work txn(_dbConn.get());
-        static_cast<void>(gameServices_.getDatabase().execChecked(
-            txn, "nullify_item_owner", {inventoryItemId, fromCharId}));
-        txn.commit();
-
-        log_->info("[NULLIFY_OWNER] char=" + std::to_string(fromCharId) +
-                   " invItem=" + std::to_string(inventoryItemId));
-    }
-    catch (const std::exception &ex)
-    {
-        gameServices_.getLogger().logError("Error in handleNullifyItemOwnerEvent: " + std::string(ex.what()));
-    }
-}
-
-void
-EventHandler::handleDeleteInventoryItemEvent(const Event &event)
-{
-    const auto &data = event.getData();
-    try
-    {
-        if (!std::holds_alternative<nlohmann::json>(data))
-            return;
-        const auto &j = std::get<nlohmann::json>(data);
-        int inventoryItemId = j.value("inventoryItemId", 0);
-        if (inventoryItemId <= 0)
-            return;
-
-        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
-        pqxx::work txn(_dbConn.get());
-        static_cast<void>(gameServices_.getDatabase().execChecked(
-            txn, "delete_inventory_item_by_id", {inventoryItemId}));
-        txn.commit();
-
-        log_->info("[DELETE_ITEM] invItem=" + std::to_string(inventoryItemId));
-    }
-    catch (const std::exception &ex)
-    {
-        gameServices_.getLogger().logError("Error in handleDeleteInventoryItemEvent: " + std::string(ex.what()));
     }
 }
 

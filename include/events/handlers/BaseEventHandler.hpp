@@ -2,6 +2,7 @@
 
 #include <boost/asio.hpp>
 #include <memory>
+#include <spdlog/logger.h>
 #include <string>
 
 #include "events/Event.hpp"

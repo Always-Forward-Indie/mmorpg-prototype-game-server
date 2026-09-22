@@ -32,7 +32,9 @@ set(SOURCE_FILES
     src/events/EventQueue.cpp
     src/events/EventHandler.cpp
     src/events/EventDispatcher.cpp
+    src/events/Outbox.cpp
     src/events/handlers/BaseEventHandler.cpp
+    src/events/handlers/ItemEventHandler.cpp
     src/events/handlers/VendorEventHandler.cpp
     src/utils/Scheduler.cpp
     src/utils/ThreadPool.cpp
@@ -71,7 +73,9 @@ set(HEADER_FILES
     include/events/EventQueue.hpp
     include/events/EventHandler.hpp
     include/events/EventDispatcher.hpp
+    include/events/Outbox.hpp
     include/events/handlers/BaseEventHandler.hpp
+    include/events/handlers/ItemEventHandler.hpp
     include/events/handlers/VendorEventHandler.hpp
     include/data/DataStructs.hpp
     include/data/SkillStructs.hpp
