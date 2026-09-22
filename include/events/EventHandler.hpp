@@ -8,6 +8,7 @@
 
 #include "Event.hpp"
 #include "events/handlers/ItemEventHandler.hpp"
+#include "events/handlers/SocialEventHandler.hpp"
 #include "events/handlers/SkillsEventHandler.hpp"
 #include "events/handlers/ProgressionEventHandler.hpp"
 #include "events/handlers/WorldEventHandler.hpp"
@@ -56,12 +57,7 @@ class EventHandler
     // Stage 4: Reputation, Mastery, Zone Events
     // Mastery definition system
     // Title system
-    void handleGetTitleDefinitionsEvent(const Event &event);
-    void handleGetPlayerTitlesEvent(const Event &event);
-    void handleSavePlayerTitleEvent(const Event &event);
     // Emote system
-    void handleGetEmoteDefinitionsEvent(const Event &event);
-    void handleGetPlayerEmotesEvent(const Event &event);
     // NPC Ambient Speech system
 
     // Experience debt
@@ -87,6 +83,7 @@ class EventHandler
     // Extracted domain handlers (god-object split, one domain per commit).
     VendorEventHandler vendorHandler_;
     ItemEventHandler itemHandler_;
+    SocialEventHandler socialHandler_;
     SkillsEventHandler skillsHandler_;
     ProgressionEventHandler progressionHandler_;
     WorldEventHandler worldHandler_;

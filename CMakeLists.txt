@@ -35,6 +35,7 @@ set(SOURCE_FILES
     src/events/Outbox.cpp
     src/events/handlers/BaseEventHandler.cpp
     src/events/handlers/ItemEventHandler.cpp
+    src/events/handlers/SocialEventHandler.cpp
     src/events/handlers/SkillsEventHandler.cpp
     src/events/handlers/ProgressionEventHandler.cpp
     src/events/handlers/WorldEventHandler.cpp
@@ -83,6 +84,7 @@ set(HEADER_FILES
     include/events/Outbox.hpp
     include/events/handlers/BaseEventHandler.hpp
     include/events/handlers/ItemEventHandler.hpp
+    include/events/handlers/SocialEventHandler.hpp
     include/events/handlers/SkillsEventHandler.hpp
     include/events/handlers/ProgressionEventHandler.hpp
     include/events/handlers/WorldEventHandler.hpp
