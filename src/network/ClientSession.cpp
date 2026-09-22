@@ -90,8 +90,8 @@ ClientSession::doRead()
                 // Append new data to our session-specific buffer.
                 accumulatedData_.append(dataBuffer_.data(), bytes_transferred);
 
-                // log the received data
-                log_->info("DEBUG Received data from client: " + accumulatedData_);
+                // debug-level: per-read payload dump (very noisy with bots/swarm).
+                log_->debug("DEBUG Received data from client: " + accumulatedData_);
 
                 std::string delimiter = "\n";
                 size_t pos;
@@ -122,7 +122,7 @@ ClientSession::doRead()
                         ++processed;
                         continue;
                     }
-                    log_->info("Received data from client: " + message);
+                    log_->debug("Received data from client: " + message);
                     processMessage(message);
                     accumulatedData_.erase(0, pos + delimiter.size());
                     ++processed;

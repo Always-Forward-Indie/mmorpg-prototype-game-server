@@ -242,7 +242,8 @@ NetworkManager::doNextWrite(std::shared_ptr<boost::asio::ip::tcp::socket> socket
                 boost::system::error_code ec;
                 auto ep = socket->remote_endpoint(ec);
                 if (!ec)
-                    logger_.log("Data sent to: " + ep.address().to_string() + ":" + std::to_string(ep.port()), BLUE);
+                    // debug-level: fires per packet (heartbeats, catalog, ticks).
+                    logger_.debug("Data sent to: " + ep.address().to_string() + ":" + std::to_string(ep.port()));
                 doNextWrite(std::move(socket), std::move(state));
             }));
 }
@@ -259,7 +260,7 @@ NetworkManager::generateResponseMessage(const std::string &status, const nlohman
     response["body"] = message["body"];
 
     std::string responseString = response.dump();
-    log_->info("Response generated: " + responseString);
+    log_->debug("Response generated: " + responseString);
     return responseString + "\n";
 }
 
@@ -281,7 +282,7 @@ NetworkManager::generateResponseMessage(const std::string &status, const nlohman
     response["body"] = message["body"];
 
     std::string responseString = response.dump();
-    log_->info("Response with timestamps generated: " + responseString);
+    log_->debug("Response with timestamps generated: " + responseString);
     return responseString + "\n";
 }
 

@@ -15,7 +15,6 @@ add_compile_options(-Wall -Wextra -Wswitch -Wimplicit-fallthrough)
 set(SOURCE_FILES
     src/main.cpp
     src/game_server/GameServer.cpp
-    src/services/Authenticator.cpp
     src/services/ClientManager.cpp  
     src/services/ChunkManager.cpp
     src/services/CharacterManager.cpp
@@ -51,7 +50,6 @@ set(SOURCE_FILES
 # Define your project's header files
 set(HEADER_FILES
     include/game_server/GameServer.hpp
-    include/services/Authenticator.hpp
     include/services/ClientManager.hpp
     include/services/ChunkManager.hpp
     include/services/GameServices.hpp
