@@ -1,7 +1,10 @@
 #pragma once
 
 #include <boost/asio.hpp>
+#include <memory>
+#include <mutex>
 #include <string>
+#include <unordered_map>
 
 #include "Event.hpp"
 #include "network/NetworkManager.hpp"
@@ -127,4 +130,13 @@ class EventHandler
     NetworkManager &networkManager_;
     GameServices &gameServices_;
     std::shared_ptr<spdlog::logger> log_;
+
+    /// Per-chunk-id JOIN serialization. The full catalog push is ~24 sequential
+    /// DB round-trips in this worker; two concurrent JOINs for one chunk id
+    /// (flap + heartbeat race) would interleave duplicate pushes. Heartbeat
+    /// re-asserts skip the push (sameSocket fast-path) so this lock is only
+    /// contended on real (re)connects. One entry per chunk id, created on demand.
+    std::mutex joinMapMutex_;
+    std::unordered_map<int, std::shared_ptr<std::mutex>> joinLocks_;
+    std::shared_ptr<std::mutex> joinLockFor(int chunkId);
 };

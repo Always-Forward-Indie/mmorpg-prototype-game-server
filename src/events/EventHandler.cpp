@@ -4,6 +4,7 @@
 #include "utils/TimestampUtils.hpp"
 
 #include "events/Event.hpp"
+#include <chrono>
 #include <cstdlib>
 #include <spdlog/logger.h>
 
@@ -14,6 +15,18 @@ EventHandler::EventHandler(
       gameServices_(gameServices)
 {
     log_ = gameServices_.getLogger().getSystem("events");
+}
+
+std::shared_ptr<std::mutex>
+EventHandler::joinLockFor(int chunkId)
+{
+    std::lock_guard<std::mutex> lock(joinMapMutex_);
+    auto it = joinLocks_.find(chunkId);
+    if (it != joinLocks_.end())
+        return it->second;
+    auto m = std::make_shared<std::mutex>();
+    joinLocks_.emplace(chunkId, m);
+    return m;
 }
 
 void
@@ -612,102 +625,153 @@ EventHandler::handleJoinChunkServerEvent(const Event &event)
             // Heartbeat re-asserts skip straight to the ack below.
             if (!sameSocket)
             {
+            // Serialize concurrent JOINs for one chunk id (flap + heartbeat
+            // race): the push is ~24 sequential DB round-trips and two
+            // interleaved pushes duplicate the whole catalog chunk-side.
+            // Heartbeats skip this block, so steady-state is unaffected.
+            std::lock_guard<std::mutex> joinGuard(*joinLockFor(chunkData.id));
+            const auto joinStart = std::chrono::steady_clock::now();
+            int catalogFailed = 0;
+            // One bad catalog entry must not kill the whole join: each
+            // dispatch runs isolated (pool timeout, bad row, etc.), failures
+            // are counted and reported. Previously any std::exception here
+            // skipped the remaining entries AND the ack below, leaving the
+            // chunk booted partial with no ack (hang until next heartbeat).
+            auto dispatchCatalog = [this, &catalogFailed](const Event &e, const char *name)
+            {
+                try
+                {
+                    dispatchEvent(e);
+                }
+                catch (const std::exception &ex)
+                {
+                    ++catalogFailed;
+                    log_->error(std::string("[join] catalog '") + name + "' failed: " + ex.what());
+                }
+            };
             // load spawn zones
             Event spawnZonesEvent(Event::GET_SPAWN_ZONES, clientID, SpawnZoneStruct(), clientSocket);
-            dispatchEvent(spawnZonesEvent);
+            dispatchCatalog(spawnZonesEvent, "spawn_zones");
 
             // load mobs
             Event mobDataEvent(Event::GET_MOBS_LIST, clientID, MobDataStruct(), clientSocket);
-            dispatchEvent(mobDataEvent);
+            dispatchCatalog(mobDataEvent, "mobs");
 
             // load mobs attributes
             Event mobAttributesEvent(Event::GET_MOBS_ATTRIBUTES, clientID, MobAttributeStruct(), clientSocket);
-            dispatchEvent(mobAttributesEvent);
+            dispatchCatalog(mobAttributesEvent, "mobs_attributes");
 
             // load NPCs
             Event npcDataEvent(Event::GET_NPCS_LIST, clientID, NPCDataStruct(), clientSocket);
-            dispatchEvent(npcDataEvent);
+            dispatchCatalog(npcDataEvent, "npcs");
 
             // load NPCs attributes
             Event npcAttributesEvent(Event::GET_NPCS_ATTRIBUTES, clientID, NPCAttributeStruct(), clientSocket);
-            dispatchEvent(npcAttributesEvent);
+            dispatchCatalog(npcAttributesEvent, "npcs_attributes");
 
             // load items
             Event itemsEvent(Event::GET_ITEMS_LIST, clientID, ItemDataStruct(), clientSocket);
-            dispatchEvent(itemsEvent);
+            dispatchCatalog(itemsEvent, "items");
 
             // load mob loot info
             Event mobLootEvent(Event::GET_MOB_LOOT_INFO, clientID, MobLootInfoStruct(), clientSocket);
-            dispatchEvent(mobLootEvent);
+            dispatchCatalog(mobLootEvent, "mob_loot");
 
             // load experience level table
             Event expLevelTableEvent(Event::GET_EXP_LEVEL_TABLE, clientID, ClientDataStruct(), clientSocket);
-            dispatchEvent(expLevelTableEvent);
+            dispatchCatalog(expLevelTableEvent, "exp_table");
 
             // load dialogues and NPC dialogue mappings
             Event dialoguesEvent(Event::GET_DIALOGUES, clientID, ClientDataStruct(), clientSocket);
-            dispatchEvent(dialoguesEvent);
+            dispatchCatalog(dialoguesEvent, "dialogues");
 
             // load quests
             Event questsEvent(Event::GET_QUESTS, clientID, ClientDataStruct(), clientSocket);
-            dispatchEvent(questsEvent);
+            dispatchCatalog(questsEvent, "quests");
 
             // load game config
             gameServices_.getGameConfigService().loadConfig(gameServices_.getDatabase());
             Event gameConfigEvent(Event::GET_GAME_CONFIG, clientID, ClientDataStruct(), clientSocket);
-            dispatchEvent(gameConfigEvent);
+            dispatchCatalog(gameConfigEvent, "game_config");
 
             // load vendor NPC inventory
             Event vendorDataEvent(Event::GET_VENDOR_DATA, clientID, ClientDataStruct(), clientSocket);
-            dispatchEvent(vendorDataEvent);
+            dispatchCatalog(vendorDataEvent, "vendor");
 
             // load trainer NPC skill lists
             Event trainerDataEvent(Event::GET_TRAINER_DATA, clientID, ClientDataStruct(), clientSocket);
-            dispatchEvent(trainerDataEvent);
+            dispatchCatalog(trainerDataEvent, "trainer");
 
             // load respawn zones
             Event respawnZonesEvent(Event::GET_RESPAWN_ZONES, clientID, ClientDataStruct(), clientSocket);
-            dispatchEvent(respawnZonesEvent);
+            dispatchCatalog(respawnZonesEvent, "respawn_zones");
 
             // load class spawn zones
             Event classSpawnZonesEvent(Event::GET_CLASS_SPAWN_ZONES, clientID, ClientDataStruct(), clientSocket);
-            dispatchEvent(classSpawnZonesEvent);
+            dispatchCatalog(classSpawnZonesEvent, "class_spawn_zones");
 
             // load game zones (AABB bounds + exploration XP)
             Event gameZonesEvent(Event::GET_GAME_ZONES, clientID, ClientDataStruct(), clientSocket);
-            dispatchEvent(gameZonesEvent);
+            dispatchCatalog(gameZonesEvent, "game_zones");
 
             // load status effect templates (data-driven buff/debuff config)
             Event statusEffectTemplatesEvent(Event::GET_STATUS_EFFECT_TEMPLATES, clientID, ClientDataStruct(), clientSocket);
-            dispatchEvent(statusEffectTemplatesEvent);
+            dispatchCatalog(statusEffectTemplatesEvent, "status_effects");
 
             // load timed champion templates (Stage 3 — mob ecosystem)
             Event timedChampionTemplatesEvent(Event::GET_TIMED_CHAMPION_TEMPLATES, clientID, ClientDataStruct(), clientSocket);
-            dispatchEvent(timedChampionTemplatesEvent);
+            dispatchCatalog(timedChampionTemplatesEvent, "timed_champions");
 
             // load zone event templates (Stage 4 — world events)
             Event zoneEventTemplatesEvent(Event::GET_ZONE_EVENT_TEMPLATES, clientID, ClientDataStruct(), clientSocket);
-            dispatchEvent(zoneEventTemplatesEvent);
+            dispatchCatalog(zoneEventTemplatesEvent, "zone_events");
 
             // load mastery definitions (global catalog — defines which attribute each mastery type buffs)
             Event masteryDefsEvent(Event::GET_MASTERY_DEFINITIONS, clientID, 0, clientSocket);
-            dispatchEvent(masteryDefsEvent);
+            dispatchCatalog(masteryDefsEvent, "mastery_defs");
 
             // load title definitions (global catalog — same lifetime as zone templates)
             Event titleDefsEvent(Event::GET_TITLE_DEFINITIONS, clientID, 0, clientSocket);
-            dispatchEvent(titleDefsEvent);
+            dispatchCatalog(titleDefsEvent, "title_defs");
 
             // load emote definitions (global catalog)
             Event emoteDefsEvent(Event::GET_EMOTE_DEFINITIONS, clientID, 0, clientSocket);
-            dispatchEvent(emoteDefsEvent);
+            dispatchCatalog(emoteDefsEvent, "emote_defs");
 
             // load NPC ambient speech configs + lines
             Event ambientSpeechEvent(Event::GET_NPC_AMBIENT_SPEECH, clientID, 0, clientSocket);
-            dispatchEvent(ambientSpeechEvent);
+            dispatchCatalog(ambientSpeechEvent, "ambient_speech");
 
             // load world interactive objects (migration 043)
             Event worldObjectsEvent(Event::GET_WORLD_OBJECTS, clientID, 0, clientSocket);
-            dispatchEvent(worldObjectsEvent);
+            dispatchCatalog(worldObjectsEvent, "world_objects");
+
+            const auto joinMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - joinStart).count();
+            // NOTE: root logger, not the events system logger: LOG_LEVEL_EVENTS=warn
+            // in dev env filters info, and join summaries must stay visible (the
+            // per-entry failure above is error-level so it always shows).
+            gameServices_.getLogger().info("[join] full catalog push chunk=" + std::to_string(chunkData.id) +
+                       " entries=24 failed=" + std::to_string(catalogFailed) +
+                       " tookMs=" + std::to_string(joinMs));
+            if (catalogFailed > 0)
+            {
+                // Fail loud + self-heal: drop the registration so the next
+                // 60s heartbeat is treated as a new link (unknown id) and
+                // retries the full push. Acking success on a partial catalog
+                // would boot a broken world with no retry (sameSocket path
+                // skips the push).
+                gameServices_.getChunkManager().removeChunkServerDataById(chunkData.id);
+                response = builder
+                               .setHeader("message", "ERR_JOIN_CATALOG_INCOMPLETE")
+                               .setHeader("hash", "")
+                               .setHeader("clientId", clientID)
+                               .setHeader("eventType", "setChunkData")
+                               .setBody("chunkServerData", chunkServerDataJson)
+                               .build();
+                networkManager_.sendResponse(clientSocket, networkManager_.generateResponseMessage("error", response));
+                return;
+            }
             } // if (!sameSocket): end of full catalog push
         }
 
