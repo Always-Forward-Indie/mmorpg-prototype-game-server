@@ -1,6 +1,5 @@
 #include "game_server/GameServer.hpp"
 #include "network/NetworkManager.hpp"
-#include "services/CharacterManager.hpp"
 #include "services/GameServices.hpp"
 #include "utils/Config.hpp"
 #include "utils/Database.hpp"
@@ -46,14 +45,14 @@ main()
         // Initialize Database
         Database database(configs, logger);
 
-        // Initialize CharacterManager
-        CharacterManager characterManager(logger);
-
-        // Reset online status for all characters (crash recovery)
-        characterManager.resetAllOnline(database);
-
-        // Initialize GameServices
+        // Initialize GameServices (no I/O in ctor) and load static data
+        // in explicit dependency order (fail-fast on DB errors).
         GameServices gameServices(database, logger);
+        gameServices.loadStaticData();
+
+        // Reset online status for all characters (crash recovery) via the
+        // shared CharacterManager (was a second throwaway instance).
+        gameServices.getCharacterManager().resetAllOnline(database);
 
         // Initialize NetworkManager
         NetworkManager networkManager(eventQueueGameServer, eventQueueGameServerPing, configs, logger);

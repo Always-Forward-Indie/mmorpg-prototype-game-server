@@ -29,7 +29,14 @@ class GameServices
           dialogueQuestManager_(database_, logger_),
           gameConfigService_(logger_)
     {
-        // Explicit data loading (was implicit in manager ctors).
+        // No I/O here: construction never touches the DB (see loadStaticData).
+    }
+
+    /// Load all static catalog data in dependency order. Called once from
+    /// main after construction; throws DatabaseError on transport failure
+    /// (fail-fast with the query name, caught in main -> exit 1).
+    void loadStaticData()
+    {
         mobManager_.loadMobs(database_);
         itemManager_.loadItems(database_);
         itemManager_.loadMobLoot(database_);
