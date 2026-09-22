@@ -8,6 +8,7 @@
 
 #include "Event.hpp"
 #include "events/handlers/ItemEventHandler.hpp"
+#include "events/handlers/EffectsEventHandler.hpp"
 #include "events/handlers/SocialEventHandler.hpp"
 #include "events/handlers/SkillsEventHandler.hpp"
 #include "events/handlers/ProgressionEventHandler.hpp"
@@ -63,16 +64,12 @@ class EventHandler
     // Experience debt
 
     // Active status effects
-    void handleSaveActiveEffectEvent(const Event &event);
 
     // World Interactive Objects (migration 043)
 
     // Skill cooldown persistence (migration 067)
-    void handleSaveSkillCooldownEvent(const Event &event);
-    void handleGetPlayerSkillCooldownsEvent(const Event &event);
 
     // Analytics system (migration 058)
-    void handleSaveAnalyticsEventEvent(const Event &event);
 
     // Online status recovery
 
@@ -83,6 +80,7 @@ class EventHandler
     // Extracted domain handlers (god-object split, one domain per commit).
     VendorEventHandler vendorHandler_;
     ItemEventHandler itemHandler_;
+    EffectsEventHandler effectsHandler_;
     SocialEventHandler socialHandler_;
     SkillsEventHandler skillsHandler_;
     ProgressionEventHandler progressionHandler_;
