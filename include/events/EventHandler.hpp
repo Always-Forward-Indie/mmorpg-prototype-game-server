@@ -8,6 +8,7 @@
 
 #include "Event.hpp"
 #include "events/handlers/ItemEventHandler.hpp"
+#include "events/handlers/WorldEventHandler.hpp"
 #include "events/handlers/CatalogEventHandler.hpp"
 #include "events/handlers/InventoryEventHandler.hpp"
 #include "events/handlers/CharacterEventHandler.hpp"
@@ -30,19 +31,10 @@ class EventHandler
     void handleJoinPlayerClientEvent(const Event &event);
 
     void handleMoveCharacterChunkEvent(const Event &event);
-    void handleGetSpawnZonesEvent(const Event &event);
-    void handleGetMobDataEvent(const Event &event);
-    void handleGetMobsListEvent(const Event &event);
     void handleDisconnectChunkEvent(const Event &event);
     void handleJoinChunkServerEvent(const Event &event);
     void handleDisconnectChunkServerEvent(const Event &event);
 
-    void handleGetMobsAttributesEvent(const Event &event);
-    void handleGetItemsListEvent(const Event &event);
-    void handleGetMobLootInfoEvent(const Event &event);
-
-    void handleGetNPCsListEvent(const Event &event);
-    void handleGetNPCsAttributesEvent(const Event &event);
     void handleSaveHpManaEvent(const Event &event); // ARCH-4
 
     // Dialogue & Quest events
@@ -105,6 +97,7 @@ class EventHandler
     // Extracted domain handlers (god-object split, one domain per commit).
     VendorEventHandler vendorHandler_;
     ItemEventHandler itemHandler_;
+    WorldEventHandler worldHandler_;
     CatalogEventHandler catalogHandler_;
     InventoryEventHandler inventoryHandler_;
     CharacterEventHandler characterHandler_;
