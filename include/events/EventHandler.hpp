@@ -8,6 +8,7 @@
 
 #include "Event.hpp"
 #include "events/handlers/ItemEventHandler.hpp"
+#include "events/handlers/DialogueQuestEventHandler.hpp"
 #include "events/handlers/VendorEventHandler.hpp"
 #include "network/NetworkManager.hpp"
 #include "services/GameServices.hpp"
@@ -49,14 +50,6 @@ class EventHandler
     void handleGetPlayerInventoryEvent(const Event &event);
 
     // Dialogue & Quest events
-    void handleGetDialoguesEvent(const Event &event);
-    void handleGetQuestsEvent(const Event &event);
-    void handleGetPlayerQuestsEvent(const Event &event);
-    void handleGetPlayerFlagsEvent(const Event &event);
-    void handleGetPlayerActiveEffectsEvent(const Event &event);
-    void handleGetCharacterAttributesRefreshEvent(const Event &event);
-    void handleUpdatePlayerQuestProgressEvent(const Event &event);
-    void handleUpdatePlayerFlagEvent(const Event &event);
 
     // Game config
     void handleGetGameConfigEvent(const Event &event);
@@ -129,6 +122,7 @@ class EventHandler
     // Extracted domain handlers (god-object split, one domain per commit).
     VendorEventHandler vendorHandler_;
     ItemEventHandler itemHandler_;
+    DialogueQuestEventHandler dialogueQuestHandler_;
 
     /// Per-chunk-id JOIN serialization. The full catalog push is ~24 sequential
     /// DB round-trips in this worker; two concurrent JOINs for one chunk id
