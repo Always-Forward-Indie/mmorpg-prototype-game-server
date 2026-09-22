@@ -40,6 +40,7 @@ set(SOURCE_FILES
     src/utils/Logger.cpp
     src/utils/Database.cpp
     src/utils/DatabasePool.cpp
+    src/utils/QueryRegistry.cpp
     src/utils/Config.cpp
     src/utils/TimeUtils.cpp
     src/utils/TimestampUtils.cpp
@@ -83,6 +84,7 @@ set(HEADER_FILES
     include/utils/TerminalColors.hpp
     include/utils/Database.hpp
     include/utils/DatabasePool.hpp
+    include/utils/QueryRegistry.hpp
     include/utils/Config.hpp
     include/utils/TimeUtils.hpp
     include/utils/TimestampUtils.hpp

@@ -18,6 +18,7 @@ if(GTest_FOUND)
         test_game_config.cpp
         test_random_utils.cpp
         test_config.cpp
+        test_query_registry.cpp
         ../src/services/ChunkManager.cpp
         ../src/services/ClientManager.cpp
         ../src/services/CharacterManager.cpp
@@ -29,6 +30,7 @@ if(GTest_FOUND)
         ../src/services/GameConfigService.cpp
         ../src/utils/ThreadPool.cpp
         ../src/utils/Config.cpp
+        ../src/utils/QueryRegistry.cpp
         ../src/events/Event.cpp
         ../src/events/EventQueue.cpp
         ../src/utils/Logger.cpp
