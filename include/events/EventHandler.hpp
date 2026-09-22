@@ -8,6 +8,7 @@
 
 #include "Event.hpp"
 #include "events/handlers/ItemEventHandler.hpp"
+#include "events/handlers/ProgressionEventHandler.hpp"
 #include "events/handlers/WorldEventHandler.hpp"
 #include "events/handlers/CatalogEventHandler.hpp"
 #include "events/handlers/InventoryEventHandler.hpp"
@@ -48,14 +49,8 @@ class EventHandler
     // Respawn zones
 
     // Pity & Bestiary
-    void handleGetPlayerPityEvent(const Event &event);
-    void handleGetPlayerBestiaryEvent(const Event &event);
-    void handleSavePityCounterEvent(const Event &event);
-    void handleSaveBestiaryKillEvent(const Event &event);
 
     // Champion system (Stage 3)
-    void handleGetTimedChampionTemplatesEvent(const Event &event);
-    void handleTimedChampionKilledEvent(const Event &event);
 
     // Stage 4: Reputation, Mastery, Zone Events
     void handleGetPlayerReputationsEvent(const Event &event);
@@ -97,6 +92,7 @@ class EventHandler
     // Extracted domain handlers (god-object split, one domain per commit).
     VendorEventHandler vendorHandler_;
     ItemEventHandler itemHandler_;
+    ProgressionEventHandler progressionHandler_;
     WorldEventHandler worldHandler_;
     CatalogEventHandler catalogHandler_;
     InventoryEventHandler inventoryHandler_;
