@@ -110,9 +110,10 @@ Database::handleDatabaseError(const std::exception &e)
     logger_.logError("Database error: " + std::string(e.what()));
 }
 
-// Function to execute a query with a transaction
+// Fail-loud variant: throws DatabaseError (query-name context) instead of
+// returning an empty result. Aborts the passed transaction before throwing.
 pqxx::result
-Database::executeQueryWithTransaction(
+Database::execChecked(
     pqxx::work &transaction,
     const std::string &preparedQueryName,
     const std::vector<std::variant<int, int64_t, float, double, std::string>> &parameters)
@@ -140,14 +141,34 @@ Database::executeQueryWithTransaction(
         }
 
         // Use the parameter pack expansion to pass all arguments dynamically
-        pqxx::result result = transaction.exec_prepared(preparedQueryName, pqxx::prepare::make_dynamic_params(cstrParams.begin(), cstrParams.end()));
-
-        return result;
+        return transaction.exec_prepared(preparedQueryName, pqxx::prepare::make_dynamic_params(cstrParams.begin(), cstrParams.end()));
     }
     catch (const std::exception &e)
     {
         transaction.abort(); // Rollback transaction
         handleDatabaseError(e);
+        // Fail loud: an empty pqxx::result is a valid "no rows" answer and
+        // must never double as an error signal. Callers must not commit after.
+        throw DatabaseError("execChecked[" + preparedQueryName + "]: " + e.what());
+    }
+}
+
+// Function to execute a query with a transaction (legacy swallow contract;
+// new code must use execChecked above).
+pqxx::result
+Database::executeQueryWithTransaction(
+    pqxx::work &transaction,
+    const std::string &preparedQueryName,
+    const std::vector<std::variant<int, int64_t, float, double, std::string>> &parameters)
+{
+    try
+    {
+        return execChecked(transaction, preparedQueryName, parameters);
+    }
+    catch (const std::exception &)
+    {
+        // Swallow preserved for the 60+ existing call sites (their empty() and
+        // [0]-indexing behavior is unchanged); the error is already logged.
         return pqxx::result();
     }
 }

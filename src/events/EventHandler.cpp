@@ -2315,12 +2315,20 @@ std::string outboxFactKeyOf(const nlohmann::json &body)
 // Claim a fact key atomically inside the caller's txn. Returns 1 = fresh
 // (proceed), 0 = duplicate (skip business writes, caller sends
 // ack-duplicate), -1 = transport error (caller must abort WITHOUT ack so
-// the chunk retries). Distinguishes conflict from error via COUNT(*):
-// the wrapper swallows exceptions into an empty result, while a real
-// duplicate still yields exactly one row with count 0.
+// the chunk retries). Distinguishes conflict from error explicitly via
+// execChecked: the legacy wrapper swallows exceptions into an empty result,
+// while a real duplicate still yields exactly one row with count 0.
 int outboxClaimFactKey(Database &db, pqxx::work &txn, const std::string &key)
 {
-    auto rows = db.executeQueryWithTransaction(txn, "claim_fact_key", {key});
+    pqxx::result rows;
+    try
+    {
+        rows = db.execChecked(txn, "claim_fact_key", {key});
+    }
+    catch (const DatabaseError &)
+    {
+        return -1;
+    }
     if (rows.empty())
         return -1;
     return rows[0][0].as<int>(0) == 1 ? 1 : 0;
