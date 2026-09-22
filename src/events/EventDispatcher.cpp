@@ -4,12 +4,10 @@
 EventDispatcher::EventDispatcher(
     EventQueue &eventQueue,
     EventQueue &eventQueuePing,
-    GameServer *gameServer,
     Logger &logger,
     JSONParser &jsonParser)
     : eventQueue_(eventQueue),
       eventQueuePing_(eventQueuePing),
-      gameServer_(gameServer),
       logger_(logger),
       jsonParser_(jsonParser)
 {
@@ -157,12 +155,6 @@ EventDispatcher::handleGetSpawnZones(
     const EventPayload &payload,
     std::shared_ptr<boost::asio::ip::tcp::socket> socket)
 {
-    if (!gameServer_)
-    {
-        log_->error("GameServer is nullptr in EventDispatcher!");
-        return;
-    }
-
     Event getSpawnZonesEvent(Event::SPAWN_MOBS_IN_ZONE, payload.clientData.clientId, payload.clientData, socket);
     eventsBatch_.push_back(getSpawnZonesEvent);
 

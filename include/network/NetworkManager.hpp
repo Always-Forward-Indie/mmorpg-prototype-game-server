@@ -19,7 +19,6 @@
 #include "utils/Logger.hpp"
 #include "utils/ProtocolLimits.hpp"
 
-class GameServer;
 class EventDispatcher; // ✅ Forward declare EventDispatcher
 class MessageHandler;  // ✅ Forward declare MessageHandler
 
@@ -33,7 +32,6 @@ class NetworkManager
     void sendResponse(std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket, const std::string &responseString);
     std::string generateResponseMessage(const std::string &status, const nlohmann::json &message);
     std::string generateResponseMessage(const std::string &status, const nlohmann::json &message, const TimestampStruct &timestamps);
-    void setGameServer(GameServer *GameServer);
     void addActiveSession(std::shared_ptr<ClientSession> session);
     void removeActiveSession(std::shared_ptr<ClientSession> session);
     /// Reclaim idle per-socket write queues (owner-expired only). Called on
@@ -75,7 +73,6 @@ class NetworkManager
     boost::asio::ip::tcp::acceptor acceptor_;
     std::vector<std::thread> threadPool_;
     std::tuple<DatabaseConfig, GameServerConfig> &configs_;
-    GameServer *gameServer_;
     EventQueue &eventQueue_;
     EventQueue &eventQueuePing_;
     Logger &logger_;

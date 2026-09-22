@@ -1,10 +1,12 @@
 #pragma once
 
+#include "data/SpecialStructs.hpp"
 #include "events/Event.hpp"
 #include "events/EventQueue.hpp"
-#include "game_server/GameServer.hpp"
 #include "utils/JSONParser.hpp"
+#include "utils/Logger.hpp"
 #include <functional>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <unordered_map>
@@ -12,7 +14,8 @@
 class EventDispatcher
 {
   public:
-    EventDispatcher(EventQueue &eventQueue, EventQueue &eventQueuePing, GameServer *gameServer, Logger &logger, JSONParser &jsonParser);
+    // No GameServer link: parsing/pushing needs only queues + logger + parser.
+    EventDispatcher(EventQueue &eventQueue, EventQueue &eventQueuePing, Logger &logger, JSONParser &jsonParser);
 
     void dispatch(const std::string &eventType, const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
     void handlePing(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
@@ -101,7 +104,6 @@ class EventDispatcher
 
     EventQueue &eventQueue_;
     EventQueue &eventQueuePing_;
-    GameServer *gameServer_;
     Logger &logger_;
     std::shared_ptr<spdlog::logger> log_;
     JSONParser &jsonParser_;

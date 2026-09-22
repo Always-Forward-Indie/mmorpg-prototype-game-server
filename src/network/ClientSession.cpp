@@ -35,7 +35,6 @@ std::string framingError(const std::string &eventType, const char *code) {
 } // namespace
 
 ClientSession::ClientSession(std::shared_ptr<boost::asio::ip::tcp::socket> socket,
-    GameServer *gameServer,
     Logger &logger,
     EventQueue &eventQueue,
     EventQueue &eventQueuePing,
@@ -45,7 +44,6 @@ ClientSession::ClientSession(std::shared_ptr<boost::asio::ip::tcp::socket> socke
       logger_(logger),
       eventQueue_(eventQueue),
       eventQueuePing_(eventQueuePing),
-      gameServer_(gameServer),
       eventDispatcher_(eventDispatcher),
       messageHandler_(messageHandler)
 {

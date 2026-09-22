@@ -12,7 +12,6 @@
 
 #include <functional>
 
-class GameServer;
 class EventDispatcher; // ✅ Forward declare EventDispatcher
 class MessageHandler;  // ✅ Forward declare MessageHandler
 
@@ -20,8 +19,8 @@ class ClientSession : public std::enable_shared_from_this<ClientSession>
 {
   public:
     // Accept a shared_ptr to a tcp::socket instead of a raw socket.
+    // (No GameServer link: the session only needs queues + dispatcher.)
     ClientSession(std::shared_ptr<boost::asio::ip::tcp::socket> socket,
-        GameServer *gameServer,
         Logger &logger,
         EventQueue &eventQueue,
         EventQueue &eventQueuePing,
@@ -51,7 +50,6 @@ class ClientSession : public std::enable_shared_from_this<ClientSession>
     std::shared_ptr<spdlog::logger> log_;
     EventQueue &eventQueue_;
     EventQueue &eventQueuePing_;
-    GameServer *gameServer_;
     EventDispatcher &eventDispatcher_;
     MessageHandler &messageHandler_;
     std::function<void(std::shared_ptr<ClientSession>)> disconnectCallback_;

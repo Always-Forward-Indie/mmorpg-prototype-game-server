@@ -64,9 +64,8 @@ main()
         // Initialize GameServer
         GameServer gameServer(gameServices, eventHandler, eventQueueGameServer, eventQueueChunkServer, eventQueueGameServerPing, scheduler);
 
-        // Set the GameServer object in the NetworkManager
-        networkManager.setGameServer(&gameServer);
-
+        // (No setGameServer late-wire: NetworkManager is fully wired in its
+        // ctor; nothing holds a GameServer link.)
         // Start accepting connections
         networkManager.startAccept();
 

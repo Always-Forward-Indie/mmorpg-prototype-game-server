@@ -39,6 +39,11 @@ NetworkManager::NetworkManager(
         return;
     }
     log_->info("Game Server started on IP: " + customIP + ", Port: " + std::to_string(customPort));
+
+    // Dispatcher + handler are fully wired here (no late setGameServer step:
+    // parsing/pushing needs no GameServer link).
+    eventDispatcher_ = std::make_unique<EventDispatcher>(eventQueue_, eventQueuePing_, logger_, jsonParser_);
+    messageHandler_ = std::make_unique<MessageHandler>(jsonParser_);
 }
 
 void
@@ -68,7 +73,7 @@ NetworkManager::startAccept()
 
             log_->info("New Client with IP: " + clientIP + " Port: " + portNumber + " - connected!");
             // Pass the shared pointer to the ClientSession
-            auto session = std::make_shared<ClientSession>(clientSocket, gameServer_, logger_, eventQueue_, eventQueuePing_, *eventDispatcher_, *messageHandler_);
+            auto session = std::make_shared<ClientSession>(clientSocket, logger_, eventQueue_, eventQueuePing_, *eventDispatcher_, *messageHandler_);
             session->setDisconnectCallback([this](std::shared_ptr<ClientSession> s) { removeActiveSession(s); });
             // Strand-safe error path for framing failures (see ClientSession::setSendCallback).
             session->setSendCallback(
@@ -284,19 +289,6 @@ NetworkManager::generateResponseMessage(const std::string &status, const nlohman
     std::string responseString = response.dump();
     log_->debug("Response with timestamps generated: " + responseString);
     return responseString + "\n";
-}
-
-void
-NetworkManager::setGameServer(GameServer *gameServer)
-{
-    if (!gameServer)
-    {
-        throw std::runtime_error("Invalid GameServer pointer in NetworkManager!");
-    }
-    gameServer_ = gameServer;
-
-    eventDispatcher_ = std::make_unique<EventDispatcher>(eventQueue_, eventQueuePing_, gameServer_, logger_, jsonParser_);
-    messageHandler_ = std::make_unique<MessageHandler>(jsonParser_);
 }
 
 void
