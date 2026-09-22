@@ -8,6 +8,7 @@
 
 #include "Event.hpp"
 #include "events/handlers/ItemEventHandler.hpp"
+#include "events/handlers/CharacterEventHandler.hpp"
 #include "events/handlers/DialogueQuestEventHandler.hpp"
 #include "events/handlers/VendorEventHandler.hpp"
 #include "network/NetworkManager.hpp"
@@ -25,7 +26,6 @@ class EventHandler
     void handlePingClientEvent(const Event &event);
 
     void handleJoinPlayerClientEvent(const Event &event);
-    void handleGetCharacterDataEvent(const Event &event);
 
     void handleMoveCharacterChunkEvent(const Event &event);
     void handleGetSpawnZonesEvent(const Event &event);
@@ -43,9 +43,7 @@ class EventHandler
 
     void handleGetNPCsListEvent(const Event &event);
     void handleGetNPCsAttributesEvent(const Event &event);
-    void handleSavePositionsEvent(const Event &event);
     void handleSaveHpManaEvent(const Event &event); // ARCH-4
-    void handleSaveCharacterProgressEvent(const Event &event);
     void handleSaveInventoryChangeEvent(const Event &event);
     void handleGetPlayerInventoryEvent(const Event &event);
 
@@ -95,7 +93,6 @@ class EventHandler
     void handleGetNPCAmbientSpeechEvent(const Event &event);
 
     // Experience debt
-    void handleSaveExperienceDebtEvent(const Event &event);
 
     // Active status effects
     void handleSaveActiveEffectEvent(const Event &event);
@@ -110,10 +107,7 @@ class EventHandler
     // Analytics system (migration 058)
     void handleSaveAnalyticsEventEvent(const Event &event);
 
-    void handleSavePlayTimeEvent(const Event &event);
-
     // Online status recovery
-    void handleMarkCharactersOnlineEvent(const Event &event);
 
     NetworkManager &networkManager_;
     GameServices &gameServices_;
@@ -122,6 +116,7 @@ class EventHandler
     // Extracted domain handlers (god-object split, one domain per commit).
     VendorEventHandler vendorHandler_;
     ItemEventHandler itemHandler_;
+    CharacterEventHandler characterHandler_;
     DialogueQuestEventHandler dialogueQuestHandler_;
 
     /// Per-chunk-id JOIN serialization. The full catalog push is ~24 sequential
