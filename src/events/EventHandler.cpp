@@ -1761,6 +1761,13 @@ EventHandler::handleGetItemsListEvent(const Event &event)
         std::string responseData = networkManager_.generateResponseMessage("success", response);
         networkManager_.sendResponse(clientSocket, responseData);
     }
+    catch (const DatabaseError &)
+    {
+        // DB transport failure: no partial/empty success here.
+        // JOIN entries are counted by dispatchCatalog; runtime
+        // reads fall through to the error response below.
+        throw;
+    }
     catch (const std::exception &e)
     {
         gameServices_.getLogger().logError("Error getting items list: " + std::string(e.what()));
@@ -1813,6 +1820,13 @@ EventHandler::handleGetMobLootInfoEvent(const Event &event)
 
         std::string responseData = networkManager_.generateResponseMessage("success", response);
         networkManager_.sendResponse(clientSocket, responseData);
+    }
+    catch (const DatabaseError &)
+    {
+        // DB transport failure: no partial/empty success here.
+        // JOIN entries are counted by dispatchCatalog; runtime
+        // reads fall through to the error response below.
+        throw;
     }
     catch (const std::exception &e)
     {
@@ -1924,7 +1938,7 @@ EventHandler::handleGetCharacterExpForLevelEvent(const Event &event)
             {
                 auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
                 pqxx::work txn(_dbConn.get());
-                auto result = gameServices_.getDatabase().executeQueryWithTransaction(txn, "get_character_exp_for_next_level", {level});
+                auto result = gameServices_.getDatabase().execChecked(txn, "get_character_exp_for_next_level", {level});
 
                 if (!result.empty())
                 {
@@ -1940,6 +1954,13 @@ EventHandler::handleGetCharacterExpForLevelEvent(const Event &event)
                 }
 
                 txn.commit();
+            }
+            catch (const DatabaseError &)
+            {
+                // DB transport failure: no partial/empty success here.
+                // JOIN entries are counted by dispatchCatalog; runtime
+                // reads fall through to the error response below.
+                throw;
             }
             catch (const std::exception &e)
             {
@@ -2233,6 +2254,13 @@ EventHandler::handleGetNPCsListEvent(const Event &event)
     {
         gameServices_.getLogger().log("Error here: " + std::string(ex.what()));
     }
+    catch (const DatabaseError &)
+    {
+        // DB transport failure: no partial/empty success here.
+        // JOIN entries are counted by dispatchCatalog; runtime
+        // reads fall through to the error response below.
+        throw;
+    }
     catch (const std::exception &ex)
     {
         gameServices_.getLogger().logError("Error in handleGetNPCsListEvent: " + std::string(ex.what()));
@@ -2300,6 +2328,13 @@ EventHandler::handleGetNPCsAttributesEvent(const Event &event)
     catch (const std::bad_variant_access &ex)
     {
         gameServices_.getLogger().log("Error here: " + std::string(ex.what()));
+    }
+    catch (const DatabaseError &)
+    {
+        // DB transport failure: no partial/empty success here.
+        // JOIN entries are counted by dispatchCatalog; runtime
+        // reads fall through to the error response below.
+        throw;
     }
     catch (const std::exception &ex)
     {
@@ -2576,7 +2611,7 @@ EventHandler::handleGetPlayerInventoryEvent(const Event &event)
 
         auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
         pqxx::work txn(_dbConn.get());
-        auto result = gameServices_.getDatabase().executeQueryWithTransaction(
+        auto result = gameServices_.getDatabase().execChecked(
             txn, "get_player_inventory", {characterId});
 
         nlohmann::json itemsJson = nlohmann::json::array();
@@ -2698,6 +2733,13 @@ EventHandler::handleGetDialoguesEvent(const Event &event)
                                           " dialogues + " + std::to_string(mappingsJson.size()) + " mappings to chunk",
             GREEN);
     }
+    catch (const DatabaseError &)
+    {
+        // DB transport failure: no partial/empty success here.
+        // JOIN entries are counted by dispatchCatalog; runtime
+        // reads fall through to the error response below.
+        throw;
+    }
     catch (const std::exception &ex)
     {
         gameServices_.getLogger().logError("Error in handleGetDialoguesEvent: " + std::string(ex.what()));
@@ -2727,6 +2769,13 @@ EventHandler::handleGetQuestsEvent(const Event &event)
         gameServices_.getLogger().log("[EH] Sent " + std::to_string(questsJson.size()) +
                                           " quests to chunk",
             GREEN);
+    }
+    catch (const DatabaseError &)
+    {
+        // DB transport failure: no partial/empty success here.
+        // JOIN entries are counted by dispatchCatalog; runtime
+        // reads fall through to the error response below.
+        throw;
     }
     catch (const std::exception &ex)
     {
@@ -2920,6 +2969,13 @@ EventHandler::handleGetGameConfigEvent(const Event &event)
         gameServices_.getLogger().log("Sent game config (" +
                                       std::to_string(configMap.size()) + " entries) to chunk-server.");
     }
+    catch (const DatabaseError &)
+    {
+        // DB transport failure: no partial/empty success here.
+        // JOIN entries are counted by dispatchCatalog; runtime
+        // reads fall through to the error response below.
+        throw;
+    }
     catch (const std::exception &e)
     {
         gameServices_.getLogger().logError("handleGetGameConfigEvent error: " + std::string(e.what()));
@@ -2946,7 +3002,7 @@ EventHandler::handleGetPlayerActiveEffectsEvent(const Event &event)
         // Prune expired rows first to prevent unbounded table growth.
         static_cast<void>(gameServices_.getDatabase().execChecked(
             txn, "cleanup_expired_active_effects", {}));
-        auto result = gameServices_.getDatabase().executeQueryWithTransaction(
+        auto result = gameServices_.getDatabase().execChecked(
             txn, "get_player_active_effects", {characterId});
 
         nlohmann::json effectsJson = nlohmann::json::array();
@@ -2971,7 +3027,7 @@ EventHandler::handleGetPlayerActiveEffectsEvent(const Event &event)
         // permanent (expiresAt=0, tickMs=0) flat/percent stat modifiers.
         try
         {
-            auto passiveResult = gameServices_.getDatabase().executeQueryWithTransaction(
+            auto passiveResult = gameServices_.getDatabase().execChecked(
                 txn, "get_player_passive_skill_effects", {characterId});
 
             for (const auto &row : passiveResult)
@@ -3038,7 +3094,7 @@ EventHandler::handleGetCharacterAttributesRefreshEvent(const Event &event)
 
         auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
         pqxx::work txn(_dbConn.get());
-        auto result = gameServices_.getDatabase().executeQueryWithTransaction(
+        auto result = gameServices_.getDatabase().execChecked(
             txn, "get_character_attributes", {characterId});
 
         nlohmann::json attrsJson = nlohmann::json::array();
@@ -3519,6 +3575,13 @@ EventHandler::handleGetClassSpawnZonesEvent(const Event &event)
 
         log_->info("[CLASS_SPAWN_ZONES] Sent " + std::to_string(zonesJson.size()) + " class spawn zones to chunk server");
     }
+    catch (const DatabaseError &)
+    {
+        // DB transport failure: no partial/empty success here.
+        // JOIN entries are counted by dispatchCatalog; runtime
+        // reads fall through to the error response below.
+        throw;
+    }
     catch (const std::exception &ex)
     {
         gameServices_.getLogger().logError("handleGetClassSpawnZonesEvent error: " + std::string(ex.what()));
@@ -3945,7 +4008,7 @@ EventHandler::handleGetPlayerPityEvent(const Event &event)
 
         auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
         pqxx::work txn(_dbConn.get());
-        auto result = gameServices_.getDatabase().executeQueryWithTransaction(
+        auto result = gameServices_.getDatabase().execChecked(
             txn, "get_player_pity", {characterId});
 
         nlohmann::json entriesJson = nlohmann::json::array();
@@ -3996,7 +4059,7 @@ EventHandler::handleGetPlayerBestiaryEvent(const Event &event)
 
         auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
         pqxx::work txn(_dbConn.get());
-        auto result = gameServices_.getDatabase().executeQueryWithTransaction(
+        auto result = gameServices_.getDatabase().execChecked(
             txn, "get_player_bestiary", {characterId});
 
         nlohmann::json entriesJson = nlohmann::json::array();
@@ -4271,7 +4334,7 @@ EventHandler::handleGetPlayerReputationsEvent(const Event &event)
 
         auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
         pqxx::work txn(_dbConn.get());
-        auto result = gameServices_.getDatabase().executeQueryWithTransaction(
+        auto result = gameServices_.getDatabase().execChecked(
             txn, "get_player_reputations", {characterId});
 
         nlohmann::json entriesJson = nlohmann::json::array();
@@ -4384,7 +4447,7 @@ EventHandler::handleGetPlayerMasteriesEvent(const Event &event)
 
         auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
         pqxx::work txn(_dbConn.get());
-        auto result = gameServices_.getDatabase().executeQueryWithTransaction(
+        auto result = gameServices_.getDatabase().execChecked(
             txn, "get_player_masteries", {characterId});
 
         nlohmann::json entriesJson = nlohmann::json::array();
@@ -4581,7 +4644,7 @@ EventHandler::handleSaveLearnedSkillEvent(const Event &event)
         }
         else
         {
-            auto costRows = gameServices_.getDatabase().executeQueryWithTransaction(
+            auto costRows = gameServices_.getDatabase().execChecked(
                 txn, "get_skill_sp_cost", {skillSlug});
             if (!costRows.empty() && !costRows[0]["skill_point_cost"].is_null())
             {
@@ -4593,7 +4656,7 @@ EventHandler::handleSaveLearnedSkillEvent(const Event &event)
         }
 
         // Query full skill data for the newly learned skill
-        auto rows = gameServices_.getDatabase().executeQueryWithTransaction(
+        auto rows = gameServices_.getDatabase().execChecked(
             txn, "get_character_skills", {characterId});
         txn.commit();
 
@@ -4660,8 +4723,13 @@ EventHandler::handleSaveLearnedSkillEvent(const Event &event)
             nlohmann::json effectsArr = nlohmann::json::array();
             try
             {
-                auto effRows = gameServices_.getDatabase().executeQueryWithTransaction(
-                    txn, "get_passive_skill_modifiers_by_slug", {skillSlug});
+                // Fresh txn: the write txn above is already committed.
+                // (Querying on it threw and always yielded empty effects.)
+                auto _dbConnPm = gameServices_.getDatabase().getConnectionLocked();
+                pqxx::work txnPm(_dbConnPm.get());
+                auto effRows = gameServices_.getDatabase().execChecked(
+                    txnPm, "get_passive_skill_modifiers_by_slug", {skillSlug});
+                txnPm.commit();
                 for (const auto &row : effRows)
                 {
                     nlohmann::json eff;
@@ -4943,7 +5011,7 @@ EventHandler::handleGetPlayerTitlesEvent(const Event &event)
 
         auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
         pqxx::work txn(_dbConn.get());
-        auto result = gameServices_.getDatabase().executeQueryWithTransaction(
+        auto result = gameServices_.getDatabase().execChecked(
             txn, "get_player_titles", {characterId});
 
         std::string equippedSlug;
@@ -5125,7 +5193,7 @@ EventHandler::handleGetPlayerEmotesEvent(const Event &event)
         static_cast<void>(gameServices_.getDatabase().execChecked(
             txn, "grant_default_emotes", {characterId}));
 
-        auto result = gameServices_.getDatabase().executeQueryWithTransaction(
+        auto result = gameServices_.getDatabase().execChecked(
             txn, "get_player_emotes", {characterId});
 
         nlohmann::json slugsJson = nlohmann::json::array();
@@ -5403,7 +5471,7 @@ EventHandler::handleGetPlayerSkillCooldownsEvent(const Event &event)
 
         auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
         pqxx::work txn(_dbConn.get());
-        auto result = gameServices_.getDatabase().executeQueryWithTransaction(
+        auto result = gameServices_.getDatabase().execChecked(
             txn, "get_active_skill_cooldowns", {characterId});
         txn.commit();
 
