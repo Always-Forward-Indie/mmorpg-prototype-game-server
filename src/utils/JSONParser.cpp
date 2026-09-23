@@ -9,6 +9,12 @@ CharacterDataStruct
 JSONParser::parseCharacterData(const char *data, size_t length)
 {
     nlohmann::json jsonData = nlohmann::json::parse(data, data + length);
+    return parseCharacterData(jsonData);
+}
+
+CharacterDataStruct
+JSONParser::parseCharacterData(const nlohmann::json &jsonData)
+{
     CharacterDataStruct characterData;
 
     if (jsonData.contains("body") && jsonData["body"].is_object() &&
@@ -101,6 +107,12 @@ PositionStruct
 JSONParser::parsePositionData(const char *data, size_t length)
 {
     nlohmann::json jsonData = nlohmann::json::parse(data, data + length);
+    return parsePositionData(jsonData);
+}
+
+PositionStruct
+JSONParser::parsePositionData(const nlohmann::json &jsonData)
+{
     PositionStruct positionData;
 
     if (jsonData.contains("body") && jsonData["body"].is_object() &&
@@ -131,6 +143,12 @@ ClientDataStruct
 JSONParser::parseClientData(const char *data, size_t length)
 {
     nlohmann::json jsonData = nlohmann::json::parse(data, data + length);
+    return parseClientData(jsonData);
+}
+
+ClientDataStruct
+JSONParser::parseClientData(const nlohmann::json &jsonData)
+{
     ClientDataStruct clientData;
 
     if (jsonData.contains("header") && jsonData["header"].is_object() &&
@@ -166,6 +184,12 @@ MessageStruct
 JSONParser::parseMessage(const char *data, size_t length)
 {
     nlohmann::json jsonData = nlohmann::json::parse(data, data + length);
+    return parseMessage(jsonData);
+}
+
+MessageStruct
+JSONParser::parseMessage(const nlohmann::json &jsonData)
+{
     MessageStruct message;
 
     if (jsonData.contains("header") && jsonData["header"].is_object() &&
@@ -186,6 +210,12 @@ std::string
 JSONParser::parseEventType(const char *data, size_t length)
 {
     nlohmann::json jsonData = nlohmann::json::parse(data, data + length);
+    return parseEventType(jsonData);
+}
+
+std::string
+JSONParser::parseEventType(const nlohmann::json &jsonData)
+{
     std::string eventType;
 
     if (jsonData.contains("header") && jsonData["header"].is_object() &&
@@ -202,6 +232,12 @@ ChunkInfoStruct
 JSONParser::parseChunkServerHandshakeData(const char *data, size_t length)
 {
     nlohmann::json jsonData = nlohmann::json::parse(data, data + length);
+    return parseChunkServerHandshakeData(jsonData);
+}
+
+ChunkInfoStruct
+JSONParser::parseChunkServerHandshakeData(const nlohmann::json &jsonData)
+{
     ChunkInfoStruct chunkData;
 
     if (jsonData.contains("header") && jsonData["header"].is_object() &&

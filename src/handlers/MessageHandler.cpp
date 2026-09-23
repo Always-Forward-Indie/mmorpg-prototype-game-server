@@ -5,16 +5,15 @@ MessageHandler::MessageHandler(JSONParser &jsonParser) : jsonParser_(jsonParser)
 std::tuple<std::string, ClientDataStruct, ChunkInfoStruct, CharacterDataStruct, PositionStruct, MessageStruct>
 MessageHandler::parseMessage(const std::string &message)
 {
-    const char *data = message.data();
-    size_t messageLength = message.size();
+    const nlohmann::json jsonData = nlohmann::json::parse(message);
 
-    std::string eventType = jsonParser_.parseEventType(data, messageLength);
-    ClientDataStruct clientData = jsonParser_.parseClientData(data, messageLength);
-    ChunkInfoStruct chunkData = jsonParser_.parseChunkServerHandshakeData(data, messageLength);
+    std::string eventType = jsonParser_.parseEventType(jsonData);
+    ClientDataStruct clientData = jsonParser_.parseClientData(jsonData);
+    ChunkInfoStruct chunkData = jsonParser_.parseChunkServerHandshakeData(jsonData);
 
-    CharacterDataStruct characterData = jsonParser_.parseCharacterData(data, messageLength);
-    PositionStruct positionData = jsonParser_.parsePositionData(data, messageLength);
-    MessageStruct messageStruct = jsonParser_.parseMessage(data, messageLength);
+    CharacterDataStruct characterData = jsonParser_.parseCharacterData(jsonData);
+    PositionStruct positionData = jsonParser_.parsePositionData(jsonData);
+    MessageStruct messageStruct = jsonParser_.parseMessage(jsonData);
 
     return {eventType, clientData, chunkData, characterData, positionData, messageStruct};
 }
@@ -22,22 +21,20 @@ MessageHandler::parseMessage(const std::string &message)
 std::tuple<std::string, ClientDataStruct, ChunkInfoStruct, CharacterDataStruct, PositionStruct, MessageStruct, TimestampStruct>
 MessageHandler::parseMessageWithTimestamps(const std::string &message)
 {
-    const char *data = message.data();
-    size_t messageLength = message.size();
+    // Single parse of the wire bytes (was 7 prefix parses); extractors read
+    // the shared json. Timestamps now read from the full message too (the old
+    // 1024B truncation could drop header.timestamps on large packets).
+    const nlohmann::json jsonData = nlohmann::json::parse(message);
 
-    std::string eventType = jsonParser_.parseEventType(data, messageLength);
-    ClientDataStruct clientData = jsonParser_.parseClientData(data, messageLength);
-    ChunkInfoStruct chunkData = jsonParser_.parseChunkServerHandshakeData(data, messageLength);
+    std::string eventType = jsonParser_.parseEventType(jsonData);
+    ClientDataStruct clientData = jsonParser_.parseClientData(jsonData);
+    ChunkInfoStruct chunkData = jsonParser_.parseChunkServerHandshakeData(jsonData);
 
-    CharacterDataStruct characterData = jsonParser_.parseCharacterData(data, messageLength);
-    PositionStruct positionData = jsonParser_.parsePositionData(data, messageLength);
-    MessageStruct messageStruct = jsonParser_.parseMessage(data, messageLength);
+    CharacterDataStruct characterData = jsonParser_.parseCharacterData(jsonData);
+    PositionStruct positionData = jsonParser_.parsePositionData(jsonData);
+    MessageStruct messageStruct = jsonParser_.parseMessage(jsonData);
 
-    // Parse timestamps from message
-    std::array<char, 1024> messageBuffer{};
-    size_t copySize = std::min(messageLength, messageBuffer.size());
-    std::memcpy(messageBuffer.data(), data, copySize);
-    TimestampStruct timestamps = TimestampUtils::parseTimestampsFromBuffer(messageBuffer, copySize);
+    TimestampStruct timestamps = TimestampUtils::parseTimestampsFromHeader(jsonData);
 
     return {eventType, clientData, chunkData, characterData, positionData, messageStruct, timestamps};
 }
