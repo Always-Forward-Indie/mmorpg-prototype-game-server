@@ -1,3 +1,31 @@
+v0.2.21
+22.09.2026
+================
+
+New:
+
+**Scheduler sweep periods from game_config.**
+- `GameConfigService::getInt(key, fallback)` (never throws, shared_lock);
+  `main` samples `scheduler.chunk_sweep_sec` / `scheduler.client_sweep_sec`
+  (fallback 60s = previous behavior). Seeded by migration 086.
+
+**Single JSON parse in MessageHandler prefix (was 7x).**
+- `const json&` overloads on `JSONParser`; wire bytes parsed once,
+  extractors share the object. Timestamps now read from the full message
+  (the old 1024B truncation could drop `header.timestamps`).
+
+**body.errorCode on every error response (central injection).**
+- `generateResponseMessage` mirrors `header.message` into
+  `body.errorCode` on `status:error` (explicit handler codes win);
+  framing errors set it directly. Additive: old clients ignore it.
+
+Build:
+
+**ASan in Debug builds (chunk parity).**
+- `-fsanitize=address` in root `CMakeLists.txt` Debug flags.
+
+---
+
 v0.2.20
 18.09.2026
 ================
