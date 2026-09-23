@@ -37,6 +37,12 @@ class GameConfigService
     std::unordered_map<std::string, std::string> getAll() const;
 
     /**
+     * @brief Typed read with fallback (mirrors chunk GameConfigService).
+     *        Never throws: missing key or bad value → fallback (fail-safe).
+     */
+    int getInt(const std::string &key, int fallback) const;
+
+    /**
      * @brief Подменить конфиг целиком (pure, no DB). Используется тестами.
      */
     void setConfig(const std::unordered_map<std::string, std::string> &config);

@@ -82,12 +82,15 @@ main()
         // (missed FIN, wedged peer) previously lingered until a manual chunk
         // reboot. Sweep every 60s, drop entries silent for 180s (3 heartbeats).
         // Scheduler::run already guards task exceptions; id 1 (first task).
+        // Interval comes from game_config (scheduler.chunk_sweep_sec), sampled
+        // once here; 60s fallback preserves previous behavior on empty config.
         {
+            const int chunkSweepSec = gameServices.getGameConfigService().getInt("scheduler.chunk_sweep_sec", 60);
             Task chunkSweepTask(
                 [&gameServices]()
                 { gameServices.getChunkManager().sweepSilentChunks(180000); },
-                60,
-                std::chrono::system_clock::now() + std::chrono::seconds(60),
+                chunkSweepSec,
+                std::chrono::system_clock::now() + std::chrono::seconds(chunkSweepSec),
                 1);
             scheduler.scheduleTask(chunkSweepTask);
         }
@@ -97,11 +100,12 @@ main()
         // evicted. Conservative threshold: only truly dead sessions go.
         // Scheduler::run already guards task exceptions; id 2.
         {
+            const int clientSweepSec = gameServices.getGameConfigService().getInt("scheduler.client_sweep_sec", 60);
             Task clientSweepTask(
                 [&gameServices]()
                 { gameServices.getClientManager().sweepSilentClients(600000); },
-                60,
-                std::chrono::system_clock::now() + std::chrono::seconds(60),
+                clientSweepSec,
+                std::chrono::system_clock::now() + std::chrono::seconds(clientSweepSec),
                 2);
             scheduler.scheduleTask(clientSweepTask);
         }

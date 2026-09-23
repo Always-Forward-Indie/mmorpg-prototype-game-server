@@ -17,3 +17,14 @@ TEST(GameConfig, SetAndGetAll)
     EXPECT_EQ(cfg.getAll().size(), 1u);
     EXPECT_EQ(cfg.getAll().at("x"), "1");
 }
+
+TEST(GameConfig, GetIntFallback)
+{
+    Logger logger{"test"};
+    GameConfigService cfg(logger);
+    EXPECT_EQ(cfg.getInt("scheduler.chunk_sweep_sec", 60), 60); // missing -> fallback
+    cfg.setConfig({{"scheduler.chunk_sweep_sec", "30"}, {"bad", "not_a_number"}});
+    EXPECT_EQ(cfg.getInt("scheduler.chunk_sweep_sec", 60), 30);
+    EXPECT_EQ(cfg.getInt("bad", 60), 60);          // bad value -> fallback
+    EXPECT_EQ(cfg.getInt("absent", 60), 60);       // missing -> fallback
+}

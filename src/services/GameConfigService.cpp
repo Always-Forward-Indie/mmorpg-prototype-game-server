@@ -60,6 +60,23 @@ GameConfigService::getAll() const
     return config_; // copy — лок держится только на время копирования
 }
 
+int
+GameConfigService::getInt(const std::string &key, int fallback) const
+{
+    std::shared_lock lock(mutex_);
+    auto it = config_.find(key);
+    if (it == config_.end())
+        return fallback;
+    try
+    {
+        return std::stoi(it->second);
+    }
+    catch (const std::exception &)
+    {
+        return fallback;
+    }
+}
+
 void
 GameConfigService::setConfig(const std::unordered_map<std::string, std::string> &config)
 {
