@@ -10,6 +10,10 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 add_compile_options(-Wall -Wextra -Wswitch -Wimplicit-fallthrough)
 
 # Build type is set via -DCMAKE_BUILD_TYPE=Debug|Release (defaults to none if omitted)
+# AddressSanitizer is active only in Debug builds (mirrors chunk-server).
+
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address -fno-omit-frame-pointer -g")
+set(CMAKE_LINKER_FLAGS_DEBUG "${CMAKE_LINKER_FLAGS_DEBUG} -fsanitize=address")
 
 # Define your project's source files
 set(SOURCE_FILES
