@@ -58,3 +58,21 @@ void outboxSendFactAck(NetworkManager &net,
                                   .build();
     net.sendResponse(socket, net.generateResponseMessage("success", response));
 }
+
+void outboxSendDiff(NetworkManager &net,
+    const std::shared_ptr<boost::asio::ip::tcp::socket> &socket,
+    const std::vector<std::string> &applied,
+    const std::vector<std::string> &unknown)
+{
+    if (!socket)
+        return;
+    nlohmann::json response = ResponseBuilder()
+                                  .setHeader("message", "Outbox diff")
+                                  .setHeader("hash", "")
+                                  .setHeader("clientId", 0)
+                                  .setHeader("eventType", "outboxDiff")
+                                  .setBody("applied", applied)
+                                  .setBody("unknown", unknown)
+                                  .build();
+    net.sendResponse(socket, net.generateResponseMessage("success", response));
+}

@@ -47,6 +47,10 @@ struct ChunkInfoStruct
     // Last registration/heartbeat, steady_clock ms. Stamped by ChunkManager
     // on add (chunk heartbeats every 60s); 0 = never (pre-sweep entries).
     int64_t lastHeartbeatMs = 0;
+    // Outbox phases B-D: this boot's numbering, advertised in the handshake
+    // header (observability only; reconcile itself is key-driven).
+    std::string bootId;
+    uint64_t nextSeq = 0;
 };
 
 struct CharacterAttributeStruct

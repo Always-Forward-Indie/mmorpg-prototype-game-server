@@ -103,6 +103,7 @@ EventDispatcher::buildRouteTable()
         {"analyticsEvent", &EventDispatcher::handleSaveAnalyticsEvent},
         {"savePlayTime", &EventDispatcher::handleSavePlayTime},
         {"markCharactersOnline", &EventDispatcher::handleMarkCharactersOnline},
+        {"outboxUnacked", &EventDispatcher::handleOutboxUnacked},
     };
 }
 
@@ -1231,5 +1232,31 @@ EventDispatcher::handleMarkCharactersOnline(
     catch (const std::exception &ex)
     {
         logger_.logError("handleMarkCharactersOnline parse error: " + std::string(ex.what()));
+    }
+}
+
+void
+EventDispatcher::handleOutboxUnacked(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    try
+    {
+        // Single-parse: payload.parsed already holds these bytes (parsed once
+        // in MessageHandler); handlers keep an owned json, so copy locally
+        // and parse only on the defensive empty path.
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
+        if (j.contains("body") && j["body"].is_object() && j["body"].contains("keys") && j["body"]["keys"].is_array())
+        {
+            nlohmann::json body = j["body"];
+            Event event(Event::OUTBOX_UNACKED, 0, body, socket);
+            eventsBatch_.push_back(event);
+            eventQueue_.pushBatch(eventsBatch_);
+            eventsBatch_.clear();
+        }
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleOutboxUnacked parse error: " + std::string(ex.what()));
     }
 }

@@ -127,7 +127,9 @@ class Event
         SAVE_PLAY_TIME, // Persist play time from chunk-server to characters.total_play_time_sec
 
         // Online status recovery after chunk-server reconnect
-        MARK_CHARACTERS_ONLINE // Batch mark character IDs as is_online=true (sent on chunk-server reconnect)
+        MARK_CHARACTERS_ONLINE, // Batch mark character IDs as is_online=true (sent on chunk-server reconnect)
+        // Outbox reconcile: chunk reports unacked fact keys after a new link
+        OUTBOX_UNACKED // Split into applied/unknown and answer outboxDiff (see Outbox.hpp)
     }; // Define more event types as needed
     Event() = default; // Default constructor
     Event(EventType type, int clientID, const EventData data, std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket);

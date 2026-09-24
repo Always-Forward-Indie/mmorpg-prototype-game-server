@@ -255,6 +255,16 @@ JSONParser::parseChunkServerHandshakeData(const nlohmann::json &jsonData)
     {
         chunkData.port = jsonData["header"]["port"].get<int>();
     }
+    if (jsonData.contains("header") && jsonData["header"].is_object() &&
+        jsonData["header"].contains("bootId") && jsonData["header"]["bootId"].is_string())
+    {
+        chunkData.bootId = jsonData["header"]["bootId"].get<std::string>();
+    }
+    if (jsonData.contains("header") && jsonData["header"].is_object() &&
+        jsonData["header"].contains("nextSeq") && jsonData["header"]["nextSeq"].is_number_unsigned())
+    {
+        chunkData.nextSeq = jsonData["header"]["nextSeq"].get<uint64_t>();
+    }
 
     return chunkData;
 }

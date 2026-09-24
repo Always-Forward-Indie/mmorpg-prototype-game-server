@@ -5,6 +5,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "events/Event.hpp"
 #include "network/NetworkManager.hpp"
@@ -67,3 +68,10 @@ void outboxSendFactAck(NetworkManager &net,
     const std::shared_ptr<boost::asio::ip::tcp::socket> &socket,
     const std::string &key,
     const std::string &status);
+
+// Reconcile answer: split chunk-reported unacked keys into applied (drop,
+// game is durable) vs unknown (resend now). Sent on the live chunk socket.
+void outboxSendDiff(NetworkManager &net,
+    const std::shared_ptr<boost::asio::ip::tcp::socket> &socket,
+    const std::vector<std::string> &applied,
+    const std::vector<std::string> &unknown);

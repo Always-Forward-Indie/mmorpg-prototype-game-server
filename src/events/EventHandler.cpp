@@ -8,6 +8,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <spdlog/logger.h>
+#include <unordered_set>
 
 EventHandler::EventHandler(
     NetworkManager &networkManager,
@@ -535,6 +536,27 @@ EventHandler::handleJoinChunkServerEvent(const Event &event)
         }
 
         // Add the message to the response
+        // Outbox phases B-D: attach the global high-water mark so the chunk
+        // can fast-forward its seq_ (new links only — this block runs solely
+        // on !sameSocket; heartbeats and the error path above carry no mark).
+        // DB failure here must never fail the join: ack without the field
+        // (bootId keeps numbering safe) and let the next link retry it.
+        int64_t outboxGlobalSeq = -1;
+        try
+        {
+            auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+            pqxx::work txn(_dbConn.get());
+            auto wmRows = gameServices_.getDatabase().execChecked(
+                txn, "get_outbox_global_watermark", {1});
+            txn.commit();
+            if (!wmRows.empty() && !wmRows[0][0].is_null())
+                outboxGlobalSeq = wmRows[0][0].as<int64_t>(0);
+        }
+        catch (const std::exception &ex)
+        {
+            gameServices_.getLogger().logError(
+                "[join] outbox watermark unavailable, acking without it: " + std::string(ex.what()));
+        }
         response = builder
                        .setHeader("message", "Joining chunk server success!")
                        .setHeader("hash", "")
@@ -550,6 +572,8 @@ EventHandler::handleJoinChunkServerEvent(const Event &event)
                        .setBody("sizeY", chunkServerDataJson["sizeY"])
                        .setBody("sizeZ", chunkServerDataJson["sizeZ"])
                        .build();
+        if (outboxGlobalSeq >= 0)
+            response["body"]["outboxGlobalSeq"] = outboxGlobalSeq;
         // Prepare a response message
         std::string responseData = networkManager_.generateResponseMessage("success", response);
 
@@ -559,6 +583,77 @@ EventHandler::handleJoinChunkServerEvent(const Event &event)
     catch (const std::bad_variant_access &ex)
     {
         gameServices_.getLogger().log("Error here: " + std::string(ex.what()));
+    }
+}
+
+void
+EventHandler::handleOutboxUnackedEvent(const Event &event)
+{
+    // Outbox reconcile: chunk reports keys it never got acked for (new links
+    // only — chunk sends this solely after a setChunkData ack carrying
+    // outboxGlobalSeq). Split into applied (drop, we are durable) vs unknown
+    // (resend now) with point PK lookups; answer on the live chunk socket.
+    // On DB error send nothing (claim -1 semantics): the 5s chunk flush
+    // covers it.
+    const auto data = event.getData();
+    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
+    try
+    {
+        if (!std::holds_alternative<nlohmann::json>(data))
+        {
+            log_->error("handleOutboxUnackedEvent: unexpected data type");
+            return;
+        }
+        const auto &body = std::get<nlohmann::json>(data);
+        if (!body.contains("keys") || !body["keys"].is_array() || body["keys"].empty())
+            return;
+
+        std::vector<std::string> keys;
+        keys.reserve(body["keys"].size());
+        for (const auto &k : body["keys"])
+        {
+            if (!k.is_string() || k.get<std::string>().empty())
+                continue;
+            // Restricted charset (see design): real keys never contain
+            // quotes/commas/braces, so the ANY array literal needs no escaping.
+            const std::string &ks = k.get<std::string>();
+            if (ks.find_first_of("\"',{}") == std::string::npos)
+                keys.push_back(ks);
+        }
+        if (keys.empty())
+            return;
+
+        std::string arrayLit = "{";
+        for (size_t i = 0; i < keys.size(); ++i)
+            arrayLit += (i ? "," : "") + keys[i];
+        arrayLit += "}";
+
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+        auto rows = gameServices_.getDatabase().execChecked(txn, "get_outbox_diff_keys", {arrayLit});
+        txn.commit();
+
+        std::unordered_set<std::string> appliedSet;
+        for (const auto &row : rows)
+            appliedSet.insert(row[0].as<std::string>());
+        std::vector<std::string> applied;
+        std::vector<std::string> unknown;
+        for (const auto &k : keys)
+            (appliedSet.count(k) ? applied : unknown).push_back(k);
+
+        auto sendSocket = gameServices_.getChunkManager().resolveLiveSocket(clientSocket);
+        if (!sendSocket)
+        {
+            log_->error("[GAME] outboxDiff: no live chunk socket");
+            return;
+        }
+        outboxSendDiff(networkManager_, sendSocket, applied, unknown);
+        log_->info("[GAME] outboxDiff: applied={} unknown={}",
+            applied.size(), unknown.size());
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("handleOutboxUnackedEvent error: " + std::string(ex.what()));
     }
 }
 
@@ -874,6 +969,9 @@ EventHandler::dispatchEvent(const Event &event)
 
     case Event::MARK_CHARACTERS_ONLINE:
         characterHandler_.handleMarkCharactersOnlineEvent(event);
+        break;
+    case Event::OUTBOX_UNACKED:
+        handleOutboxUnackedEvent(event);
         break;
 
     // chunk server events

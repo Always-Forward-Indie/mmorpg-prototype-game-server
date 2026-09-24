@@ -38,6 +38,8 @@ class EventHandler
     void handleDisconnectChunkEvent(const Event &event);
     void handleJoinChunkServerEvent(const Event &event);
     void handleDisconnectChunkServerEvent(const Event &event);
+    // Outbox reconcile: split reported unacked keys into applied/unknown.
+    void handleOutboxUnackedEvent(const Event &event);
 
     void handleSaveHpManaEvent(const Event &event); // ARCH-4
 

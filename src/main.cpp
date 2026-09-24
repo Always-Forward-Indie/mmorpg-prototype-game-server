@@ -115,6 +115,35 @@ main()
             scheduler.scheduleTask(clientSweepTask);
         }
 
+        // Outbox retention (migration 088): the dedup window only needs the
+        // 1h DLQ/retry horizon; delete aged fact_keys_applied rows in bounded
+        // batches so the PK btree doesn't grow forever at units/sec.
+        // Same cadence as the sweeps above; id 3.
+        {
+            const int retentionSec = gameServices.getGameConfigService().getInt("scheduler.chunk_sweep_sec", 60);
+            Task retentionTask(
+                [&database, &gameServices]()
+                {
+                    try
+                    {
+                        auto _dbConn = database.getConnectionLocked();
+                        pqxx::work txn(_dbConn.get());
+                        static_cast<void>(database.execChecked(
+                            txn, "delete_old_fact_keys", {30, 1000}));
+                        txn.commit();
+                    }
+                    catch (const std::exception &ex)
+                    {
+                        gameServices.getLogger().logError(
+                            std::string("[retention] delete_old_fact_keys error: ") + ex.what());
+                    }
+                },
+                retentionSec,
+                std::chrono::system_clock::now() + std::chrono::seconds(retentionSec),
+                3);
+            scheduler.scheduleTask(retentionTask);
+        }
+
         // wait for the signal to stop the server
         while (running)
         {

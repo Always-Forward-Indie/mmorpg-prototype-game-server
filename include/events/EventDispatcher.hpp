@@ -101,6 +101,7 @@ class EventDispatcher
 
     // Online status recovery
     void handleMarkCharactersOnline(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
+    void handleOutboxUnacked(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
 
     EventQueue &eventQueue_;
     EventQueue &eventQueuePing_;
