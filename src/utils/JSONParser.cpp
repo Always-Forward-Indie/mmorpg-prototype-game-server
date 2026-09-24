@@ -263,6 +263,12 @@ std::vector<CharacterDataStruct>
 JSONParser::parseSavePositionsData(const char *data, size_t length)
 {
     nlohmann::json jsonData = nlohmann::json::parse(data, data + length);
+    return parseSavePositionsData(jsonData);
+}
+
+std::vector<CharacterDataStruct>
+JSONParser::parseSavePositionsData(const nlohmann::json &jsonData)
+{
     std::vector<CharacterDataStruct> characters;
 
     if (!jsonData.contains("body") || !jsonData["body"].is_object())
@@ -304,6 +310,12 @@ std::vector<CharacterDataStruct>
 JSONParser::parseSaveCharacterProgressData(const char *data, size_t length)
 {
     nlohmann::json jsonData = nlohmann::json::parse(data, data + length);
+    return parseSaveCharacterProgressData(jsonData);
+}
+
+std::vector<CharacterDataStruct>
+JSONParser::parseSaveCharacterProgressData(const nlohmann::json &jsonData)
+{
     std::vector<CharacterDataStruct> characters;
 
     if (!jsonData.contains("body") || !jsonData["body"].is_object())

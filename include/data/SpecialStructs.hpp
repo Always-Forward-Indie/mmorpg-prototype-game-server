@@ -3,6 +3,8 @@
 #include "data/DataStructs.hpp"
 #include <chrono>
 #include <functional>
+#include <memory>
+#include <nlohmann/json.hpp>
 
 struct Task
 {
@@ -24,4 +26,8 @@ struct EventPayload
     PositionStruct positionData;
     MessageStruct messageStruct;
     std::string rawMessage; // raw message string, used by event-specific handlers (e.g. savePositions)
+    // Single-parse: the wire json parsed once in MessageHandler, shared with
+    // all handlers (read-only). Empty only on defensive paths — handlers fall
+    // back to parsing rawMessage (see payloadJson in EventDispatcher.cpp).
+    std::shared_ptr<const nlohmann::json> parsed;
 };

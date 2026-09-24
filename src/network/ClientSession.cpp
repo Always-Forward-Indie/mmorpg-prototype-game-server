@@ -154,7 +154,8 @@ ClientSession::processMessage(const std::string &message)
     try
     {
         // Parse message using MessageHandler with timestamps for all request-response packets
-        auto [eventType, clientData, chunkData, characterData, positionData, messageStruct, timestamps] = messageHandler_.parseMessageWithTimestamps(message);
+        auto [eventType, clientData, chunkData, characterData, positionData, messageStruct, timestamps, parsed] =
+            messageHandler_.parseMessageWithTimestamps(message);
 
         // Set additional client data
         clientData.socket = socket_;
@@ -167,6 +168,7 @@ ClientSession::processMessage(const std::string &message)
             .positionData = positionData,
             .messageStruct = messageStruct,
             .rawMessage = message,
+            .parsed = parsed,
         };
 
         // For ping events, use special handling with timestamps

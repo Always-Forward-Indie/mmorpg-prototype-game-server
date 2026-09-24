@@ -18,6 +18,8 @@ class JSONParser
     nlohmann::json parseCharactersList(const char *data, size_t length);
     std::vector<CharacterDataStruct> parseSavePositionsData(const char *data, size_t length);
     std::vector<CharacterDataStruct> parseSaveCharacterProgressData(const char *data, size_t length);
+    std::vector<CharacterDataStruct> parseSavePositionsData(const nlohmann::json &jsonData);
+    std::vector<CharacterDataStruct> parseSaveCharacterProgressData(const nlohmann::json &jsonData);
     // Single-parse overloads: MessageHandler parses the wire bytes once and
     // threads the json through these (7 prefix parses/message -> 1).
     // Buffer overloads above parse once and delegate here.

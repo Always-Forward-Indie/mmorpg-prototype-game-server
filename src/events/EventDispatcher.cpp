@@ -193,7 +193,10 @@ EventDispatcher::handleChunkInitAck(
     std::string message;
     try
     {
-        auto j = nlohmann::json::parse(payload.rawMessage);
+        // Single-parse: payload.parsed already holds these bytes (parsed once
+        // in MessageHandler); handlers keep an owned json, so copy locally
+        // and parse only on the defensive empty path.
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
         if (j.contains("header") && j["header"].is_object())
         {
             chunkId = j["header"].value("chunkId", 0);
@@ -283,8 +286,10 @@ EventDispatcher::handleSavePositions(
     const EventPayload &payload,
     std::shared_ptr<boost::asio::ip::tcp::socket> socket)
 {
-    // Parse positions directly from the raw message — keeps EventPayload clean
-    auto positionsList = jsonParser_.parseSavePositionsData(payload.rawMessage.data(), payload.rawMessage.size());
+    // Single-parse: positions read from the shared wire json (parsed once in
+    // MessageHandler); buffer parse kept as defensive fallback.
+    auto positionsList = payload.parsed ? jsonParser_.parseSavePositionsData(*payload.parsed)
+                                        : jsonParser_.parseSavePositionsData(payload.rawMessage.data(), payload.rawMessage.size());
     Event saveEvent(Event::SAVE_POSITIONS, 0, positionsList, socket);
     eventsBatch_.push_back(saveEvent);
     eventQueue_.pushBatch(eventsBatch_);
@@ -299,7 +304,10 @@ EventDispatcher::handleSaveHpMana(
     // ARCH-4: Parse HP/Mana snapshot from chunk-server and create a save event
     try
     {
-        auto j = nlohmann::json::parse(payload.rawMessage);
+        // Single-parse: payload.parsed already holds these bytes (parsed once
+        // in MessageHandler); handlers keep an owned json, so copy locally
+        // and parse only on the defensive empty path.
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
         const auto &arr = j["body"]["characters"];
         std::vector<CharacterDataStruct> charactersList;
         charactersList.reserve(arr.size());
@@ -328,7 +336,8 @@ EventDispatcher::handleSaveCharacterProgress(
     const EventPayload &payload,
     std::shared_ptr<boost::asio::ip::tcp::socket> socket)
 {
-    auto progressList = jsonParser_.parseSaveCharacterProgressData(payload.rawMessage.data(), payload.rawMessage.size());
+    auto progressList = payload.parsed ? jsonParser_.parseSaveCharacterProgressData(*payload.parsed)
+                                       : jsonParser_.parseSaveCharacterProgressData(payload.rawMessage.data(), payload.rawMessage.size());
     Event saveEvent(Event::SAVE_CHARACTER_PROGRESS, 0, progressList, socket);
     eventsBatch_.push_back(saveEvent);
     eventQueue_.pushBatch(eventsBatch_);
@@ -343,7 +352,10 @@ EventDispatcher::handleGetPlayerQuests(
     // Expect: {"header":{"eventType":"getPlayerQuests"},"body":{"characterId":N}}
     try
     {
-        auto j = nlohmann::json::parse(payload.rawMessage);
+        // Single-parse: payload.parsed already holds these bytes (parsed once
+        // in MessageHandler); handlers keep an owned json, so copy locally
+        // and parse only on the defensive empty path.
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
         int characterId = j["body"].value("characterId", 0);
         Event ev(Event::GET_PLAYER_QUESTS, characterId, static_cast<int>(characterId), socket);
         eventsBatch_.push_back(ev);
@@ -363,7 +375,10 @@ EventDispatcher::handleGetPlayerFlags(
 {
     try
     {
-        auto j = nlohmann::json::parse(payload.rawMessage);
+        // Single-parse: payload.parsed already holds these bytes (parsed once
+        // in MessageHandler); handlers keep an owned json, so copy locally
+        // and parse only on the defensive empty path.
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
         int characterId = j["body"].value("characterId", 0);
         Event ev(Event::GET_PLAYER_FLAGS, characterId, static_cast<int>(characterId), socket);
         eventsBatch_.push_back(ev);
@@ -384,7 +399,10 @@ EventDispatcher::handleUpdatePlayerQuestProgress(
     // Pass the whole raw JSON to the EventHandler via nlohmann::json variant
     try
     {
-        auto j = nlohmann::json::parse(payload.rawMessage);
+        // Single-parse: payload.parsed already holds these bytes (parsed once
+        // in MessageHandler); handlers keep an owned json, so copy locally
+        // and parse only on the defensive empty path.
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
         Event ev(Event::UPDATE_PLAYER_QUEST_PROGRESS, 0, j, socket);
         eventsBatch_.push_back(ev);
         eventQueue_.pushBatch(eventsBatch_);
@@ -403,7 +421,10 @@ EventDispatcher::handleUpdatePlayerFlag(
 {
     try
     {
-        auto j = nlohmann::json::parse(payload.rawMessage);
+        // Single-parse: payload.parsed already holds these bytes (parsed once
+        // in MessageHandler); handlers keep an owned json, so copy locally
+        // and parse only on the defensive empty path.
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
         Event ev(Event::UPDATE_PLAYER_FLAG, 0, j, socket);
         eventsBatch_.push_back(ev);
         eventQueue_.pushBatch(eventsBatch_);
@@ -422,7 +443,10 @@ EventDispatcher::handleGetPlayerActiveEffects(
 {
     try
     {
-        auto j = nlohmann::json::parse(payload.rawMessage);
+        // Single-parse: payload.parsed already holds these bytes (parsed once
+        // in MessageHandler); handlers keep an owned json, so copy locally
+        // and parse only on the defensive empty path.
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
         int characterId = j["body"].value("characterId", 0);
         Event ev(Event::GET_PLAYER_ACTIVE_EFFECTS, characterId, static_cast<int>(characterId), socket);
         eventsBatch_.push_back(ev);
@@ -442,7 +466,10 @@ EventDispatcher::handleGetCharacterAttributesRefresh(
 {
     try
     {
-        auto j = nlohmann::json::parse(payload.rawMessage);
+        // Single-parse: payload.parsed already holds these bytes (parsed once
+        // in MessageHandler); handlers keep an owned json, so copy locally
+        // and parse only on the defensive empty path.
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
         int characterId = j["body"].value("characterId", 0);
         Event ev(Event::GET_CHARACTER_ATTRIBUTES_REFRESH, characterId, static_cast<int>(characterId), socket);
         eventsBatch_.push_back(ev);
@@ -462,7 +489,10 @@ EventDispatcher::handleSaveInventoryChange(
 {
     try
     {
-        auto j = nlohmann::json::parse(payload.rawMessage);
+        // Single-parse: payload.parsed already holds these bytes (parsed once
+        // in MessageHandler); handlers keep an owned json, so copy locally
+        // and parse only on the defensive empty path.
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
         const auto &body = j["body"];
         Event saveEvent(Event::SAVE_INVENTORY_CHANGE, 0, body, socket);
         eventsBatch_.push_back(saveEvent);
@@ -482,7 +512,10 @@ EventDispatcher::handleSaveEquipmentChange(
 {
     try
     {
-        auto j = nlohmann::json::parse(payload.rawMessage);
+        // Single-parse: payload.parsed already holds these bytes (parsed once
+        // in MessageHandler); handlers keep an owned json, so copy locally
+        // and parse only on the defensive empty path.
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
         const auto &body = j["body"];
         Event saveEvent(Event::SAVE_EQUIPMENT_CHANGE, 0, body, socket);
         eventsBatch_.push_back(saveEvent);
@@ -502,7 +535,10 @@ EventDispatcher::handleGetPlayerInventory(
 {
     try
     {
-        auto j = nlohmann::json::parse(payload.rawMessage);
+        // Single-parse: payload.parsed already holds these bytes (parsed once
+        // in MessageHandler); handlers keep an owned json, so copy locally
+        // and parse only on the defensive empty path.
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
         int characterId = j["body"].value("characterId", 0);
         Event ev(Event::GET_PLAYER_INVENTORY, characterId, static_cast<int>(characterId), socket);
         eventsBatch_.push_back(ev);
@@ -522,7 +558,10 @@ EventDispatcher::handleSaveExperienceDebt(
 {
     try
     {
-        auto j = nlohmann::json::parse(payload.rawMessage);
+        // Single-parse: payload.parsed already holds these bytes (parsed once
+        // in MessageHandler); handlers keep an owned json, so copy locally
+        // and parse only on the defensive empty path.
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
         const auto &body = j["body"];
         Event saveEvent(Event::SAVE_EXPERIENCE_DEBT, 0, body, socket);
         eventsBatch_.push_back(saveEvent);
@@ -542,7 +581,10 @@ EventDispatcher::handleSaveActiveEffect(
 {
     try
     {
-        auto j = nlohmann::json::parse(payload.rawMessage);
+        // Single-parse: payload.parsed already holds these bytes (parsed once
+        // in MessageHandler); handlers keep an owned json, so copy locally
+        // and parse only on the defensive empty path.
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
         const auto &body = j["body"];
         Event saveEvent(Event::SAVE_ACTIVE_EFFECT, 0, body, socket);
         eventsBatch_.push_back(saveEvent);
@@ -562,7 +604,10 @@ EventDispatcher::handleSaveDurabilityChange(
 {
     try
     {
-        auto j = nlohmann::json::parse(payload.rawMessage);
+        // Single-parse: payload.parsed already holds these bytes (parsed once
+        // in MessageHandler); handlers keep an owned json, so copy locally
+        // and parse only on the defensive empty path.
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
         const auto &body = j["body"];
         Event saveEvent(Event::SAVE_DURABILITY_CHANGE, 0, body, socket);
         eventsBatch_.push_back(saveEvent);
@@ -582,7 +627,10 @@ EventDispatcher::handleSaveItemKillCount(
 {
     try
     {
-        auto j = nlohmann::json::parse(payload.rawMessage);
+        // Single-parse: payload.parsed already holds these bytes (parsed once
+        // in MessageHandler); handlers keep an owned json, so copy locally
+        // and parse only on the defensive empty path.
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
         const auto &body = j["body"];
         Event saveEvent(Event::SAVE_ITEM_KILL_COUNT, 0, body, socket);
         eventsBatch_.push_back(saveEvent);
@@ -602,7 +650,10 @@ EventDispatcher::handleTransferInventoryItem(
 {
     try
     {
-        auto j = nlohmann::json::parse(payload.rawMessage);
+        // Single-parse: payload.parsed already holds these bytes (parsed once
+        // in MessageHandler); handlers keep an owned json, so copy locally
+        // and parse only on the defensive empty path.
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
         const auto &body = j["body"];
         Event saveEvent(Event::TRANSFER_INVENTORY_ITEM, 0, body, socket);
         eventsBatch_.push_back(saveEvent);
@@ -622,7 +673,10 @@ EventDispatcher::handleNullifyItemOwner(
 {
     try
     {
-        auto j = nlohmann::json::parse(payload.rawMessage);
+        // Single-parse: payload.parsed already holds these bytes (parsed once
+        // in MessageHandler); handlers keep an owned json, so copy locally
+        // and parse only on the defensive empty path.
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
         const auto &body = j["body"];
         Event saveEvent(Event::NULLIFY_ITEM_OWNER, 0, body, socket);
         eventsBatch_.push_back(saveEvent);
@@ -642,7 +696,10 @@ EventDispatcher::handleDeleteInventoryItem(
 {
     try
     {
-        auto j = nlohmann::json::parse(payload.rawMessage);
+        // Single-parse: payload.parsed already holds these bytes (parsed once
+        // in MessageHandler); handlers keep an owned json, so copy locally
+        // and parse only on the defensive empty path.
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
         const auto &body = j["body"];
         Event saveEvent(Event::DELETE_INVENTORY_ITEM, 0, body, socket);
         eventsBatch_.push_back(saveEvent);
@@ -664,7 +721,10 @@ EventDispatcher::handleGetPlayerPityData(
 {
     try
     {
-        auto j = nlohmann::json::parse(payload.rawMessage);
+        // Single-parse: payload.parsed already holds these bytes (parsed once
+        // in MessageHandler); handlers keep an owned json, so copy locally
+        // and parse only on the defensive empty path.
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
         int characterId = j["body"].value("characterId", 0);
         Event ev(Event::GET_PLAYER_PITY, characterId, static_cast<int>(characterId), socket);
         eventsBatch_.push_back(ev);
@@ -684,7 +744,10 @@ EventDispatcher::handleSavePityCounter(
 {
     try
     {
-        auto j = nlohmann::json::parse(payload.rawMessage);
+        // Single-parse: payload.parsed already holds these bytes (parsed once
+        // in MessageHandler); handlers keep an owned json, so copy locally
+        // and parse only on the defensive empty path.
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
         const auto &body = j["body"];
         Event saveEvent(Event::SAVE_PITY_COUNTER, 0, body, socket);
         eventsBatch_.push_back(saveEvent);
@@ -706,7 +769,10 @@ EventDispatcher::handleGetPlayerBestiaryData(
 {
     try
     {
-        auto j = nlohmann::json::parse(payload.rawMessage);
+        // Single-parse: payload.parsed already holds these bytes (parsed once
+        // in MessageHandler); handlers keep an owned json, so copy locally
+        // and parse only on the defensive empty path.
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
         int characterId = j["body"].value("characterId", 0);
         Event ev(Event::GET_PLAYER_BESTIARY, characterId, static_cast<int>(characterId), socket);
         eventsBatch_.push_back(ev);
@@ -726,7 +792,10 @@ EventDispatcher::handleSaveBestiaryKill(
 {
     try
     {
-        auto j = nlohmann::json::parse(payload.rawMessage);
+        // Single-parse: payload.parsed already holds these bytes (parsed once
+        // in MessageHandler); handlers keep an owned json, so copy locally
+        // and parse only on the defensive empty path.
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
         const auto &body = j["body"];
         Event saveEvent(Event::SAVE_BESTIARY_KILL, 0, body, socket);
         eventsBatch_.push_back(saveEvent);
@@ -746,7 +815,10 @@ EventDispatcher::handleTimedChampionKilled(
 {
     try
     {
-        auto j = nlohmann::json::parse(payload.rawMessage);
+        // Single-parse: payload.parsed already holds these bytes (parsed once
+        // in MessageHandler); handlers keep an owned json, so copy locally
+        // and parse only on the defensive empty path.
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
         const auto &body = j["body"];
         Event evt(Event::TIMED_CHAMPION_KILLED, 0, body, socket);
         eventsBatch_.push_back(evt);
@@ -768,7 +840,10 @@ EventDispatcher::handleGetPlayerReputationsData(
 {
     try
     {
-        auto j = nlohmann::json::parse(payload.rawMessage);
+        // Single-parse: payload.parsed already holds these bytes (parsed once
+        // in MessageHandler); handlers keep an owned json, so copy locally
+        // and parse only on the defensive empty path.
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
         int characterId = j["body"].value("characterId", 0);
         Event ev(Event::GET_PLAYER_REPUTATIONS, characterId, static_cast<int>(characterId), socket);
         eventsBatch_.push_back(ev);
@@ -788,7 +863,10 @@ EventDispatcher::handleSaveReputation(
 {
     try
     {
-        auto j = nlohmann::json::parse(payload.rawMessage);
+        // Single-parse: payload.parsed already holds these bytes (parsed once
+        // in MessageHandler); handlers keep an owned json, so copy locally
+        // and parse only on the defensive empty path.
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
         const auto &body = j["body"];
         Event saveEvent(Event::SAVE_REPUTATION, 0, body, socket);
         eventsBatch_.push_back(saveEvent);
@@ -810,7 +888,10 @@ EventDispatcher::handleGetPlayerMasteriesData(
 {
     try
     {
-        auto j = nlohmann::json::parse(payload.rawMessage);
+        // Single-parse: payload.parsed already holds these bytes (parsed once
+        // in MessageHandler); handlers keep an owned json, so copy locally
+        // and parse only on the defensive empty path.
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
         int characterId = j["body"].value("characterId", 0);
         Event ev(Event::GET_PLAYER_MASTERIES, characterId, static_cast<int>(characterId), socket);
         eventsBatch_.push_back(ev);
@@ -830,7 +911,10 @@ EventDispatcher::handleSaveMastery(
 {
     try
     {
-        auto j = nlohmann::json::parse(payload.rawMessage);
+        // Single-parse: payload.parsed already holds these bytes (parsed once
+        // in MessageHandler); handlers keep an owned json, so copy locally
+        // and parse only on the defensive empty path.
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
         const auto &body = j["body"];
         Event saveEvent(Event::SAVE_MASTERY, 0, body, socket);
         eventsBatch_.push_back(saveEvent);
@@ -861,7 +945,10 @@ EventDispatcher::handleSaveLearnedSkill(
 {
     try
     {
-        auto j = nlohmann::json::parse(payload.rawMessage);
+        // Single-parse: payload.parsed already holds these bytes (parsed once
+        // in MessageHandler); handlers keep an owned json, so copy locally
+        // and parse only on the defensive empty path.
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
         const auto &body = j["body"];
         Event saveEvent(Event::SAVE_LEARNED_SKILL, 0, body, socket);
         eventsBatch_.push_back(saveEvent);
@@ -883,7 +970,10 @@ EventDispatcher::handleSaveSkillBarSlot(
 {
     try
     {
-        auto j = nlohmann::json::parse(payload.rawMessage);
+        // Single-parse: payload.parsed already holds these bytes (parsed once
+        // in MessageHandler); handlers keep an owned json, so copy locally
+        // and parse only on the defensive empty path.
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
         const auto &body = j["body"];
         Event saveEvent(Event::SAVE_SKILL_BAR_SLOT, 0, body, socket);
         eventsBatch_.push_back(saveEvent);
@@ -903,7 +993,10 @@ EventDispatcher::handleSaveCurrencyTransaction(
 {
     try
     {
-        auto j = nlohmann::json::parse(payload.rawMessage);
+        // Single-parse: payload.parsed already holds these bytes (parsed once
+        // in MessageHandler); handlers keep an owned json, so copy locally
+        // and parse only on the defensive empty path.
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
         const auto &body = j["body"];
         Event saveEvent(Event::SAVE_CURRENCY_TRANSACTION, 0, body, socket);
         eventsBatch_.push_back(saveEvent);
@@ -937,7 +1030,10 @@ EventDispatcher::handleGetPlayerTitlesData(
 {
     try
     {
-        auto j = nlohmann::json::parse(payload.rawMessage);
+        // Single-parse: payload.parsed already holds these bytes (parsed once
+        // in MessageHandler); handlers keep an owned json, so copy locally
+        // and parse only on the defensive empty path.
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
         int characterId = j["body"].value("characterId", 0);
         Event ev(Event::GET_PLAYER_TITLES, characterId, static_cast<int>(characterId), socket);
         eventsBatch_.push_back(ev);
@@ -969,7 +1065,10 @@ EventDispatcher::handleGetPlayerEmotesData(
 {
     try
     {
-        auto j = nlohmann::json::parse(payload.rawMessage);
+        // Single-parse: payload.parsed already holds these bytes (parsed once
+        // in MessageHandler); handlers keep an owned json, so copy locally
+        // and parse only on the defensive empty path.
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
         int characterId = j["body"].value("characterId", 0);
         Event ev(Event::GET_PLAYER_EMOTES, characterId, static_cast<int>(characterId), socket);
         eventsBatch_.push_back(ev);
@@ -989,7 +1088,10 @@ EventDispatcher::handleSavePlayerTitle(
 {
     try
     {
-        auto j = nlohmann::json::parse(payload.rawMessage);
+        // Single-parse: payload.parsed already holds these bytes (parsed once
+        // in MessageHandler); handlers keep an owned json, so copy locally
+        // and parse only on the defensive empty path.
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
         const auto &body = j["body"];
         Event saveEvent(Event::SAVE_PLAYER_TITLE, 0, body, socket);
         eventsBatch_.push_back(saveEvent);
@@ -1010,7 +1112,10 @@ EventDispatcher::handleSaveSkillCooldown(
 {
     try
     {
-        auto j = nlohmann::json::parse(payload.rawMessage);
+        // Single-parse: payload.parsed already holds these bytes (parsed once
+        // in MessageHandler); handlers keep an owned json, so copy locally
+        // and parse only on the defensive empty path.
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
         logger_.log("[EventDispatcher] handleSaveSkillCooldown received: " + payload.rawMessage);
         const auto &body = j["body"];
         Event ev(Event::SAVE_SKILL_COOLDOWN, 0, body, socket);
@@ -1031,7 +1136,10 @@ EventDispatcher::handleGetPlayerSkillCooldowns(
 {
     try
     {
-        auto j = nlohmann::json::parse(payload.rawMessage);
+        // Single-parse: payload.parsed already holds these bytes (parsed once
+        // in MessageHandler); handlers keep an owned json, so copy locally
+        // and parse only on the defensive empty path.
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
         int characterId = j["body"].value("characterId", 0);
         Event ev(Event::GET_PLAYER_SKILL_COOLDOWNS, characterId, static_cast<int>(characterId), socket);
         eventsBatch_.push_back(ev);
@@ -1054,7 +1162,10 @@ EventDispatcher::handleSaveAnalyticsEvent(
 {
     try
     {
-        auto j = nlohmann::json::parse(payload.rawMessage);
+        // Single-parse: payload.parsed already holds these bytes (parsed once
+        // in MessageHandler); handlers keep an owned json, so copy locally
+        // and parse only on the defensive empty path.
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
         const auto &body = j["body"];
         Event saveEvent(Event::SAVE_ANALYTICS_EVENT, 0, body, socket);
         eventsBatch_.push_back(saveEvent);
@@ -1074,7 +1185,10 @@ EventDispatcher::handleSavePlayTime(
 {
     try
     {
-        auto j = nlohmann::json::parse(payload.rawMessage);
+        // Single-parse: payload.parsed already holds these bytes (parsed once
+        // in MessageHandler); handlers keep an owned json, so copy locally
+        // and parse only on the defensive empty path.
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
         PlayTimeDataStruct pt;
         pt.characterId = j["body"].value("characterId", 0);
         pt.sessionPlayTimeSec = j["body"].value("sessionPlayTimeSec", int64_t{0});
@@ -1101,7 +1215,10 @@ EventDispatcher::handleMarkCharactersOnline(
 {
     try
     {
-        auto j = nlohmann::json::parse(payload.rawMessage);
+        // Single-parse: payload.parsed already holds these bytes (parsed once
+        // in MessageHandler); handlers keep an owned json, so copy locally
+        // and parse only on the defensive empty path.
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
         if (j.contains("body") && j["body"].is_object() && j["body"].contains("characterIds") && j["body"]["characterIds"].is_array())
         {
             nlohmann::json body = j["body"];
