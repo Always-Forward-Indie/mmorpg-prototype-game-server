@@ -23,6 +23,31 @@ SELECT COUNT(*) FROM ins;
 Таблица `fact_keys_applied(key, applied_at)` — миграция `083`.
 Ключ — `{characterId}:{factType}:{bootId}:{seq}` (минтит чанк).
 
+## High-water (`outbox_seq_watermark`, миграция `088`)
+
+Каждый fresh-claim дописывает `last_seq` (GREATEST-wins) в той же txn —
+см. `outboxClaimFactKey`: upsert идёт после claim'а, throw роняет всё
+вместе. Парсинг ключа — `outboxParseFactKey` (reject 3-part legacy и
+`test-*` ключей — они клеймятся, но watermark не трогают; `characterId 0`
+принимается). Читается один раз на новый линк (`get_outbox_global_watermark`
+= `MAX(last_seq)`), отдаётся в `setChunkData`-ack'е. Пустая таблица → 0,
+безвредно (bootId).
+
+## Reconcile (`outboxUnacked` → `outboxDiff`)
+
+Маршрут `EventDispatcher` + событие `OUTBOX_UNACKED` + `handleOutboxUnackedEvent`:
+`get_outbox_diff_keys` (`= ANY($1::text[])`, только PK-lookups) делит ключи
+на applied/unknown; ответ `outboxSendDiff` — на живой chunk-сокет
+(`resolveLiveSocket`). Ключи валидируются по charset (`"',[{}`
+отбрасываются — array-литерал без экранирования безопасен). DB-ошибка →
+молчание (chunk ретраит флашом).
+
+## Ретеншн
+
+`delete_old_fact_keys(days, limit)` — game-свип (id 3, cadence
+`scheduler.chunk_sweep_sec`), сейчас (30, 1000). Индекс
+`ix_fact_keys_applied(applied_at)` — миграция `088`.
+
 ## Ack (`Outbox.cpp:33-49`)
 
 `factAck{key, status}` в `status:success`-конверте на **тот же сокет**,

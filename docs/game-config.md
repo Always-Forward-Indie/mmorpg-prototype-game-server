@@ -26,8 +26,8 @@ GM-команда `reload` перечитывает без рестарта.
 | `interest.*` (6) | `cell_size 1500.0`, `view_radius 1`, `rehome_margin_frac 0.15`, `enabled/snapshots true`, `snapshot_cooldown_ms 2000` | Чанк: при старте (+reload) |
 | `regen.*` | `tickIntervalMs 4000`, `baseHpRegen 2`, `baseMpRegen 1`, `disableInCombatMs 8000`, коэффы | Интервал — при старте; amounts — живьём каждый тик |
 | `durability.*` | `tier{1,2,3}_threshold_pct` 75/50/25, `death_penalty_pct` 0.05, `warning_threshold_pct` 30 | Живьём |
+| `drop.ttl_sec 300`, `corpse.ttl_ms 60000` | TTL чисток (миграция `089`; раньше только фолбэки) | Живьём каждый тик |
 | `economy.*`, `reputation.*`, `mastery.*`, `bestiary.*`, `item_soul.*`, `movement.*`, `combat.*`, `admin.*`, `aggro.*`, `carry_weight.*`, `exploration.*`, `fellowship.*`, `pity.*`, `zone_event.*` | См. дамп | По месту (интересует — grep `getInt/getFloat` в chunk `src/`) |
-| ⚠️ НЕ seeded (только фолбэки в коде) | `drop.ttl_sec` (300), `corpse.ttl_ms` (60000) | Живьём каждый тик, но строк в БД нет — при желании добавить миграцией |
 
 Полный перечень — `SELECT key, value FROM game_config ORDER BY key`
 (миграции `085/086/087` + дамп; live = dump). Новый ключ: миграция

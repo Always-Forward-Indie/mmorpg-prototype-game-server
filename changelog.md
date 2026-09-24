@@ -1,3 +1,25 @@
+v0.2.22
+24.09.2026
+================
+
+New:
+
+**Outbox phases B-D: watermark + reconcile + retention.**
+- `outbox_seq_watermark` (migration 088): high-water upsert in the claim txn
+  (GREATEST-wins) + `outboxParseFactKey` (reject legacy/test keys, accept 0).
+- `setChunkData` success ack carries `body.outboxGlobalSeq` on new links
+  only (heartbeat/error acks don't — otherwise 60s reconcile storms).
+- `outboxUnacked` → `outboxDiff{applied,unknown}` (PK lookups, live socket,
+  batched ~120 keys vs 8KB cap); `OUTBOX_UNACKED` route + event.
+- Retention: `delete_old_fact_keys(30, 1000)` on game sweep (id 3) + index.
+- Chunk handshake parses `bootId/nextSeq` into `ChunkInfoStruct`.
+- Verified: unit pins (parser, registry), SQL probes (GREATEST, ANY split),
+  live facts write watermark rows, `test_outbox_reconcile.py` 3/3 green.
+- Fixed en route: `fact_keys_applied` schema was missing from the canonical
+  dump (post-`load` claims would break) — added alongside watermark schema.
+
+---
+
 v0.2.21
 22.09.2026
 ================

@@ -110,6 +110,15 @@ NetworkManager::~NetworkManager()
         if (thread.joinable())
             thread.join();
     }
+    // ASan-found UAF fix: SocketWriteState holds a strand bound to
+    // io_context_'s executor service, but socketStates_ is declared BEFORE
+    // io_context_ — without this, member destruction tears down io_context
+    // first and ~strand() touches the freed service. Clearing here (threads
+    // already joined, io alive) destroys strands safely.
+    {
+        std::lock_guard<std::mutex> lock(socketStatesMutex_);
+        socketStates_.clear();
+    }
 }
 
 void

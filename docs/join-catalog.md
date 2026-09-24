@@ -34,7 +34,10 @@ Game — единственный, кто ходит в БД. Чанк при с
 Итог — в логе game (root-логгер, всегда видно):
 `[join] full catalog push chunk=1 entries=24 failed=N tookMs=M`.
 
-- `failed == 0` → ack `setChunkData` success.
+- `failed == 0` → ack `setChunkData` success. Success-ack нового линка
+  несёт `body.outboxGlobalSeq` (глобальный high-water `outbox_seq_watermark`,
+  фазы B-D; heartbeat/error-ack'и — без поля). Чанк fast-forward'ит счётчик
+  и шлёт `outboxUnacked` → получает `outboxDiff` (см. `outbox-game-side.md`).
 - `failed > 0` → регистрация **сносится**
   (`removeChunkServerDataById`), ответ `ERR_JOIN_CATALOG_INCOMPLETE`
   (error + `body.errorCode`), следующий heartbeat трактуется как новый
