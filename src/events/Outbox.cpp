@@ -27,7 +27,18 @@ int outboxClaimFactKey(Database &db, pqxx::work &txn, const std::string &key)
     }
     if (rows.empty())
         return -1;
-    return rows[0][0].as<int>(0) == 1 ? 1 : 0;
+    if (rows[0][0].as<int>(0) != 1)
+        return 0;
+    // Fresh claim: record the high-water mark in the same txn (atomic with
+    // the business writes the caller performs next). A throw below aborts
+    // the claim with it, so the watermark can never run ahead of effects.
+    // execChecked throws DatabaseError on transport failure -> -1 path.
+    if (const auto parts = outboxParseFactKey(key))
+    {
+        static_cast<void>(db.execChecked(txn, "upsert_outbox_watermark",
+            {1, parts->characterId, parts->seq}));
+    }
+    return 1;
 }
 
 void outboxSendFactAck(NetworkManager &net,

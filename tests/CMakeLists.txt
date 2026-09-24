@@ -19,6 +19,7 @@ if(GTest_FOUND)
         test_random_utils.cpp
         test_config.cpp
         test_query_registry.cpp
+        test_outbox.cpp
         ../src/services/ChunkManager.cpp
         ../src/services/ClientManager.cpp
         ../src/services/CharacterManager.cpp

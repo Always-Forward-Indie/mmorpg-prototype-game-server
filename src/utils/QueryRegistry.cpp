@@ -66,6 +66,19 @@ const QueryDef kQueries[] = {
             // "Unexpected text after integer" and rolls everything back.)
     {"claim_fact_key",
      R"QDEF(WITH ins AS (INSERT INTO fact_keys_applied(key) VALUES($1) ON CONFLICT DO NOTHING RETURNING key) SELECT COUNT(*) FROM ins;)QDEF"},
+            // Outbox high-water (migration 088): max applied fact seq per
+            // character. Written atomically with each applied fact inside the
+            // caller's txn (GREATEST-wins, never backward); read once per NEW
+            // chunk link for seq fast-forward. bootId stays in keys, so a
+            // stale/low watermark is harmless (no cross-boot collisions).
+    {"upsert_outbox_watermark",
+     R"QDEF(INSERT INTO outbox_seq_watermark(chunk_id, character_id, last_seq, updated_at) VALUES($1, $2, $3, NOW()) ON CONFLICT (chunk_id, character_id) DO UPDATE SET last_seq = GREATEST(outbox_seq_watermark.last_seq, EXCLUDED.last_seq), updated_at = NOW();)QDEF"},
+    {"get_outbox_global_watermark",
+     R"QDEF(SELECT COALESCE(MAX(last_seq), 0) FROM outbox_seq_watermark WHERE chunk_id = $1;)QDEF"},
+    {"get_outbox_diff_keys",
+     R"QDEF(SELECT key FROM fact_keys_applied WHERE key = ANY($1::text[]);)QDEF"},
+    {"delete_old_fact_keys",
+     R"QDEF(DELETE FROM fact_keys_applied WHERE ctid IN (SELECT ctid FROM fact_keys_applied WHERE applied_at < NOW() - ($1 || ' days')::interval ORDER BY applied_at LIMIT $2);)QDEF"},
             // ── Skill Bar (migration 051) ─────────────────────────────────────────
     {"get_character_skill_bar",
      R"QDEF(SELECT slot_index, skill_slug FROM character_skill_bar WHERE character_id = $1 ORDER BY slot_index;)QDEF"},

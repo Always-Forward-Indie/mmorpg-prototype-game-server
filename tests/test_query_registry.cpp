@@ -51,6 +51,10 @@ TEST(QueryRegistry, CriticalQueriesPresent) {
     EXPECT_NE(std::string(join->sql).find("user_sessions"), std::string::npos);
 
     EXPECT_NE(findByName("claim_fact_key"), nullptr); // outbox idempotency
+    EXPECT_NE(findByName("upsert_outbox_watermark"), nullptr); // outbox high-water
+    EXPECT_NE(findByName("get_outbox_global_watermark"), nullptr);
+    EXPECT_NE(findByName("get_outbox_diff_keys"), nullptr);
+    EXPECT_NE(findByName("delete_old_fact_keys"), nullptr); // retention sweep
     EXPECT_NE(findByName("get_world_objects"), nullptr);
     EXPECT_NE(findByName("update_timed_champion_next_spawn"), nullptr);
 }
