@@ -295,6 +295,12 @@ EventHandler::handleJoinChunkServerEvent(const Event &event)
     // get socket from the event
     std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
 
+    // Outbox phases B-D: new-link flag for the watermark attach below.
+    // Set once chunkData is known (sameSocket lives in a narrower scope).
+    // Defaults to new-link (fail-open: a missed set only adds a harmless
+    // field; bootId keeps numbering safe regardless).
+    bool isNewChunkLink = true;
+
     // prepare the chunk server data
     nlohmann::json chunkServerDataJson;
 
@@ -367,6 +373,7 @@ EventHandler::handleJoinChunkServerEvent(const Event &event)
                 gameServices_.getChunkManager().getChunkById(chunkData.id);
             const bool sameSocket =
                 prevReg.socket && clientSocket && prevReg.socket == clientSocket;
+            isNewChunkLink = !sameSocket;
 
             // Save the chunk data to memory
             gameServices_.getChunkManager().addChunkInfo(chunkData);
@@ -537,25 +544,30 @@ EventHandler::handleJoinChunkServerEvent(const Event &event)
 
         // Add the message to the response
         // Outbox phases B-D: attach the global high-water mark so the chunk
-        // can fast-forward its seq_ (new links only — this block runs solely
-        // on !sameSocket; heartbeats and the error path above carry no mark).
-        // DB failure here must never fail the join: ack without the field
-        // (bootId keeps numbering safe) and let the next link retry it.
+        // can fast-forward its seq_. NEW LINKS ONLY (gated on !sameSocket):
+        // heartbeat re-asserts get the plain ack, otherwise the chunk would
+        // reconcile (outboxUnacked storm) every 60s. The error path above
+        // likewise carries no mark. DB failure here must never fail the
+        // join: ack without the field (bootId keeps numbering safe) and let
+        // the next link retry it.
         int64_t outboxGlobalSeq = -1;
-        try
+        if (isNewChunkLink)
         {
-            auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
-            pqxx::work txn(_dbConn.get());
-            auto wmRows = gameServices_.getDatabase().execChecked(
-                txn, "get_outbox_global_watermark", {1});
-            txn.commit();
-            if (!wmRows.empty() && !wmRows[0][0].is_null())
-                outboxGlobalSeq = wmRows[0][0].as<int64_t>(0);
-        }
-        catch (const std::exception &ex)
-        {
-            gameServices_.getLogger().logError(
-                "[join] outbox watermark unavailable, acking without it: " + std::string(ex.what()));
+            try
+            {
+                auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+                pqxx::work txn(_dbConn.get());
+                auto wmRows = gameServices_.getDatabase().execChecked(
+                    txn, "get_outbox_global_watermark", {1});
+                txn.commit();
+                if (!wmRows.empty() && !wmRows[0][0].is_null())
+                    outboxGlobalSeq = wmRows[0][0].as<int64_t>(0);
+            }
+            catch (const std::exception &ex)
+            {
+                gameServices_.getLogger().logError(
+                    "[join] outbox watermark unavailable, acking without it: " + std::string(ex.what()));
+            }
         }
         response = builder
                        .setHeader("message", "Joining chunk server success!")
