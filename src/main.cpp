@@ -84,11 +84,14 @@ main()
         // Scheduler::run already guards task exceptions; id 1 (first task).
         // Interval comes from game_config (scheduler.chunk_sweep_sec), sampled
         // once here; 60s fallback preserves previous behavior on empty config.
+        // Silence threshold likewise (scheduler.chunk_silent_threshold_ms).
         {
             const int chunkSweepSec = gameServices.getGameConfigService().getInt("scheduler.chunk_sweep_sec", 60);
+            const int chunkSilentMs = gameServices.getGameConfigService().getInt(
+                "scheduler.chunk_silent_threshold_ms", 180000);
             Task chunkSweepTask(
-                [&gameServices]()
-                { gameServices.getChunkManager().sweepSilentChunks(180000); },
+                [&gameServices, chunkSilentMs]()
+                { gameServices.getChunkManager().sweepSilentChunks(chunkSilentMs); },
                 chunkSweepSec,
                 std::chrono::system_clock::now() + std::chrono::seconds(chunkSweepSec),
                 1);
@@ -101,9 +104,11 @@ main()
         // Scheduler::run already guards task exceptions; id 2.
         {
             const int clientSweepSec = gameServices.getGameConfigService().getInt("scheduler.client_sweep_sec", 60);
+            const int clientSilentMs = gameServices.getGameConfigService().getInt(
+                "scheduler.client_silent_threshold_ms", 600000);
             Task clientSweepTask(
-                [&gameServices]()
-                { gameServices.getClientManager().sweepSilentClients(600000); },
+                [&gameServices, clientSilentMs]()
+                { gameServices.getClientManager().sweepSilentClients(clientSilentMs); },
                 clientSweepSec,
                 std::chrono::system_clock::now() + std::chrono::seconds(clientSweepSec),
                 2);
