@@ -50,7 +50,7 @@ const QueryDef kQueries[] = {
     {"set_character_exp_level",
      R"QDEF(UPDATE characters SET experience_points = $2, level = $3, free_skill_points = free_skill_points + GREATEST(0, $3::integer - level) WHERE id = $1;)QDEF"},
     {"save_learned_skill",
-     R"QDEF(INSERT INTO character_skills (character_id, skill_id, current_level) SELECT $1, s.id, 1 FROM skills s WHERE s.slug = $2 ON CONFLICT (character_id, skill_id) DO NOTHING;)QDEF"},
+     R"QDEF(INSERT INTO character_skills (character_id, skill_id, current_level) SELECT $1, s.id, $3 FROM skills s WHERE s.slug = $2 ON CONFLICT (character_id, skill_id) DO UPDATE SET current_level = GREATEST(character_skills.current_level, EXCLUDED.current_level);)QDEF"},
     {"decrement_skill_points",
      R"QDEF(UPDATE characters SET free_skill_points = GREATEST(0, free_skill_points - $2) WHERE id = $1;)QDEF"},
             // Absolute SP persist for chunk-decided facts (single owner: chunk
