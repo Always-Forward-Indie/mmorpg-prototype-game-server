@@ -102,6 +102,8 @@ class EventDispatcher
     // Online status recovery
     void handleMarkCharactersOnline(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
     void handleOutboxUnacked(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
+    // Test precondition (DEV admin op): re-push live-editable catalog slices.
+    void handleRequestCatalogReload(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
 
     EventQueue &eventQueue_;
     EventQueue &eventQueuePing_;

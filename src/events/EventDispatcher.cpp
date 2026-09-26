@@ -104,6 +104,7 @@ EventDispatcher::buildRouteTable()
         {"savePlayTime", &EventDispatcher::handleSavePlayTime},
         {"markCharactersOnline", &EventDispatcher::handleMarkCharactersOnline},
         {"outboxUnacked", &EventDispatcher::handleOutboxUnacked},
+        {"requestCatalogReload", &EventDispatcher::handleRequestCatalogReload},
     };
 }
 
@@ -1258,5 +1259,47 @@ EventDispatcher::handleOutboxUnacked(
     catch (const std::exception &ex)
     {
         logger_.logError("handleOutboxUnacked parse error: " + std::string(ex.what()));
+    }
+}
+
+void
+EventDispatcher::handleRequestCatalogReload(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    // DEV-only test precondition (chunk admin op reloadWorldContent): replay
+    // the live-editable catalog slices on the current chunk link, no
+    // restart. Same internal events (and answering sockets) as the JOIN
+    // boot push; chunk handlers merge by id/slug. Completion is observed
+    // by polling content (pushes are async) — no ack by design.
+    (void)payload;
+    if (!socket)
+    {
+        logger_.logError("handleRequestCatalogReload: null socket, ignoring");
+        return;
+    }
+    try
+    {
+        Event npcDataEvent(Event::GET_NPCS_LIST, 0, NPCDataStruct(), socket);
+        eventsBatch_.push_back(npcDataEvent);
+        Event npcAttributesEvent(Event::GET_NPCS_ATTRIBUTES, 0, NPCAttributeStruct(), socket);
+        eventsBatch_.push_back(npcAttributesEvent);
+        Event vendorDataEvent(Event::GET_VENDOR_DATA, 0, ClientDataStruct(), socket);
+        eventsBatch_.push_back(vendorDataEvent);
+        Event worldObjectsEvent(Event::GET_WORLD_OBJECTS, 0, 0, socket);
+        eventsBatch_.push_back(worldObjectsEvent);
+        Event dialoguesEvent(Event::GET_DIALOGUES, 0, ClientDataStruct(), socket);
+        eventsBatch_.push_back(dialoguesEvent);
+        Event questsEvent(Event::GET_QUESTS, 0, ClientDataStruct(), socket);
+        eventsBatch_.push_back(questsEvent);
+        Event timedEvent(Event::GET_TIMED_CHAMPION_TEMPLATES, 0, ClientDataStruct(), socket);
+        eventsBatch_.push_back(timedEvent);
+        eventQueue_.pushBatch(eventsBatch_);
+        eventsBatch_.clear();
+        logger_.log("[join] catalog reload pushed (npcs/vendors/world-objects/dialogues/quests/timed)");
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleRequestCatalogReload error: " + std::string(ex.what()));
     }
 }

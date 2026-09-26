@@ -87,3 +87,10 @@ Inventory; Progression: pity/bestiary/timed). Legacy keyless-сендеры ид
 (`quantity = EXCLUDED.quantity`, было аддитивное `+`): чанк всегда шлёт
 абсолютные остатки, writer один, а аддитив дрейфовал при быстрых повторах
 и дублировал каждый sync-ретрай. Пин: `test_inventory_sync_sim.py`.
+
+Дальше (096): строки владеют пер-инстанс токеном (`sync_token` UNIQUE
+NULL) — путь токена (SELECT → adopt virgin legacy → INSERT) вместо пары
+шаблона; template-pair unique снят (дубли нестакаемых живут, стакаемые
+остаются одной строкой через adopt). Все записи абсолютным SET, ретраи
+сходятся. Legacy без токена: SELECT-first без ON CONFLICT. Пин:
+`test_duplicate_nonstackables_get_distinct_ids` + echo/convergence.

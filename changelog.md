@@ -1,3 +1,21 @@
+v0.2.24
+26.09.2026
+================
+
+Fixes:
+
+**A-batch + reload route.**
+- Inventory token path: SELECT by token → adopt virgin legacy row →
+  INSERT with token (all absolute-SET); legacy path SELECT-first without
+  ON CONFLICT (template-pair unique dropped, see 096). New queries:
+  get/insert/adopt + char_item lookup.
+- Equip saves with id==0 resolve by (character, token), warn otherwise.
+- Post-commit attribute refresh inside durability persist (ordered).
+- `requestCatalogReload` route: re-pushes NPC/vendors/WIO/dialogues/
+  quests/timed on the requesting chunk link (DEV preconditions).
+
+---
+
 v0.2.23
 26.09.2026
 ================
