@@ -51,6 +51,11 @@ TEST(QueryRegistry, CriticalQueriesPresent) {
     EXPECT_NE(std::string(join->sql).find("user_sessions"), std::string::npos);
 
     EXPECT_NE(findByName("claim_fact_key"), nullptr); // outbox idempotency
+    EXPECT_NE(findByName("get_inventory_id_by_token"), nullptr); // per-instance idempotency (096)
+    EXPECT_NE(findByName("adopt_legacy_inventory_row"), nullptr);
+    EXPECT_NE(findByName("insert_player_inventory_with_token"), nullptr);
+    EXPECT_NE(findByName("get_inventory_id_by_char_item"), nullptr); // legacy path
+    EXPECT_NE(findByName("insert_player_inventory_item"), nullptr);
     EXPECT_NE(findByName("upsert_outbox_watermark"), nullptr); // outbox high-water
     EXPECT_NE(findByName("get_outbox_global_watermark"), nullptr);
     EXPECT_NE(findByName("get_outbox_diff_keys"), nullptr);

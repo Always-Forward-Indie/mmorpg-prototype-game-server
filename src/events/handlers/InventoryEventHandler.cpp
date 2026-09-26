@@ -64,19 +64,109 @@ InventoryEventHandler::handleSaveInventoryChangeEvent(const Event &event)
                 txn.commit();
                 // No id sync needed — the id didn't change.
             }
-            else
+            else if (syncToken != 0)
             {
-                // New item — INSERT and send assigned id back to chunk server.
-                auto result = gameServices_.getDatabase().execChecked(
-                    txn, "upsert_player_inventory_item", {characterId, itemId, quantity});
+                // Per-instance path (migration 096): SELECT by token first.
+                // Found -> absolute-SET quantity (resends converge, never
+                // double). Missing -> adopt a virgin legacy row if one exists
+                // (stackables stay single-row), else INSERT with the token
+                // (a concurrent duplicate insert hits UNIQUE -> re-SELECT).
+                const int64_t tok = static_cast<int64_t>(syncToken);
+                auto found = gameServices_.getDatabase().execChecked(
+                    txn, "get_inventory_id_by_token", {characterId, tok});
+                int64_t assignedId = 0;
+                if (!found.empty())
+                {
+                    assignedId = found[0]["id"].as<int64_t>();
+                    static_cast<void>(gameServices_.getDatabase().execChecked(
+                        txn, "update_player_inventory_quantity",
+                        {quantity, static_cast<int>(assignedId), characterId}));
+                }
+                else
+                {
+                    auto adopted = gameServices_.getDatabase().execChecked(
+                        txn, "adopt_legacy_inventory_row",
+                        {quantity, tok, characterId, itemId});
+                    if (!adopted.empty())
+                        assignedId = adopted[0]["id"].as<int64_t>();
+                }
+                if (assignedId == 0)
+                {
+                    auto inserted = gameServices_.getDatabase().execChecked(
+                        txn, "insert_player_inventory_with_token",
+                        {characterId, itemId, quantity, tok});
+                    if (!inserted.empty())
+                        assignedId = inserted[0]["id"].as<int64_t>();
+                    else
+                    {
+                        // Lost the insert race: winner's row is ours too.
+                        auto retry = gameServices_.getDatabase().execChecked(
+                            txn, "get_inventory_id_by_token", {characterId, tok});
+                        if (!retry.empty())
+                        {
+                            assignedId = retry[0]["id"].as<int64_t>();
+                            static_cast<void>(gameServices_.getDatabase().execChecked(
+                                txn, "update_player_inventory_quantity",
+                                {quantity, static_cast<int>(assignedId), characterId}));
+                        }
+                    }
+                }
                 txn.commit();
 
                 // Send back the assigned player_inventory.id so chunk server can fix in-memory id=0.
-                // Without the sync every later save goes down the additive
-                // upsert path (double count), so answer on the live socket.
-                if (!result.empty())
+                if (assignedId != 0)
                 {
-                    int64_t assignedId = result[0]["id"].as<int64_t>();
+                    nlohmann::json syncPkt;
+                    syncPkt["header"]["eventType"] = "inventoryItemIdSync";
+                    syncPkt["header"]["clientId"] = 0;
+                    syncPkt["body"]["characterId"] = characterId;
+                    syncPkt["body"]["itemId"] = itemId;
+                    syncPkt["body"]["inventoryItemId"] = assignedId;
+                    syncPkt["body"]["syncToken"] = syncToken;
+                    auto syncSocket = gameServices_.getChunkManager().resolveLiveSocket(chunkSocket);
+                    if (!syncSocket)
+                    {
+                        log_->error("[GAME] inventoryItemIdSync: no live chunk socket for char={}",
+                            characterId);
+                    }
+                    else
+                    {
+                        networkManager_.sendResponse(syncSocket,
+                            networkManager_.generateResponseMessage("success", syncPkt));
+                    }
+                }
+                else
+                {
+                    log_->error("[GAME] token path produced no row: char={} item={}",
+                        characterId, itemId);
+                }
+            }
+            else
+            {
+                // Legacy token-less path (pre-token chunk versions only):
+                // SELECT first, then absolute-SET UPDATE or plain INSERT.
+                auto legacy = gameServices_.getDatabase().execChecked(
+                    txn, "get_inventory_id_by_char_item", {characterId, itemId});
+                int64_t assignedId = 0;
+                if (!legacy.empty())
+                {
+                    assignedId = legacy[0]["id"].as<int64_t>();
+                    static_cast<void>(gameServices_.getDatabase().execChecked(
+                        txn, "update_player_inventory_quantity",
+                        {quantity, static_cast<int>(assignedId), characterId}));
+                }
+                else
+                {
+                    auto result = gameServices_.getDatabase().execChecked(
+                        txn, "insert_player_inventory_item", {characterId, itemId, quantity});
+                    if (!result.empty())
+                        assignedId = result[0]["id"].as<int64_t>();
+                }
+                txn.commit();
+
+                // Send back the assigned player_inventory.id so chunk server can fix in-memory id=0.
+                if (assignedId != 0)
+                {
                     nlohmann::json syncPkt;
                     syncPkt["header"]["eventType"] = "inventoryItemIdSync";
                     syncPkt["header"]["clientId"] = 0;

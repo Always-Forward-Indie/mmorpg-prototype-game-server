@@ -200,8 +200,36 @@ const QueryDef kQueries[] = {
      R"QDEF(WITH cleanup AS (   DELETE FROM player_skill_cooldown   WHERE character_id = $1 AND cooldown_ends_at <= NOW() ) SELECT skill_slug,   GREATEST(0, EXTRACT(EPOCH FROM (cooldown_ends_at - NOW()))::bigint * 1000)::bigint AS remaining_ms FROM player_skill_cooldown WHERE character_id = $1 AND cooldown_ends_at > NOW();)QDEF"},
     {"upsert_player_flag",
      R"QDEF(INSERT INTO player_flag (player_id, flag_key, int_value, bool_value, updated_at) VALUES ($1, $2, $3, $4, now()) ON CONFLICT (player_id, flag_key) DO UPDATE SET int_value = EXCLUDED.int_value, bool_value = EXCLUDED.bool_value, updated_at = now();)QDEF"},
-    {"upsert_player_inventory_item",
-     R"QDEF(INSERT INTO player_inventory (character_id, item_id, quantity) VALUES ($1, $2, $3) ON CONFLICT (character_id, item_id) DO UPDATE SET quantity = EXCLUDED.quantity RETURNING id;)QDEF"},
+            // Legacy token-less write (chunk pre-token versions only): SELECT
+            // first, then UPDATE or plain INSERT. No ON CONFLICT — the
+            // (character_id, item_id) unique index is gone by design (096):
+            // instances are keyed by token now, and a lost race merely
+            // duplicates a legacy row (chunk consolidates stackables).
+            // $1=character_id, $2=item_id
+    {"get_inventory_id_by_char_item",
+     R"QDEF(SELECT id FROM player_inventory WHERE character_id = $1 AND item_id = $2 ORDER BY id LIMIT 1;)QDEF"},
+            // $1=character_id, $2=item_id, $3=quantity
+    {"insert_player_inventory_item",
+     R"QDEF(INSERT INTO player_inventory (character_id, item_id, quantity) VALUES ($1, $2, $3) RETURNING id;)QDEF"},
+            // Per-instance idempotency (migration 096): chunk stamps a random-start
+            // syncToken per new row; resends converge on it instead of the
+            // (character_id, item_id) pair (which collapses non-stackable dupes).
+            // $1=character_id, $2=sync_token
+    {"get_inventory_id_by_token",
+     R"QDEF(SELECT id FROM player_inventory WHERE character_id = $1 AND sync_token = $2;)QDEF"},
+            // Adopt a virgin legacy row (same template, never tokened) into
+            // the token world: absolute qty + stamp. Keeps stackables on one
+            // row; token-owned rows are invisible here, so real duplicates
+            // always fall through to INSERT below.
+            // $1=quantity, $2=sync_token, $3=character_id, $4=item_id
+    {"adopt_legacy_inventory_row",
+     R"QDEF(UPDATE player_inventory SET quantity = $1, sync_token = $2 WHERE id = (SELECT id FROM player_inventory WHERE character_id = $3 AND item_id = $4 AND sync_token IS NULL ORDER BY id LIMIT 1) RETURNING id;)QDEF"},
+            // $1=character_id, $2=item_id, $3=quantity, $4=sync_token (nonzero).
+            // ON CONFLICT DO NOTHING (never throws: execChecked aborts the
+            // whole txn on any error, so the race must resolve to an empty
+            // result + re-SELECT, not an exception).
+    {"insert_player_inventory_with_token",
+     R"QDEF(INSERT INTO player_inventory (character_id, item_id, quantity, sync_token) VALUES ($1, $2, $3, $4) ON CONFLICT (sync_token) DO NOTHING RETURNING id;)QDEF"},
             // Update quantity of an existing inventory row by its primary key.
             // $1=quantity, $2=inventory_item_id, $3=character_id (safety check)
     {"update_player_inventory_quantity",

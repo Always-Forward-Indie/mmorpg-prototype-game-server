@@ -56,6 +56,47 @@ ItemEventHandler::handleSaveDurabilityChangeEvent(const Event &event)
         log_->info("[SAVE_DUR] char=" + std::to_string(characterId) +
                    " item=" + std::to_string(inventoryItemId) +
                    " dur=" + std::to_string(durabilityCurrent));
+
+        // Read-your-write (same race as equip): recompute attributes here,
+        // right after the commit — the async chunk-side refresh travels on
+        // another queue and could overtake the save, caching stale
+        // durability tiers until the next incidental refresh.
+        try
+        {
+            auto _dbConn2 = gameServices_.getDatabase().getConnectionLocked();
+            pqxx::work txn2(_dbConn2.get());
+            auto attrs = gameServices_.getDatabase().execChecked(
+                txn2, "get_character_attributes", {characterId});
+            nlohmann::json attrsJson = nlohmann::json::array();
+            for (const auto &row : attrs)
+            {
+                nlohmann::json attr;
+                attr["id"] = row["id"].as<int>();
+                attr["name"] = row["name"].as<std::string>();
+                attr["slug"] = row["slug"].as<std::string>();
+                attr["value"] = row["value"].as<int>();
+                attrsJson.push_back(std::move(attr));
+            }
+            ResponseBuilder builder;
+            nlohmann::json response = builder
+                                          .setHeader("message", "Character attributes refresh")
+                                          .setHeader("hash", "")
+                                          .setHeader("clientId", characterId)
+                                          .setHeader("eventType", "setCharacterAttributesRefresh")
+                                          .setBody("characterId", characterId)
+                                          .setBody("attributesData", attrsJson)
+                                          .build();
+            auto sendSocket =
+                gameServices_.getChunkManager().resolveLiveSocket(event.getClientSocket());
+            if (sendSocket)
+                networkManager_.sendResponse(sendSocket,
+                    networkManager_.generateResponseMessage("success", response));
+        }
+        catch (const std::exception &refreshEx)
+        {
+            log_->warn(std::string("[SAVE_DUR] post-commit refresh failed for char=") +
+                       std::to_string(characterId) + ": " + refreshEx.what());
+        }
     }
     catch (const std::exception &ex)
     {
@@ -135,8 +176,12 @@ ItemEventHandler::handleSaveEquipmentChangeEvent(const Event &event)
         int inventoryItemId = j.value("inventoryItemId", 0);
         std::string action = j.value("action", "");
         std::string equipSlotSlug = j.value("equipSlotSlug", "");
+        // A1 fallback identity: the chunk defers id==0 saves, but a save
+        // can still arrive with a token and no id (flush race). Resolve by
+        // (character, token) instead of dropping silently.
+        uint64_t syncToken = j.value("syncToken", (uint64_t)0);
 
-        if (characterId <= 0 || inventoryItemId <= 0 || action.empty())
+        if (characterId <= 0 || action.empty())
             return;
 
         auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
@@ -154,6 +199,26 @@ ItemEventHandler::handleSaveEquipmentChangeEvent(const Event &event)
             }
             if (equipClaimed < 0)
                 return;
+        }
+
+        if (inventoryItemId <= 0)
+        {
+            if (syncToken == 0)
+            {
+                log_->warn("[SAVE_EQUIP] no id and no token: char={} action={}",
+                    characterId, action);
+                return;
+            }
+            auto byToken = gameServices_.getDatabase().execChecked(
+                txn, "get_inventory_id_by_token",
+                {characterId, static_cast<int64_t>(syncToken)});
+            if (byToken.empty())
+            {
+                log_->warn("[SAVE_EQUIP] token resolves to no row (sync lost?): char={}",
+                    characterId);
+                return;
+            }
+            inventoryItemId = static_cast<int>(byToken[0]["id"].as<int64_t>());
         }
 
         if (action == "equip")
