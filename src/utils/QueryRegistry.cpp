@@ -201,7 +201,7 @@ const QueryDef kQueries[] = {
     {"upsert_player_flag",
      R"QDEF(INSERT INTO player_flag (player_id, flag_key, int_value, bool_value, updated_at) VALUES ($1, $2, $3, $4, now()) ON CONFLICT (player_id, flag_key) DO UPDATE SET int_value = EXCLUDED.int_value, bool_value = EXCLUDED.bool_value, updated_at = now();)QDEF"},
     {"upsert_player_inventory_item",
-     R"QDEF(INSERT INTO player_inventory (character_id, item_id, quantity) VALUES ($1, $2, $3) ON CONFLICT (character_id, item_id) DO UPDATE SET quantity = player_inventory.quantity + EXCLUDED.quantity RETURNING id;)QDEF"},
+     R"QDEF(INSERT INTO player_inventory (character_id, item_id, quantity) VALUES ($1, $2, $3) ON CONFLICT (character_id, item_id) DO UPDATE SET quantity = EXCLUDED.quantity RETURNING id;)QDEF"},
             // Update quantity of an existing inventory row by its primary key.
             // $1=quantity, $2=inventory_item_id, $3=character_id (safety check)
     {"update_player_inventory_quantity",

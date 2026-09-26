@@ -29,6 +29,9 @@ InventoryEventHandler::handleSaveInventoryChangeEvent(const Event &event)
         int itemId = j.value("itemId", 0);
         int quantity = j.value("quantity", 0);
         int inventoryItemId = static_cast<int>(j.value("inventoryItemId", 0));
+        // Chunk-local pending-sync token (0 = none/legacy). Echoed back in
+        // inventoryItemIdSync so the chunk can match the exact instance.
+        uint64_t syncToken = j.value("syncToken", (uint64_t)0);
 
         if (characterId <= 0 || itemId <= 0)
             return;
@@ -80,6 +83,7 @@ InventoryEventHandler::handleSaveInventoryChangeEvent(const Event &event)
                     syncPkt["body"]["characterId"] = characterId;
                     syncPkt["body"]["itemId"] = itemId;
                     syncPkt["body"]["inventoryItemId"] = assignedId;
+                    syncPkt["body"]["syncToken"] = syncToken;
                     auto syncSocket = gameServices_.getChunkManager().resolveLiveSocket(chunkSocket);
                     if (!syncSocket)
                     {
