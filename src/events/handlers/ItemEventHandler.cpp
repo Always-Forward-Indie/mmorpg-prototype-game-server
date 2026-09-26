@@ -184,6 +184,50 @@ ItemEventHandler::handleSaveEquipmentChangeEvent(const Event &event)
                    " action=" + action +
                    " slot=" + equipSlotSlug +
                    " invItemId=" + std::to_string(inventoryItemId));
+
+        // Read-your-write: recompute attributes in THIS handler, right after
+        // the equip commit. The chunk also asks for a refresh separately
+        // (triggerAttributesRefresh), but that message travels on another
+        // queue and can overtake the save -> stale recompute cached
+        // chunk-side (set bonus / durability tiers missing until the next
+        // refresh). Pushing here is ordered by construction.
+        try
+        {
+            auto _dbConn2 = gameServices_.getDatabase().getConnectionLocked();
+            pqxx::work txn2(_dbConn2.get());
+            auto attrs = gameServices_.getDatabase().execChecked(
+                txn2, "get_character_attributes", {characterId});
+            nlohmann::json attrsJson = nlohmann::json::array();
+            for (const auto &row : attrs)
+            {
+                nlohmann::json attr;
+                attr["id"] = row["id"].as<int>();
+                attr["name"] = row["name"].as<std::string>();
+                attr["slug"] = row["slug"].as<std::string>();
+                attr["value"] = row["value"].as<int>();
+                attrsJson.push_back(std::move(attr));
+            }
+            ResponseBuilder builder;
+            nlohmann::json response = builder
+                                          .setHeader("message", "Character attributes refresh")
+                                          .setHeader("hash", "")
+                                          .setHeader("clientId", characterId)
+                                          .setHeader("eventType", "setCharacterAttributesRefresh")
+                                          .setBody("characterId", characterId)
+                                          .setBody("attributesData", attrsJson)
+                                          .build();
+            auto sendSocket =
+                gameServices_.getChunkManager().resolveLiveSocket(event.getClientSocket());
+            if (sendSocket)
+                networkManager_.sendResponse(sendSocket,
+                    networkManager_.generateResponseMessage("success", response));
+        }
+        catch (const std::exception &refreshEx)
+        {
+            // Best effort: the periodic/asymmetric refresh still converges.
+            log_->warn(std::string("[SAVE_EQUIP] post-commit refresh failed for char=") +
+                       std::to_string(characterId) + ": " + refreshEx.what());
+        }
     }
     catch (const std::exception &ex)
     {
