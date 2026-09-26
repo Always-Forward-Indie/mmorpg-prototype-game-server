@@ -82,3 +82,8 @@ Inventory; Progression: pity/bestiary/timed). Legacy keyless-сендеры ид
 `value = value + EXCLUDED.value`), а не absolute-upsert: конкурентные
 абсолюты гоняются last-writer-wins. Исключение — 60s снапшот репутации
 чанк шлёт absolute осознанно (staleness-bound, см. 13-й протокол).
+
+Обратное исключение — `upsert_player_inventory_item` теперь absolute-SET
+(`quantity = EXCLUDED.quantity`, было аддитивное `+`): чанк всегда шлёт
+абсолютные остатки, writer один, а аддитив дрейфовал при быстрых повторах
+и дублировал каждый sync-ретрай. Пин: `test_inventory_sync_sim.py`.

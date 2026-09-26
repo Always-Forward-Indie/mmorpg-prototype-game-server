@@ -1,3 +1,18 @@
+v0.2.23
+26.09.2026
+================
+
+Fixes:
+
+**Inventory convergence (S-batch) + equip read-your-write.**
+- `upsert_player_inventory_item` is absolute-SET now (was additive):
+  chunk sends absolute totals, so rapid pickups drifted and every retry
+  doubled. `inventoryItemIdSync` echoes `syncToken`.
+- Equip handler recomputes + pushes `setCharacterAttributesRefresh`
+  after commit (the async refresh raced the save on another queue).
+
+---
+
 v0.2.22
 24.09.2026
 ================
