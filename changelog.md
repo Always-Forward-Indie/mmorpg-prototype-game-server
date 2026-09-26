@@ -1,3 +1,16 @@
+v0.2.25
+26.09.2026
+================
+
+New:
+
+**requestCatalogReload route (NPC slice added).**
+- Re-pushes NPC/vendors/WIO/dialogues/quests/timed on the requesting
+  chunk link (DEV preconditions, no restart). NPC slice was missing —
+  new-NPC fixtures failed with NPC_NOT_FOUND until added.
+
+---
+
 v0.2.24
 26.09.2026
 ================
