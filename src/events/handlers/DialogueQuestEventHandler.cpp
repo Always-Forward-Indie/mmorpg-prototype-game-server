@@ -306,6 +306,7 @@ DialogueQuestEventHandler::handleGetPlayerActiveEffectsEvent(const Event &event)
                 eff["attributeId"] = 0;
                 eff["attributeSlug"] = row["attribute_slug"].as<std::string>();
                 eff["value"] = row["value"].as<float>();
+                eff["modifierType"] = row["modifier_type"].as<std::string>();
                 eff["sourceType"] = std::string("skill_passive");
                 eff["tickMs"] = 0;
                 eff["expiresAt"] = int64_t(0); // permanent

@@ -315,14 +315,18 @@ SkillsEventHandler::handleSaveLearnedSkillEvent(const Event &event)
                 skillJson["school"] = row["school"].as<std::string>();
                 skillJson["skillEffectType"] = row["skill_effect_type"].as<std::string>();
                 skillJson["skillLevel"] = row["skill_level"].is_null() ? 1 : row["skill_level"].as<int>();
+                // Numeric properties come back as NUMERIC text ("2.5", "6000"):
+                // parse via double first — as<int>() throws "Unexpected text
+                // after integer" on fractional values and killed the whole
+                // setLearnedSkill leg (every 2.5-range skill).
                 skillJson["coeff"] = row["coeff"].as<double>(0.0);
                 skillJson["flatAdd"] = row["flat_add"].as<double>(0.0);
-                skillJson["cooldownMs"] = row["cooldown_ms"].as<int>(0);
-                skillJson["gcdMs"] = row["gcd_ms"].as<int>(0);
-                skillJson["castMs"] = row["cast_ms"].as<int>(0);
-                skillJson["costMp"] = row["cost_mp"].as<int>(0);
-                skillJson["maxRange"] = row["max_range"].as<int>(0);
-                skillJson["areaRadius"] = row["area_radius"].as<int>(0);
+                skillJson["cooldownMs"] = static_cast<int>(row["cooldown_ms"].as<double>(0.0));
+                skillJson["gcdMs"] = static_cast<int>(row["gcd_ms"].as<double>(0.0));
+                skillJson["castMs"] = static_cast<int>(row["cast_ms"].as<double>(0.0));
+                skillJson["costMp"] = static_cast<int>(row["cost_mp"].as<double>(0.0));
+                skillJson["maxRange"] = row["max_range"].as<double>(0.0);
+                skillJson["areaRadius"] = row["area_radius"].as<double>(0.0);
                 skillJson["swingMs"] = row["swing_ms"].as<int>(300);
                 skillJson["animationName"] = row["animation_name"].as<std::string>("");
                 skillJson["isPassive"] = row["is_passive"].as<bool>();
@@ -376,6 +380,7 @@ SkillsEventHandler::handleSaveLearnedSkillEvent(const Event &event)
                     eff["effectTypeSlug"] = std::string("passive");
                     eff["attributeSlug"] = row["attribute_slug"].as<std::string>();
                     eff["value"] = row["value"].as<float>();
+                    eff["modifierType"] = row["modifier_type"].as<std::string>();
                     eff["durationSeconds"] = 0;
                     eff["tickMs"] = 0;
                     effectsArr.push_back(std::move(eff));

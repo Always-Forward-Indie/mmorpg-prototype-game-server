@@ -218,17 +218,9 @@ EffectsEventHandler::handleSaveAnalyticsEventEvent(const Event &event)
                 return;
         }
 
-        // Use exec_params with inline SQL — analytics INSERT does not need a reusable
-        // prepared statement because each call is already serialised through the event queue.
-        txn.exec_params(
-            "INSERT INTO game_analytics (event_type, character_id, session_id, level, zone_id, payload) "
-            "VALUES ($1, NULLIF($2, 0), $3, $4, $5, $6::jsonb)",
-            eventType,
-            charId,
-            sessionId,
-            level,
-            zoneId,
-            payload);
+        // Analytics INSERT via registry prepared statement (was inline exec_params).
+        static_cast<void>(gameServices_.getDatabase().execChecked(
+            txn, "insert_game_analytics", {eventType, charId, sessionId, level, zoneId, payload}));
 
         txn.commit();
         if (!anaFactKey.empty())

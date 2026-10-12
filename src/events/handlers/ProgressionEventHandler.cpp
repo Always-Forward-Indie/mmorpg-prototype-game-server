@@ -306,9 +306,9 @@ ProgressionEventHandler::handleTimedChampionKilledEvent(const Event &event)
                 return;
         }
 
-        // Get interval_hours for this slug
-        auto rows = txn.exec_params(
-            "SELECT interval_hours FROM timed_champion_templates WHERE slug = $1", slug);
+        // Interval via registry prepared (was inline exec_params).
+        auto rows = gameServices_.getDatabase().execChecked(
+            txn, "get_timed_champion_interval", {slug});
         if (!rows.empty())
         {
             int intervalHours = rows[0]["interval_hours"].as<int>();
