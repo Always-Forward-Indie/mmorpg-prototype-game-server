@@ -76,3 +76,24 @@ TEST(ClassSpawnGeometry, RandomPointStaysInRect)
         EXPECT_LE(p.positionZ, 10.0f);
     }
 }
+
+TEST(GameCharacters, LivenessTouchStaleForget)
+{
+    Logger logger{"test"};
+    CharacterManager mgr(logger);
+    // Untouched character is never stale.
+    EXPECT_TRUE(mgr.getStaleCharacters(0).empty());
+    mgr.touchCharacter(7);
+    // Zero threshold: just-touched is stale (now - seen >= 0).
+    auto stale0 = mgr.getStaleCharacters(0);
+    ASSERT_EQ(stale0.size(), 1u);
+    EXPECT_EQ(stale0[0], 7);
+    // Huge threshold: fresh touch is not stale.
+    EXPECT_TRUE(mgr.getStaleCharacters(60000).empty());
+    // Invalid id ignored.
+    mgr.touchCharacter(0);
+    EXPECT_EQ(mgr.getStaleCharacters(0).size(), 1u);
+    // Forget clears.
+    mgr.forgetCharacter(7);
+    EXPECT_TRUE(mgr.getStaleCharacters(0).empty());
+}

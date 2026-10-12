@@ -1,5 +1,6 @@
 #include "services/CharacterManager.hpp"
 #include "utils/Database.hpp"
+#include <chrono>
 #include <cstdint>
 #include <iostream>
 #include <nlohmann/json.hpp>
@@ -435,11 +436,53 @@ CharacterManager::resetAllOnline(Database &db)
     {
         auto _dbConn = db.getConnectionLocked();
         pqxx::work txn(_dbConn.get());
-        txn.exec_prepared("reset_all_online");
+        static_cast<void>(db.execChecked(txn, "reset_all_online", {}));
         txn.commit();
     }
     catch (const std::exception &e)
     {
         db.handleDatabaseError(e);
     }
+}
+
+namespace {
+int64_t steadyMs()
+{
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now().time_since_epoch())
+        .count();
+}
+} // namespace
+
+void
+CharacterManager::touchCharacter(int characterId, int chunkId)
+{
+    if (characterId <= 0)
+        return;
+    std::unique_lock lock(mutex_);
+    lastSeenMs_[characterId] = steadyMs();
+    if (chunkId > 0)
+        charChunkId_[characterId] = chunkId;
+}
+
+std::vector<int>
+CharacterManager::getStaleCharacters(int64_t staleThresholdMs) const
+{
+    const int64_t now = steadyMs();
+    std::shared_lock lock(mutex_);
+    std::vector<int> out;
+    for (const auto &[id, seen] : lastSeenMs_)
+    {
+        if (now - seen >= staleThresholdMs)
+            out.push_back(id);
+    }
+    return out;
+}
+
+void
+CharacterManager::forgetCharacter(int characterId)
+{
+    std::unique_lock lock(mutex_);
+    lastSeenMs_.erase(characterId);
+    charChunkId_.erase(characterId);
 }

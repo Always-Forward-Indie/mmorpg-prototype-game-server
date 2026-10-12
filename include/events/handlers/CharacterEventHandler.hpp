@@ -16,6 +16,8 @@ class CharacterEventHandler : public BaseEventHandler
         GameServices &gameServices);
 
     void handleGetCharacterDataEvent(const Event &event);
+    void handleMoveCharacterChunkEvent(const Event &event);
+    void handleDisconnectChunkEvent(const Event &event);
     void handleSavePositionsEvent(const Event &event);
     void handleSaveHpManaEvent(const Event &event);
     void handleSaveCharacterProgressEvent(const Event &event);

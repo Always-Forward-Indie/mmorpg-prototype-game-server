@@ -144,6 +144,51 @@ main()
             scheduler.scheduleTask(retentionTask);
         }
 
+        // Character liveness sweep (silent chunk death net): SAVE_* touches
+        // lastSeenMs; entries stale for 180s (3x position save) never got
+        // savePlayTime(isDisconnect) — mark is_online=false via disconnect
+        // write, then forget. Same cadence as chunk sweep; id 4.
+        {
+            const int liveSweepSec = gameServices.getGameConfigService().getInt("scheduler.chunk_sweep_sec", 60);
+            const int charStaleMs = gameServices.getGameConfigService().getInt(
+                "scheduler.character_stale_threshold_ms", 180000);
+            Task charLiveTask(
+                [&database, &gameServices, charStaleMs]()
+                {
+                    try
+                    {
+                        auto stale = gameServices.getCharacterManager().getStaleCharacters(charStaleMs);
+                        for (int cid : stale)
+                        {
+                            try
+                            {
+                                gameServices.getCharacterManager().updatePlayTime(
+                                    database, cid, 0, 0, true);
+                            }
+                            catch (const std::exception &ex)
+                            {
+                                gameServices.getLogger().logError(
+                                    std::string("[char-live] mark offline error cid=") +
+                                    std::to_string(cid) + ": " + ex.what());
+                                continue;
+                            }
+                            gameServices.getCharacterManager().forgetCharacter(cid);
+                            gameServices.getLogger().log(
+                                "[char-live] stale character marked offline: " + std::to_string(cid));
+                        }
+                    }
+                    catch (const std::exception &ex)
+                    {
+                        gameServices.getLogger().logError(
+                            std::string("[char-live] sweep error: ") + ex.what());
+                    }
+                },
+                liveSweepSec,
+                std::chrono::system_clock::now() + std::chrono::seconds(liveSweepSec),
+                4);
+            scheduler.scheduleTask(charLiveTask);
+        }
+
         // wait for the signal to stop the server
         while (running)
         {

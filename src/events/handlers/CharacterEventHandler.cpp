@@ -45,7 +45,10 @@ CharacterEventHandler::handleGetCharacterDataEvent(const Event &event)
                 passedClientData.characterId);
 
             if (characterData.characterId > 0)
+            {
                 gameServices_.getCharacterManager().setCharacterOnline(gameServices_.getDatabase(), characterData.characterId);
+                gameServices_.getCharacterManager().touchCharacter(characterData.characterId);
+            }
 
             // Get the clientData object with the new init data
             const ClientDataStruct currentClientData = gameServices_.getClientManager().getClientData(passedClientData.clientId);
@@ -296,6 +299,7 @@ CharacterEventHandler::handleSavePositionsEvent(const Event &event)
                 0, // accountId not needed here
                 charData.characterId,
                 charData.characterPosition);
+            gameServices_.getCharacterManager().touchCharacter(charData.characterId);
 
             ++savedCount;
         }
@@ -336,6 +340,7 @@ CharacterEventHandler::handleSaveHpManaEvent(const Event &event)
                 charData.characterId,
                 charData.characterCurrentHealth,
                 charData.characterCurrentMana);
+            gameServices_.getCharacterManager().touchCharacter(charData.characterId);
             ++savedCount;
         }
 
@@ -458,6 +463,10 @@ CharacterEventHandler::handleSavePlayTimeEvent(const Event &event)
             pt.sessionPlayTimeSec,
             pt.lastSessionPlayTimeSec,
             pt.isDisconnect);
+        if (pt.isDisconnect)
+            gameServices_.getCharacterManager().forgetCharacter(pt.characterId);
+        else
+            gameServices_.getCharacterManager().touchCharacter(pt.characterId);
     }
     catch (const std::exception &ex)
     {
@@ -492,6 +501,7 @@ CharacterEventHandler::handleMarkCharactersOnlineEvent(const Event &event)
             {
                 gameServices_.getCharacterManager().setCharacterOnline(
                     gameServices_.getDatabase(), characterId);
+                gameServices_.getCharacterManager().touchCharacter(characterId);
             }
         }
 
@@ -501,5 +511,150 @@ CharacterEventHandler::handleMarkCharactersOnlineEvent(const Event &event)
     catch (const std::exception &ex)
     {
         gameServices_.getLogger().logError("handleMarkCharactersOnlineEvent error: " + std::string(ex.what()));
+    }
+}
+
+void
+CharacterEventHandler::handleMoveCharacterChunkEvent(const Event &event)
+{
+    // Live position mirror from chunk (moved here from EventHandler facade).
+    // Retrieve the data from the event
+    const auto &data = event.getData();
+    int clientID = event.getClientID();
+
+    // get socket from the event
+    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
+
+    try
+    {
+        // Try to extract the data
+        if (std::holds_alternative<CharacterDataStruct>(data))
+        {
+            CharacterDataStruct passedCharacterData = std::get<CharacterDataStruct>(data);
+
+            // Prepare the response message
+            nlohmann::json response;
+            ResponseBuilder builder;
+
+            // Check if the authentication is not successful
+            if (clientID == 0)
+            {
+                // Add response data
+                response = builder
+                               .setHeader("message", "Movement update failed for the Character!")
+                               .setHeader("clientId", clientID)
+                               .setHeader("eventType", "updateCharacterMovement")
+                               .setBody("", "")
+                               .build();
+                // Prepare a response message
+                std::string responseData = networkManager_.generateResponseMessage("error", response);
+
+                // Send the response to the chunk server
+                networkManager_.sendResponse(
+                    clientSocket,
+                    responseData);
+                return;
+            }
+
+            // Position is persisted to DB only on disconnect (see handleDisconnectChunkEvent).
+            // Writing on every move packet would produce 20+ SQL UPDATE/s per player.
+            // Update the in-memory position so data is fresh for other GS queries.
+            gameServices_.getCharacterManager().updateCharacterPositionInMemory(
+                passedCharacterData.clientId,
+                passedCharacterData.characterId,
+                passedCharacterData.characterPosition);
+
+            // Add the message to the response
+            response = builder
+                           .setHeader("message", "Movement success updated for the Character!")
+                           .setHeader("clientId", passedCharacterData.clientId)
+                           .setHeader("eventType", "updateCharacterMovement")
+                           .setBody("characterId", passedCharacterData.characterId)
+                           .setBody("posX", passedCharacterData.characterPosition.positionX)
+                           .setBody("posY", passedCharacterData.characterPosition.positionY)
+                           .setBody("posZ", passedCharacterData.characterPosition.positionZ)
+                           .setBody("rotZ", passedCharacterData.characterPosition.rotationZ)
+                           .build();
+            // Prepare a response message
+            std::string responseData = networkManager_.generateResponseMessage("success", response);
+
+            log_->info("Sending data to Chunk Server: " + responseData);
+
+            // Send the response to the chunk server
+            networkManager_.sendResponse(
+                clientSocket,
+                responseData);
+        }
+        else
+        {
+            log_->info("Error with extracting data!");
+        }
+    }
+    catch (const std::bad_variant_access &ex)
+    {
+        gameServices_.getLogger().log("Error here:" + std::string(ex.what()));
+    }
+}
+
+void
+CharacterEventHandler::handleDisconnectChunkEvent(const Event &event)
+{
+    // Disconnect persist + client evict (moved here from EventHandler facade).
+    // Here we will disconnect the client
+    const auto &data = event.getData();
+    int clientID = event.getClientID();
+    // get socket from the event
+    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
+
+    // Extract init data
+    try
+    {
+        // Save last position to DB if we have a valid CharacterDataStruct
+        if (std::holds_alternative<CharacterDataStruct>(data))
+        {
+            const CharacterDataStruct &charData = std::get<CharacterDataStruct>(data);
+            if (charData.characterId > 0)
+            {
+                gameServices_.getCharacterManager().updateCharacterPosition(
+                    gameServices_.getDatabase(),
+                    clientID,
+                    charData.characterId,
+                    charData.characterPosition);
+                log_->info(
+                    "Saved position on disconnect for characterId: " + std::to_string(charData.characterId));
+            }
+        }
+
+        if (clientID == 0)
+        {
+            log_->info("Client ID is 0, so we will just remove client from our list!");
+
+            // Remove the client data by socket
+            gameServices_.getClientManager().removeClientDataBySocket(clientSocket);
+
+            return;
+        }
+
+        // Remove the client data
+        gameServices_.getClientManager().removeClientData(clientID);
+
+        // send the response to all clients
+        nlohmann::json response;
+        ResponseBuilder builder;
+        response = builder
+                       .setHeader("message", "Client disconnected!")
+                       .setHeader("hash", "")
+                       .setHeader("clientId", clientID)
+                       .setHeader("eventType", "disconnectClient")
+                       .setBody("", "")
+                       .build();
+        std::string responseData = networkManager_.generateResponseMessage("success", response);
+
+        // Send the response to the client
+        networkManager_.sendResponse(clientSocket, responseData);
+    }
+    catch (const std::bad_variant_access &ex)
+    {
+        gameServices_.getLogger().log("Error here:" + std::string(ex.what()));
     }
 }

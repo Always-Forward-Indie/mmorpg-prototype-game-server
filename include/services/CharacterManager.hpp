@@ -49,5 +49,17 @@ class CharacterManager
     Logger &logger_;
     std::shared_ptr<spdlog::logger> log_;
     std::unordered_map<int, CharacterDataStruct> charactersMap_;
-    std::shared_mutex mutex_;
+    mutable std::shared_mutex mutex_;
+    // Liveness: last SAVE_* / MOVE seen per character (steady ms) + owning chunk.
+    // Fixes silent chunk death leaving is_online=true (no disconnect event).
+    std::unordered_map<int, int64_t> lastSeenMs_;
+    std::unordered_map<int, int> charChunkId_;
+
+  public:
+    void touchCharacter(int characterId, int chunkId = 0);
+    std::vector<int> getStaleCharacters(int64_t staleThresholdMs) const;
+    void forgetCharacter(int characterId);
+
+  private:
+    // Liveness impl details (see .cpp).
 };
