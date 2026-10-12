@@ -317,3 +317,124 @@ SocialEventHandler::handleGetPlayerEmotesEvent(const Event &event)
         gameServices_.getLogger().logError("handleGetPlayerEmotesEvent error: " + std::string(ex.what()));
     }
 }
+
+void
+SocialEventHandler::handleSaveGmActionEvent(const Event &event)
+{
+    const auto &data = event.getData();
+
+    try
+    {
+        if (!std::holds_alternative<nlohmann::json>(data))
+        {
+            log_->error("handleSaveGmActionEvent: unexpected data type");
+            return;
+        }
+        const auto &j = std::get<nlohmann::json>(data);
+        const int gmUserId = j.value("gmUserId", 0);
+        const std::string action = j.value("actionType", "");
+        const std::string targetType = j.value("targetType", "");
+        const int64_t targetId = j.value("targetId", 0);
+        const std::string oldVal = j.value("oldValue", "");
+        const std::string newVal = j.value("newValue", "");
+
+        if (gmUserId <= 0 || action.empty())
+        {
+            log_->error("[GMLOG] handleSaveGmActionEvent: invalid payload");
+            return;
+        }
+
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+        // Outbox idempotency: claim first (atomic with the write below).
+        const std::string factKey = outboxFactKeyOf(j);
+        if (!factKey.empty())
+        {
+            const int claimed = outboxClaimFactKey(
+                gameServices_.getDatabase(), txn, factKey);
+            if (claimed == 0)
+            {
+                outboxSendFactAck(networkManager_, event.getClientSocket(), factKey, "duplicate");
+                return;
+            }
+            if (claimed < 0)
+                return;
+        }
+
+        static_cast<void>(gameServices_.getDatabase().execChecked(
+            txn, "save_gm_action", {gmUserId, action, targetType, targetId, oldVal, newVal}));
+        txn.commit();
+
+        if (!factKey.empty())
+            outboxSendFactAck(networkManager_, event.getClientSocket(), factKey, "applied");
+        log_->info("[GMLOG] gm={} action={} target={}:{}", gmUserId, action, targetType, targetId);
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("handleSaveGmActionEvent error: " + std::string(ex.what()));
+    }
+}
+
+void
+SocialEventHandler::handleSaveUserBanEvent(const Event &event)
+{
+    const auto &data = event.getData();
+
+    try
+    {
+        if (!std::holds_alternative<nlohmann::json>(data))
+        {
+            log_->error("handleSaveUserBanEvent: unexpected data type");
+            return;
+        }
+        const auto &j = std::get<nlohmann::json>(data);
+        const int userId = j.value("userId", 0);
+        const int bannedBy = j.value("bannedByUserId", 0);
+        const std::string reason = j.value("reason", "");
+        const std::string expiresAt = j.value("expiresAt", "");
+        const bool lift = j.value("lift", false);
+
+        if (userId <= 0 || (!lift && reason.empty()))
+        {
+            log_->error("[BAN] handleSaveUserBanEvent: invalid payload user={}", userId);
+            return;
+        }
+
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+        // Outbox idempotency: claim first (atomic with the write below).
+        const std::string factKey = outboxFactKeyOf(j);
+        if (!factKey.empty())
+        {
+            const int claimed = outboxClaimFactKey(
+                gameServices_.getDatabase(), txn, factKey);
+            if (claimed == 0)
+            {
+                outboxSendFactAck(networkManager_, event.getClientSocket(), factKey, "duplicate");
+                return;
+            }
+            if (claimed < 0)
+                return;
+        }
+
+        if (lift)
+        {
+            static_cast<void>(gameServices_.getDatabase().execChecked(
+                txn, "lift_user_ban", {userId}));
+        }
+        else
+        {
+            static_cast<void>(gameServices_.getDatabase().execChecked(
+                txn, "save_user_ban", {userId, bannedBy, reason, expiresAt}));
+        }
+        txn.commit();
+
+        if (!factKey.empty())
+            outboxSendFactAck(networkManager_, event.getClientSocket(), factKey, "applied");
+        log_->info("[BAN] user={} lift={} reason='{}'", userId, lift, reason);
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("handleSaveUserBanEvent error: " + std::string(ex.what()));
+    }
+}

@@ -73,6 +73,7 @@ MobManager::loadMobs(Database &database)
             mobData.isRare = row["is_rare"].as<bool>();
             mobData.rareSpawnChance = row["rare_spawn_chance"].as<float>();
             mobData.rareSpawnCondition = row["rare_spawn_condition"].as<std::string>();
+            mobData.rareOfMobId = row["rare_of_mob_id"].as<int>();
 
             // Social systems (Stage 4, migration 039)
             mobData.factionSlug = row["faction_slug"].as<std::string>();

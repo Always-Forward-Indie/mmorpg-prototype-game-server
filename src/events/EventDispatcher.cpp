@@ -105,6 +105,8 @@ EventDispatcher::buildRouteTable()
         {"markCharactersOnline", &EventDispatcher::handleMarkCharactersOnline},
         {"outboxUnacked", &EventDispatcher::handleOutboxUnacked},
         {"requestCatalogReload", &EventDispatcher::handleRequestCatalogReload},
+        {"saveGmAction", &EventDispatcher::handleSaveGmAction},
+        {"saveUserBan", &EventDispatcher::handleSaveUserBan},
     };
 }
 
@@ -878,6 +880,46 @@ EventDispatcher::handleSaveReputation(
     catch (const std::exception &ex)
     {
         logger_.logError("handleSaveReputation parse error: " + std::string(ex.what()));
+    }
+}
+
+void
+EventDispatcher::handleSaveGmAction(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    try
+    {
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
+        const auto &body = j["body"];
+        Event saveEvent(Event::SAVE_GM_ACTION, 0, body, socket);
+        eventsBatch_.push_back(saveEvent);
+        eventQueue_.pushBatch(eventsBatch_);
+        eventsBatch_.clear();
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleSaveGmAction parse error: " + std::string(ex.what()));
+    }
+}
+
+void
+EventDispatcher::handleSaveUserBan(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    try
+    {
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
+        const auto &body = j["body"];
+        Event saveEvent(Event::SAVE_USER_BAN, 0, body, socket);
+        eventsBatch_.push_back(saveEvent);
+        eventQueue_.pushBatch(eventsBatch_);
+        eventsBatch_.clear();
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleSaveUserBan parse error: " + std::string(ex.what()));
     }
 }
 

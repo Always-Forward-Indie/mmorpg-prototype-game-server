@@ -62,4 +62,6 @@ TEST(QueryRegistry, CriticalQueriesPresent) {
     EXPECT_NE(findByName("delete_old_fact_keys"), nullptr); // retention sweep
     EXPECT_NE(findByName("get_world_objects"), nullptr);
     EXPECT_NE(findByName("update_timed_champion_next_spawn"), nullptr);
+    EXPECT_NE(findByName("insert_game_analytics"), nullptr); // was inline exec_params
+    EXPECT_NE(findByName("get_timed_champion_interval"), nullptr); // was inline SELECT
 }

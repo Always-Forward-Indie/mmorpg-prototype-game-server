@@ -21,4 +21,6 @@ class SocialEventHandler : public BaseEventHandler
     void handleSavePlayerTitleEvent(const Event &event);
     void handleGetEmoteDefinitionsEvent(const Event &event);
     void handleGetPlayerEmotesEvent(const Event &event);
+    void handleSaveGmActionEvent(const Event &event);
+    void handleSaveUserBanEvent(const Event &event);
 };

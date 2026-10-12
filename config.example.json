@@ -1,0 +1,11 @@
+{
+  "_comment": "Example config for MMOGameServer. Copy to config.json or use ENV overrides. Layered: defaults < config.json < ENV.",
+  "db_name": "mmo_prototype",
+  "db_user": "postgres",
+  "db_password": "",
+  "db_host": "127.0.0.1",
+  "db_port": 5432,
+  "server_host": "0.0.0.0",
+  "server_port": 27016,
+  "server_max_clients": 3000
+}

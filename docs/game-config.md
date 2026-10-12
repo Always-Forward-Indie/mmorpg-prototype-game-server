@@ -26,9 +26,13 @@ GM-команда `reload` перечитывает без рестарта.
 | `scheduler.inv_sync_retry_ms 5000` | Ретрай id-sync инвентаря (миграция `095`) | Чанк: один раз при планировании |
 | `interest.*` (6) | `cell_size 1500.0`, `view_radius 1`, `rehome_margin_frac 0.15`, `enabled/snapshots true`, `snapshot_cooldown_ms 2000` | Чанк: при старте (+reload) |
 | `regen.*` | `tickIntervalMs 4000`, `baseHpRegen 2`, `baseMpRegen 1`, `disableInCombatMs 8000`, коэффы | Интервал — при старте; amounts — живьём каждый тик |
-| `durability.*` | `tier{1,2,3}_threshold_pct` 75/50/25, `death_penalty_pct` 0.05, `warning_threshold_pct` 30 | Живьём |
+| `durability.*` | `tier{1,2,3}_threshold_pct` 75/50/25 + `tier{1,2,3}_penalty_pct` 5/15/30 (SQL `COALESCE`, живьём), `death_penalty_pct` 0.05, `warning_threshold_pct` 30 | Живьём |
 | `drop.ttl_sec 300`, `corpse.ttl_ms 60000` | TTL чисток (миграция `089`; раньше только фолбэки) | Живьём каждый тик |
-| `economy.*`, `reputation.*`, `mastery.*`, `bestiary.*`, `item_soul.*`, `movement.*`, `combat.*`, `admin.*`, `aggro.*`, `carry_weight.*`, `exploration.*`, `fellowship.*`, `pity.*`, `zone_event.*` | См. дамп | По месту (интересует — grep `getInt/getFloat` в chunk `src/`) |
+| `reputation.*` | Тиры `enemy/neutral/friendly/ally` −500/0/200/500 (чанк `setThresholds`), `vendor_discount_threshold` 200 + `vendor_discount_pct` 0.05 | При JOIN-каталоге |
+| `combat.evasion_cap` 75, `combat.dot_min_tick_ms` 500, `combat.dot_max_ticks` 20 | Кап уворота + нормализация DoT-тиков (`clampDotTick`, мигр. 105) | Живьём |
+| `item_soul.*` | Тиры 50/200/500 + flat 1/2/3 + `tier2/3_crit_pct` 0.05/0.08 (крит теперь применяется) | Живьём |
+| `champion.*`, `survival_champion.*` | Множители HP/урона, деспавн, пре-анонс (мигр. 105; раньше только фолбэки) | Живьём |
+| `economy.*`, `mastery.*`, `bestiary.*`, `movement.*`, `combat.*` (остальные), `admin.*`, `carry_weight.*`, `fellowship.*`, `pity.*` | См. дамп | По месту (интересует — grep `getInt/getFloat` в chunk `src/`) |
 
 Полный перечень — `SELECT key, value FROM game_config ORDER BY key`
 (миграции `085/086/087` + дамп; live = dump). Новый ключ: миграция

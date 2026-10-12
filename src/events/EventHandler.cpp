@@ -58,36 +58,80 @@ EventHandler::handleJoinPlayerClientEvent(const Event &event)
         if (std::holds_alternative<ClientDataStruct>(data))
         {
             ClientDataStruct passedClientData = std::get<ClientDataStruct>(data);
-            // Save the clientData object with the new init data
-            gameServices_.getClientManager().setClientData(passedClientData);
-
-            // get chunk server connection data
-            ChunkInfoStruct chunkServerData = gameServices_.getChunkManager().getChunkById(1);
-
             // Prepare a response message
             nlohmann::json response;
             ResponseBuilder builder;
 
-            // Check if the authentication is not successful
-            if (passedClientData.clientId == 0 || passedClientData.hash == "")
+            auto sendJoinError = [&](const std::string &msg)
             {
-                // Add response data
                 response = builder
-                               .setHeader("message", "Authentication failed for user!")
+                               .setHeader("message", msg)
                                .setHeader("hash", passedClientData.hash)
                                .setHeader("clientId", passedClientData.clientId)
                                .setHeader("eventType", "joinGameClient")
                                .setBody("", "")
                                .build();
-                // Prepare a response message
                 std::string responseData = networkManager_.generateResponseMessage("error", response);
+                networkManager_.sendResponse(passedClientData.socket, responseData);
+            };
 
-                // Send the response to the Client
-                networkManager_.sendResponse(
-                    passedClientData.socket,
-                    responseData);
+            // Check if the authentication is not successful
+            if (passedClientData.clientId == 0 || passedClientData.hash == "")
+            {
+                sendJoinError("Authentication failed for user!");
                 return;
             }
+
+            // Validate login session token against user_sessions (DB-backed).
+            // search_user returns the user row only for live sessions
+            // (revoked_at IS NULL AND expires_at > now()). Fail-closed on DB
+            // outage with ERR_DB (never hangs); wrong session -> ERR_SESSION_INVALID.
+            try
+            {
+                auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+                pqxx::work txn(_dbConn.get());
+                auto rows = gameServices_.getDatabase().execChecked(
+                    txn, "search_user", {passedClientData.hash});
+                // Read-only probe: rollback to avoid holding the pooled slot dirty.
+                txn.abort();
+                if (rows.empty())
+                {
+                    sendJoinError("ERR_SESSION_INVALID");
+                    return;
+                }
+                // search_user returns users row; column "id" is the account id.
+                // Bind session to the joining account to prevent token replay across accounts.
+                try
+                {
+                    const int sessionUserId = rows[0]["id"].as<int>();
+                    if (sessionUserId != passedClientData.clientId)
+                    {
+                        sendJoinError("ERR_SESSION_INVALID");
+                        return;
+                    }
+                }
+                catch (...)
+                {
+                    // Schema without id column — accept live session (fail-open only here,
+                    // ownership is still enforced by get_character owner_id check).
+                }
+            }
+            catch (const std::exception &ex)
+            {
+                gameServices_.getLogger().logError(
+                    std::string("[JOIN] session validation DB error: ") + ex.what());
+                sendJoinError("ERR_DB");
+                return;
+            }
+
+            // Session valid — now register client + route chunk.
+            // Save the clientData object with the new init data
+            gameServices_.getClientManager().setClientData(passedClientData);
+
+            // Multi-chunk routing: no position yet at join time — deterministic
+            // first chunk (lowest id). Position-routed handoff happens on
+            // GET_CHARACTER_DATA via selectChunkForPosition (character pos).
+            ChunkInfoStruct chunkServerData = gameServices_.getChunkManager().selectChunkForNewClient();
 
             // generate chunk server connection data
             nlohmann::json chunkServerDataJson;
@@ -144,145 +188,16 @@ EventHandler::handleJoinPlayerClientEvent(const Event &event)
 void
 EventHandler::handleMoveCharacterChunkEvent(const Event &event)
 {
-    // Retrieve the data from the event
-    const auto &data = event.getData();
-    int clientID = event.getClientID();
-
-    // get socket from the event
-    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
-
-    try
-    {
-        // Try to extract the data
-        if (std::holds_alternative<CharacterDataStruct>(data))
-        {
-            CharacterDataStruct passedCharacterData = std::get<CharacterDataStruct>(data);
-
-            // Prepare the response message
-            nlohmann::json response;
-            ResponseBuilder builder;
-
-            // Check if the authentication is not successful
-            if (clientID == 0)
-            {
-                // Add response data
-                response = builder
-                               .setHeader("message", "Movement update failed for the Character!")
-                               .setHeader("clientId", clientID)
-                               .setHeader("eventType", "updateCharacterMovement")
-                               .setBody("", "")
-                               .build();
-                // Prepare a response message
-                std::string responseData = networkManager_.generateResponseMessage("error", response);
-
-                // Send the response to the chunk server
-                networkManager_.sendResponse(
-                    clientSocket,
-                    responseData);
-                return;
-            }
-
-            // Position is persisted to DB only on disconnect (see handleDisconnectChunkEvent).
-            // Writing on every move packet would produce 20+ SQL UPDATE/s per player.
-            // Update the in-memory position so data is fresh for other GS queries.
-            gameServices_.getCharacterManager().updateCharacterPositionInMemory(
-                passedCharacterData.clientId,
-                passedCharacterData.characterId,
-                passedCharacterData.characterPosition);
-
-            // Add the message to the response
-            response = builder
-                           .setHeader("message", "Movement success updated for the Character!")
-                           .setHeader("clientId", passedCharacterData.clientId)
-                           .setHeader("eventType", "updateCharacterMovement")
-                           .setBody("characterId", passedCharacterData.characterId)
-                           .setBody("posX", passedCharacterData.characterPosition.positionX)
-                           .setBody("posY", passedCharacterData.characterPosition.positionY)
-                           .setBody("posZ", passedCharacterData.characterPosition.positionZ)
-                           .setBody("rotZ", passedCharacterData.characterPosition.rotationZ)
-                           .build();
-            // Prepare a response message
-            std::string responseData = networkManager_.generateResponseMessage("success", response);
-
-            log_->info("Sending data to Chunk Server: " + responseData);
-
-            // Send the response to the chunk server
-            networkManager_.sendResponse(
-                clientSocket,
-                responseData);
-        }
-        else
-        {
-            log_->info("Error with extracting data!");
-        }
-    }
-    catch (const std::bad_variant_access &ex)
-    {
-        gameServices_.getLogger().log("Error here: " + std::string(ex.what()));
-    }
+    // Character domain (extracted): live position mirror, persisted on disconnect.
+    characterHandler_.handleMoveCharacterChunkEvent(event);
 }
 
 // disconnect the client
 void
 EventHandler::handleDisconnectChunkEvent(const Event &event)
 {
-    // Here we will disconnect the client
-    const auto &data = event.getData();
-    int clientID = event.getClientID();
-    // get socket from the event
-    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
-
-    // Extract init data
-    try
-    {
-        // Save last position to DB if we have a valid CharacterDataStruct
-        if (std::holds_alternative<CharacterDataStruct>(data))
-        {
-            const CharacterDataStruct &charData = std::get<CharacterDataStruct>(data);
-            if (charData.characterId > 0)
-            {
-                gameServices_.getCharacterManager().updateCharacterPosition(
-                    gameServices_.getDatabase(),
-                    clientID,
-                    charData.characterId,
-                    charData.characterPosition);
-                log_->info(
-                    "Saved position on disconnect for characterId: " + std::to_string(charData.characterId));
-            }
-        }
-
-        if (clientID == 0)
-        {
-            log_->info("Client ID is 0, so we will just remove client from our list!");
-
-            // Remove the client data by socket
-            gameServices_.getClientManager().removeClientDataBySocket(clientSocket);
-
-            return;
-        }
-
-        // Remove the client data
-        gameServices_.getClientManager().removeClientData(clientID);
-
-        // send the response to all clients
-        nlohmann::json response;
-        ResponseBuilder builder;
-        response = builder
-                       .setHeader("message", "Client disconnected!")
-                       .setHeader("hash", "")
-                       .setHeader("clientId", clientID)
-                       .setHeader("eventType", "disconnectClient")
-                       .setBody("", "")
-                       .build();
-        std::string responseData = networkManager_.generateResponseMessage("success", response);
-
-        // Send the response to the client
-        networkManager_.sendResponse(clientSocket, responseData);
-    }
-    catch (const std::bad_variant_access &ex)
-    {
-        gameServices_.getLogger().log("Error here:" + std::string(ex.what()));
-    }
+    // Character domain (extracted): disconnect persist + client evict.
+    characterHandler_.handleDisconnectChunkEvent(event);
 }
 
 // join the chunk server
@@ -942,6 +857,12 @@ EventHandler::dispatchEvent(const Event &event)
         break;
     case Event::SAVE_PLAYER_TITLE:
         socialHandler_.handleSavePlayerTitleEvent(event);
+        break;
+    case Event::SAVE_GM_ACTION:
+        socialHandler_.handleSaveGmActionEvent(event);
+        break;
+    case Event::SAVE_USER_BAN:
+        socialHandler_.handleSaveUserBanEvent(event);
         break;
 
     // Emote system

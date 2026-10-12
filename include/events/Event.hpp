@@ -129,7 +129,10 @@ class Event
         // Online status recovery after chunk-server reconnect
         MARK_CHARACTERS_ONLINE, // Batch mark character IDs as is_online=true (sent on chunk-server reconnect)
         // Outbox reconcile: chunk reports unacked fact keys after a new link
-        OUTBOX_UNACKED // Split into applied/unknown and answer outboxDiff (see Outbox.hpp)
+        OUTBOX_UNACKED, // Split into applied/unknown and answer outboxDiff (see Outbox.hpp)
+        // GM audit + bans (migration: tables predate the writers)
+        SAVE_GM_ACTION, // Append one gm_action_log row (fire-and-forget fact)
+        SAVE_USER_BAN   // Insert/lift one user_bans row (fact, acked)
     }; // Define more event types as needed
     Event() = default; // Default constructor
     Event(EventType type, int clientID, const EventData data, std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket);

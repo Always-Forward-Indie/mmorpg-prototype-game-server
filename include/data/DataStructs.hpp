@@ -282,6 +282,7 @@ struct MobDataStruct
     bool isRare = false;            ///< Rare mob variant flag
     float rareSpawnChance = 0.0f;   ///< Spawn probability [0..1]
     std::string rareSpawnCondition; ///< 'night' | 'day' | '' = any time
+    int rareOfMobId = 0;            ///< Rare variant OF this common template (0 = not a rare)
 
     // Social systems (Stage 4, migration 039)
     std::string factionSlug; ///< faction this mob belongs to

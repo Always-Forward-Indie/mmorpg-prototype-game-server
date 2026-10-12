@@ -145,6 +145,7 @@ WorldEventHandler::handleGetMobsListEvent(const Event &event)
             mobJson["isRare"] = mobData.isRare;
             mobJson["rareSpawnChance"] = mobData.rareSpawnChance;
             mobJson["rareSpawnCondition"] = mobData.rareSpawnCondition;
+            mobJson["rareOfMobId"] = mobData.rareOfMobId;
 
             // Social systems (Stage 4, migration 039)
             mobJson["factionSlug"] = mobData.factionSlug;
@@ -341,8 +342,8 @@ WorldEventHandler::handleGetMobDataEvent(const Event &event)
                 mobJson["radius"] = mobData.radius;
                 mobJson["currentHealth"] = mobData.currentHealth;
                 mobJson["currentMana"] = mobData.currentMana;
+                mobJson["maxHealth"] = mobData.maxHealth;
                 mobJson["maxMana"] = mobData.maxMana;
-                mobJson["currentHealth"] = mobData.maxHealth;
                 mobJson["isAggressive"] = mobData.isAggressive;
                 mobJson["isDead"] = mobData.isDead;
                 mobJson["posX"] = mobData.position.positionX;
