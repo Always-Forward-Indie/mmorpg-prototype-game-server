@@ -1,3 +1,32 @@
+v0.2.26
+12.10.2026
+================
+
+New:
+
+**GM audit + manual bans.**
+- `SAVE_GM_ACTION` / `SAVE_USER_BAN` facts (claim→write→ack): every admin
+  op appends `gm_action_log`; `banUser`/`unbanUser` write `user_bans`
+  with reason + expiry. Pinned by `test_ban.py`.
+- `requestCatalogReload` route, character liveness sweep (stale
+  disconnect + forget), multi-chunk registry (single-chunk topology
+  decision documented).
+
+Fixes:
+
+**Skill property fallback for above-mapped levels.**
+- `get_character_skills` resolves props from the highest mapped level
+  `<= current_level`: level-2+ skills kept cooldown/cost/range (were
+  silently zeroed). Pinned by `test_cooldown.py`.
+- Durability SQL `COALESCE` defaults; off-hand 50% attack rule;
+  `Numeric` skill props parsed via double (2.5-range crash fix).
+
+**Rare mob link.**
+- `rare_of_mob_id` column → query → push: rare variants bound to
+  common families (migration 108).
+
+---
+
 v0.2.25
 26.09.2026
 ================
