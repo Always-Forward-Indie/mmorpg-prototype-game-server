@@ -28,10 +28,22 @@ ctest --test-dir /usr/src/app/build --output-on-failure
 ## Sanitizers (on demand, no CI)
 
 ASan is on by default in Debug builds (`-fsanitize=address` in the root
-`CMakeLists.txt`). TSan uses a throwaway build dir in the live dev
+`CMakeLists.txt`). UBSan/TSan use throwaway build dirs in the live dev
 container — never add sanitizer flags to `CMakeLists.txt`, and never run a
 second `make` inside the watched `/usr/src/app/build` (the watchexec
 watcher builds there; parallel makes corrupt the link step).
+
+```bash
+# UBSan+ASan unit run (game links libpqxx: full -undefined fails the link
+# with pqxx typeinfo errors, so drop vptr for this target — verified
+# 2026-10-01: 61 green, 0 reports).
+cmake -DCMAKE_BUILD_TYPE=Debug \
+  -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-sanitize=vptr -fno-omit-frame-pointer" \
+  -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined -fno-sanitize=vptr" \
+  -S /usr/src/app -B /tmp/build-ubsan
+cmake --build /tmp/build-ubsan --target unit_tests -j2
+/tmp/build-ubsan/tests/unit_tests
+```
 
 ```bash
 # TSan unit run (game-server-1 container, separate build dir).

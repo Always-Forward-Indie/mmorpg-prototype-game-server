@@ -1,5 +1,11 @@
 # JOIN catalog orchestration (game → chunk static push)
 
+> Топология деплоя: **single-chunk**. `ChunkManager` уже умеет реестр
+> N чанков (`selectChunkForNewClient` lowest-id, `selectChunkForPosition`
+> по боксам `pos/size`, generations против stale-disconnect), но межчанковой
+> миграции сессии нет — `GET_CHARACTER_DATA` отвечает на тот же сокет.
+> Это зафиксированное решение, не долг (см. wire `01`, §1.0).
+
 Game — единственный, кто ходит в БД. Чанк при старте линка получает всю
 статику одним пушем (`EventHandler.cpp:355-535`). Клиентские джойны в это
 время ждут: чанк без каталога отвечает `chunkPort: 0` (см. `test_join_storm`).

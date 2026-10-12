@@ -76,6 +76,23 @@ Inventory; Progression: pity/bestiary/timed). Legacy keyless-сендеры ид
 **строго до** бизнес-записей в том же `txn`; widen allowlist чанка
 одновременно (иначе без ack — вечные ретраи в DLQ-шум).
 
+## Без claim — осознанно (idempotent-by-state)
+
+Три группы не клеймятся, и это решение, а не долг:
+
+1. **Quest/flag** (`DialogueQuestEventHandler: updatePlayerQuestProgress/Flag`):
+   last-write-wins перезапись состояния; повторная доставка пишет то же
+   состояние. Наградные выдачи идут отдельными claimed-путями.
+2. **Transfer-трио** (`ItemEventHandler: transfer/nullify/delete`): повторный
+   `transfer_item_between_chars`/`transfer_item_ownership` — no-op (владелец
+   уже сменён), `nullify`/`delete by id` — no-op по отсутствующей строке.
+3. **Typed-vector снапшоты** (`SAVE_POSITIONS/HP_MANA/PROGRESS/PLAYTIME`,
+   `MARK_ONLINE`): `vector<CharacterDataStruct>`, не объект — `factKeyOf`
+   всегда `""` (legacy by design); self-heal следующим периодом (30с/10с/60с).
+
+Строгий claim для 1–2 потребовал бы `factKey` с чанка (widen `FactOutbox`
+allowlist 16+) ради нулевого выигрыша — не делать без новой причины.
+
 ## Дельты vs absolute
 
 Где конкурентные записи возможны — дельта (`add_reputation`: атомарный
