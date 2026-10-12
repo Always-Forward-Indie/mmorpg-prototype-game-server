@@ -95,14 +95,67 @@ std::shared_ptr<boost::asio::ip::tcp::socket>
 ChunkManager::resolveLiveSocket(const std::shared_ptr<boost::asio::ip::tcp::socket> &hint) const
 {
     std::shared_lock lock(mutex_);
-    int chunkId = 1; // single-chunk deployment default
     auto bySock = chunkIdBySocket_.find(hint);
     if (bySock != chunkIdBySocket_.end())
-        chunkId = bySock->second;
-    auto byId = chunksById_.find(chunkId);
-    if (byId != chunksById_.end() && byId->second.socket)
-        return byId->second.socket;
+    {
+        auto byId = chunksById_.find(bySock->second);
+        if (byId != chunksById_.end() && byId->second.socket)
+            return byId->second.socket;
+        return hint;
+    }
+    // Unknown hint: single-chunk compat — use the sole registration.
+    // With 0 or 2+ chunks there is no safe guess; return hint and let
+    // sendResponse report the closed-socket error.
+    if (chunksById_.size() == 1)
+    {
+        const auto &sole = chunksById_.begin()->second;
+        if (sole.socket)
+            return sole.socket;
+    }
     return hint;
+}
+
+std::vector<ChunkInfoStruct>
+ChunkManager::getAllChunks() const
+{
+    std::shared_lock lock(mutex_);
+    std::vector<ChunkInfoStruct> out;
+    out.reserve(chunksById_.size());
+    for (const auto &[id, info] : chunksById_)
+        out.push_back(info);
+    return out;
+}
+
+ChunkInfoStruct
+ChunkManager::selectChunkForPosition(float x, float y) const
+{
+    std::shared_lock lock(mutex_);
+    for (const auto &[id, c] : chunksById_)
+    {
+        // Zero-size boxes are legacy single-chunk registrations (pos 0,0,0):
+        // they match everything only when sole; with 2+ chunks skip them.
+        if (c.sizeX <= 0 || c.sizeY <= 0)
+            continue;
+        if (x >= c.posX && x < c.posX + c.sizeX && y >= c.posY && y < c.posY + c.sizeY)
+            return c;
+    }
+    return ChunkInfoStruct{};
+}
+
+ChunkInfoStruct
+ChunkManager::selectChunkForNewClient() const
+{
+    std::shared_lock lock(mutex_);
+    if (chunksById_.empty())
+        return ChunkInfoStruct{};
+    // Deterministic: lowest id first (stable for single-chunk, predictable for tests).
+    const ChunkInfoStruct *best = nullptr;
+    for (const auto &[id, info] : chunksById_)
+    {
+        if (!best || info.id < best->id)
+            best = &info;
+    }
+    return best ? *best : ChunkInfoStruct{};
 }
 
 void

@@ -26,13 +26,22 @@ class ChunkManager
     /// time. Events queue async work: by the time a game→chunk runtime
     /// response is built, the chunk may have reconnected and the captured
     /// `hint` socket may be stale (writes into a half-open stale socket
-    /// fail silently). Prefer the current registration for the hint's chunk
-    /// (default chunk id 1 when the hint is unknown); fall back to `hint`
-    /// itself; null when neither names a socket. Callers still get
-    /// sendResponse's closed-socket error for dead sockets. Pure registry
-    /// read — unit-pinned in test_chunk_manager.cpp.
+    /// fail silently). Prefer the current registration for the hint's chunk;
+    /// when the hint is unknown and exactly one chunk is registered, use it
+    /// (single-chunk compat); with 0 or 2+ chunks fall back to `hint`
+    /// itself. Pure registry read — unit-pinned in test_chunk_manager.cpp.
     std::shared_ptr<boost::asio::ip::tcp::socket> resolveLiveSocket(
         const std::shared_ptr<boost::asio::ip::tcp::socket> &hint) const;
+
+    /// Multi-chunk routing: all registered chunks (copy under lock).
+    std::vector<ChunkInfoStruct> getAllChunks() const;
+    /// Chunk whose [pos,size) box contains (x,y). Empty when none matches
+    /// (single-chunk legacy boxes are 0,0,0 — caller falls back to single).
+    ChunkInfoStruct selectChunkForPosition(float x, float y) const;
+    /// Chunk for a new client without position yet: position-routed when
+    /// caller knows it, else first registered (deterministic by id).
+    /// Empty when no chunks registered.
+    ChunkInfoStruct selectChunkForNewClient() const;
 
     void removeChunkServerDataBySocket(const std::shared_ptr<boost::asio::ip::tcp::socket> &socket);
     void removeChunkServerDataById(int chunkId);

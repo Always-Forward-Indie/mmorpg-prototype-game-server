@@ -25,7 +25,8 @@ void GameServer::mainEventLoopGS()
     log_->info("Add Tasks To Game Server Scheduler...");
     constexpr int BATCH_SIZE = 10;
 
-    // TODO - save different data to the database in different time intervals
+    // NOTE: save cadence is chunk-driven (SAVE_POSITIONS 30s / HP_MANA 10s /
+    // PLAYTIME 60s fire-and-forget). No game-side per-type timers needed.
 
     try
     {
@@ -52,7 +53,8 @@ void GameServer::mainEventLoopCH()
     constexpr int BATCH_SIZE = 10;
     log_->info("Add Tasks To Chunk Server Scheduler...");
 
-    // TODO - Get different data from chunk servers in different time intervals
+    // NOTE: chunk fetch cadence is chunk-driven (JOIN catalog once + heartbeat
+    // 60s). No game-side per-type polling needed.
 
     try
     {

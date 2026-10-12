@@ -172,3 +172,64 @@ TEST_F(ChunkManagerFixture, ResolveLiveSocketNullWhenNothingKnown)
 {
     EXPECT_EQ(cm.resolveLiveSocket(nullptr), nullptr);
 }
+
+TEST_F(ChunkManagerFixture, ResolveLiveSocketSingleChunkCompat)
+{
+    // Unknown hint + exactly one chunk: use the sole registration (single-chunk compat).
+    auto s1 = makeSocket();
+    cm.addChunkInfo(makeInfo(s1));
+    auto unknown = makeSocket();
+    EXPECT_EQ(cm.resolveLiveSocket(unknown), s1);
+}
+
+TEST_F(ChunkManagerFixture, ResolveLiveSocketMultiChunkNoGuess)
+{
+    // Unknown hint + 2 chunks: no safe guess, return hint.
+    auto s1 = makeSocket();
+    auto s2 = makeSocket();
+    ChunkInfoStruct i1 = makeInfo(s1);
+    i1.id = 1;
+    ChunkInfoStruct i2 = makeInfo(s2);
+    i2.id = 2;
+    cm.addChunkInfo(i1);
+    cm.addChunkInfo(i2);
+    auto unknown = makeSocket();
+    EXPECT_EQ(cm.resolveLiveSocket(unknown), unknown);
+}
+
+TEST_F(ChunkManagerFixture, SelectChunkForNewClientLowestId)
+{
+    auto s1 = makeSocket();
+    auto s2 = makeSocket();
+    ChunkInfoStruct i2 = makeInfo(s2);
+    i2.id = 2;
+    ChunkInfoStruct i1 = makeInfo(s1);
+    i1.id = 1;
+    cm.addChunkInfo(i2);
+    cm.addChunkInfo(i1);
+    EXPECT_EQ(cm.selectChunkForNewClient().id, 1);
+    EXPECT_EQ(cm.getAllChunks().size(), 2u);
+}
+
+TEST_F(ChunkManagerFixture, SelectChunkForPositionRoutesByBox)
+{
+    auto s1 = makeSocket();
+    auto s2 = makeSocket();
+    ChunkInfoStruct i1 = makeInfo(s1);
+    i1.id = 1;
+    i1.posX = 0;
+    i1.posY = 0;
+    i1.sizeX = 1000;
+    i1.sizeY = 1000;
+    ChunkInfoStruct i2 = makeInfo(s2);
+    i2.id = 2;
+    i2.posX = 1000;
+    i2.posY = 0;
+    i2.sizeX = 1000;
+    i2.sizeY = 1000;
+    cm.addChunkInfo(i1);
+    cm.addChunkInfo(i2);
+    EXPECT_EQ(cm.selectChunkForPosition(100, 100).id, 1);
+    EXPECT_EQ(cm.selectChunkForPosition(1100, 100).id, 2);
+    EXPECT_EQ(cm.selectChunkForPosition(5000, 5000).id, 0);
+}
