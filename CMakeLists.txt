@@ -23,7 +23,6 @@ set(SOURCE_FILES
     src/services/ChunkManager.cpp
     src/services/CharacterManager.cpp
     src/services/SpawnZoneManager.cpp
-    src/services/SpawnManager.cpp
     src/services/ClassSpawnZoneManager.cpp
     src/services/NPCManager.cpp
     src/services/MobManager.cpp
@@ -73,7 +72,6 @@ set(HEADER_FILES
     include/services/GameServices.hpp
     include/services/CharacterManager.hpp
     include/services/SpawnZoneManager.hpp
-    include/services/SpawnManager.hpp
     include/services/ClassSpawnZoneManager.hpp
     include/services/MobManager.hpp
     include/services/ItemManager.hpp
