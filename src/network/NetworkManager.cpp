@@ -130,6 +130,29 @@ NetworkManager::sendResponse(std::shared_ptr<boost::asio::ip::tcp::socket> clien
         return;
     }
 
+    // Wire-contract guard (seam with the UE client): the client parses one
+    // '\n'-terminated JSON object per line with an 8KB cap
+    // (protocol::kMaxMessageBytes, mirrored by FNetFraming::MaxMessageBytes).
+    // Anything bigger is dropped client-side, so flag it here at warn level
+    // with the event type instead of silently producing snapshot holes.
+    // Threshold 6KB leaves headroom for the trailing delimiter and header growth.
+    constexpr size_t kClientLineCapWarnBytes = 6 * 1024;
+    if (responseString.size() > kClientLineCapWarnBytes)
+    {
+        std::string eventType = "?";
+        const std::string key = "\"eventType\":\"";
+        const size_t pos = responseString.find(key);
+        if (pos != std::string::npos)
+        {
+            const size_t begin = pos + key.size();
+            const size_t end = responseString.find('"', begin);
+            if (end != std::string::npos)
+                eventType = responseString.substr(begin, end - begin);
+        }
+        log_->warn("Oversized packet for client wire ({} bytes, eventType={}): exceeds UE 8KB line cap — chunk the array payload",
+            responseString.size(), eventType);
+    }
+
     // MEDIUM-8 fix: Serialise concurrent writes per socket via a per-socket strand +
     // write queue. Multiple EventHandler threads can call sendResponse concurrently
     // for the same chunk-server connection; without serialisation that causes UB.
