@@ -38,7 +38,6 @@ WorldEventHandler::handleGetMobsAttributesEvent(const Event &event)
                 attributeJson["id"] = attribute.id;
                 attributeJson["mob_id"] = mobData.id;
                 attributeJson["slug"] = attribute.slug;
-                attributeJson["name"] = attribute.name;
                 attributeJson["value"] = attribute.value;
 
                 mobsAttributesListJson.push_back(attributeJson);
@@ -571,7 +570,6 @@ WorldEventHandler::handleGetItemsListEvent(const Event &event)
             itemJson["slug"] = itemData.slug;
             itemJson["isQuestItem"] = itemData.isQuestItem;
             itemJson["itemType"] = itemData.itemType;
-            itemJson["itemTypeName"] = itemData.itemTypeName;
             itemJson["itemTypeSlug"] = itemData.itemTypeSlug;
             itemJson["isContainer"] = itemData.isContainer;
             itemJson["isDurable"] = itemData.isDurable;
@@ -581,14 +579,12 @@ WorldEventHandler::handleGetItemsListEvent(const Event &event)
             itemJson["isUsable"] = itemData.isUsable;
             itemJson["weight"] = itemData.weight;
             itemJson["rarityId"] = itemData.rarityId;
-            itemJson["rarityName"] = itemData.rarityName;
             itemJson["raritySlug"] = itemData.raritySlug;
             itemJson["stackMax"] = itemData.stackMax;
             itemJson["durabilityMax"] = itemData.durabilityMax;
             itemJson["vendorPriceBuy"] = itemData.vendorPriceBuy;
             itemJson["vendorPriceSell"] = itemData.vendorPriceSell;
             itemJson["equipSlot"] = itemData.equipSlot;
-            itemJson["equipSlotName"] = itemData.equipSlotName;
             itemJson["equipSlotSlug"] = itemData.equipSlotSlug;
             itemJson["levelRequirement"] = itemData.levelRequirement;
             itemJson["isTwoHanded"] = itemData.isTwoHanded;
@@ -601,14 +597,11 @@ WorldEventHandler::handleGetItemsListEvent(const Event &event)
             itemJson["setId"] = itemData.setId;
             itemJson["setSlug"] = itemData.setSlug;
 
-            // Add attributes
+            // Add attributes (slug+value only: names resolve client-side via slug)
             nlohmann::json attributesArray = nlohmann::json::array();
             for (const auto &attribute : itemData.attributes)
             {
                 nlohmann::json attributeJson;
-                attributeJson["id"] = attribute.id;
-                attributeJson["item_id"] = attribute.item_id;
-                attributeJson["name"] = attribute.name;
                 attributeJson["slug"] = attribute.slug;
                 attributeJson["value"] = attribute.value;
                 attributesArray.push_back(attributeJson);
@@ -889,7 +882,6 @@ WorldEventHandler::handleGetNPCsAttributesEvent(const Event &event)
                 attributeJson["id"] = attribute.id;
                 attributeJson["npc_id"] = npcData.id;
                 attributeJson["slug"] = attribute.slug;
-                attributeJson["name"] = attribute.name;
                 attributeJson["value"] = attribute.value;
 
                 npcsAttributesListJson.push_back(attributeJson);

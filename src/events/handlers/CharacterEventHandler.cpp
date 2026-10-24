@@ -84,9 +84,7 @@ CharacterEventHandler::handleGetCharacterDataEvent(const Event &event)
             for (const auto &attribute : characterData.attributes)
             {
                 nlohmann::json attributeData;
-                attributeData["id"] = attribute.id;
                 attributeData["slug"] = attribute.slug;
-                attributeData["name"] = attribute.name;
                 attributeData["value"] = attribute.value;
 
                 // Set the character max health and mana

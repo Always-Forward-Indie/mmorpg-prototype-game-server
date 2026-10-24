@@ -368,8 +368,6 @@ DialogueQuestEventHandler::handleGetCharacterAttributesRefreshEvent(const Event 
         for (const auto &row : result)
         {
             nlohmann::json attr;
-            attr["id"] = row["id"].as<int>();
-            attr["name"] = row["name"].as<std::string>();
             attr["slug"] = row["slug"].as<std::string>();
             attr["value"] = row["value"].as<int>();
             attrsJson.push_back(std::move(attr));
