@@ -179,6 +179,8 @@ const QueryDef kQueries[] = {
      R"QDEF(SELECT pq.quest_id, q.slug, pq.state::text AS state, pq.current_step, COALESCE(pq.progress::text, '{}') AS progress FROM player_quest pq JOIN quest q ON q.id = pq.quest_id WHERE pq.player_id = $1 AND pq.state NOT IN ('turned_in', 'failed');)QDEF"},
     {"upsert_player_quest",
      R"QDEF(INSERT INTO player_quest (player_id, quest_id, state, current_step, progress, updated_at) VALUES ($1, $2, $3::quest_state, $4, $5::jsonb, now()) ON CONFLICT (player_id, quest_id) DO UPDATE SET state = EXCLUDED.state, current_step = EXCLUDED.current_step, progress = EXCLUDED.progress, updated_at = now();)QDEF"},
+    {"delete_player_quest",
+     R"QDEF(DELETE FROM player_quest WHERE player_id = $1 AND quest_id = $2;)QDEF"},
             // --- Player flag queries ---
     {"get_player_flags",
      R"QDEF(SELECT flag_key, COALESCE(int_value, 0) AS int_value, COALESCE(bool_value, false) AS bool_value FROM player_flag WHERE player_id = $1;)QDEF"},

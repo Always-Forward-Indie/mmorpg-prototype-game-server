@@ -215,6 +215,38 @@ DialogueQuestEventHandler::handleUpdatePlayerQuestProgressEvent(const Event &eve
 }
 
 void
+DialogueQuestEventHandler::handleDeletePlayerQuestEvent(const Event &event)
+{
+    const auto &data = event.getData();
+
+    try
+    {
+        if (!std::holds_alternative<nlohmann::json>(data))
+        {
+            log_->error("handleDeletePlayerQuestEvent: unexpected data type");
+            return;
+        }
+        const auto &j = std::get<nlohmann::json>(data);
+        auto &body = j.at("body");
+
+        int characterId = body.value("characterId", 0);
+        int questId = body.value("questId", 0);
+
+        if (characterId <= 0 || questId <= 0)
+        {
+            log_->error("handleDeletePlayerQuestEvent: invalid characterId/questId");
+            return;
+        }
+
+        gameServices_.getDialogueQuestManager().deletePlayerQuestProgress(characterId, questId);
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("Error in handleDeletePlayerQuestEvent: " + std::string(ex.what()));
+    }
+}
+
+void
 DialogueQuestEventHandler::handleUpdatePlayerFlagEvent(const Event &event)
 {
     const auto &data = event.getData();

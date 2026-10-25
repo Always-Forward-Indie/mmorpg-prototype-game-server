@@ -75,6 +75,7 @@ class Event
         GET_PLAYER_ACTIVE_EFFECTS,        // Load non-expired active effects and send to chunk
         GET_CHARACTER_ATTRIBUTES_REFRESH, // Re-query attributes (base+equip+perm mods) and send to chunk
         UPDATE_PLAYER_QUEST_PROGRESS,     // Persist quest progress to DB
+        DELETE_PLAYER_QUEST,              // Delete quest progress row (admin resetQuest, issue #120)
         UPDATE_PLAYER_FLAG,               // Persist player flag to DB
         GET_GAME_CONFIG,                  // Load game_config and send to chunk-server
         GET_VENDOR_DATA,                  // Load vendor NPC inventory and send to chunk

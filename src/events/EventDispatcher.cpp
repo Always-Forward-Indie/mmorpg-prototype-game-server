@@ -69,6 +69,7 @@ EventDispatcher::buildRouteTable()
         {"getPlayerActiveEffects", &EventDispatcher::handleGetPlayerActiveEffects},
         {"getCharacterAttributes", &EventDispatcher::handleGetCharacterAttributesRefresh},
         {"updatePlayerQuestProgress", &EventDispatcher::handleUpdatePlayerQuestProgress},
+        {"deletePlayerQuest", &EventDispatcher::handleDeletePlayerQuest},
         {"updatePlayerFlag", &EventDispatcher::handleUpdatePlayerFlag},
         {"saveInventoryChange", &EventDispatcher::handleSaveInventoryChange},
         {"getPlayerInventory", &EventDispatcher::handleGetPlayerInventory},
@@ -419,6 +420,27 @@ EventDispatcher::handleUpdatePlayerQuestProgress(
 }
 
 void
+EventDispatcher::handleDeletePlayerQuest(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    // Admin resetQuest (issue #120): delete the progress row outright
+    // (upsert cannot express deletion). Fire-and-forget like the update path.
+    try
+    {
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
+        Event ev(Event::DELETE_PLAYER_QUEST, 0, j, socket);
+        eventsBatch_.push_back(ev);
+        eventQueue_.pushBatch(eventsBatch_);
+        eventsBatch_.clear();
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleDeletePlayerQuest parse error: " + std::string(ex.what()));
+    }
+}
+
+void
 EventDispatcher::handleUpdatePlayerFlag(
     const EventPayload &payload,
     std::shared_ptr<boost::asio::ip::tcp::socket> socket)
@@ -644,6 +666,29 @@ EventDispatcher::handleSaveItemKillCount(
     catch (const std::exception &ex)
     {
         logger_.logError("handleSaveItemKillCount parse error: " + std::string(ex.what()));
+    }
+}
+
+void
+EventDispatcher::handleSaveCurrencyTransaction(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    try
+    {
+        // Single-parse: payload.parsed already holds these bytes (parsed once
+        // in MessageHandler); handlers keep an owned json, so copy locally
+        // and parse only on the defensive empty path.
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
+        const auto &body = j["body"];
+        Event saveEvent(Event::SAVE_CURRENCY_TRANSACTION, 0, body, socket);
+        eventsBatch_.push_back(saveEvent);
+        eventQueue_.pushBatch(eventsBatch_);
+        eventsBatch_.clear();
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleSaveCurrencyTransaction parse error: " + std::string(ex.what()));
     }
 }
 
@@ -1027,29 +1072,6 @@ EventDispatcher::handleSaveSkillBarSlot(
     catch (const std::exception &ex)
     {
         logger_.logError("handleSaveSkillBarSlot parse error: " + std::string(ex.what()));
-    }
-}
-
-void
-EventDispatcher::handleSaveCurrencyTransaction(
-    const EventPayload &payload,
-    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
-{
-    try
-    {
-        // Single-parse: payload.parsed already holds these bytes (parsed once
-        // in MessageHandler); handlers keep an owned json, so copy locally
-        // and parse only on the defensive empty path.
-        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
-        const auto &body = j["body"];
-        Event saveEvent(Event::SAVE_CURRENCY_TRANSACTION, 0, body, socket);
-        eventsBatch_.push_back(saveEvent);
-        eventQueue_.pushBatch(eventsBatch_);
-        eventsBatch_.clear();
-    }
-    catch (const std::exception &ex)
-    {
-        logger_.logError("handleSaveCurrencyTransaction parse error: " + std::string(ex.what()));
     }
 }
 

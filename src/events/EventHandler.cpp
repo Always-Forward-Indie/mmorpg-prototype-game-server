@@ -750,6 +750,9 @@ EventHandler::dispatchEvent(const Event &event)
     case Event::UPDATE_PLAYER_QUEST_PROGRESS:
         dialogueQuestHandler_.handleUpdatePlayerQuestProgressEvent(event);
         break;
+    case Event::DELETE_PLAYER_QUEST:
+        dialogueQuestHandler_.handleDeletePlayerQuestEvent(event);
+        break;
     case Event::UPDATE_PLAYER_FLAG:
         dialogueQuestHandler_.handleUpdatePlayerFlagEvent(event);
         break;

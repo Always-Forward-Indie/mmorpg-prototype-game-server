@@ -1,3 +1,31 @@
+v0.2.27
+25.10.2026
+================
+
+New:
+
+**Admin quest reset path (`deletePlayerQuest`, issue #120).**
+- Новый роут chunk->game `deletePlayerQuest` -> `Event::DELETE_PLAYER_QUEST`
+  -> `delete_player_quest` (`DELETE FROM player_quest`): upsert удаление
+  выразить не может. Fire-and-forget как update-путь.
+- Чанк-сторона (`resetQuest`) чистит in-memory прогресс и шлёт этот факт
+  в game, иначе реjoin перечитывал бы `turned_in` из БД.
+
+Wire (backfill, committed 18-24.10, not in v0.2.26):
+
+**S1a: display strings cut from packets.**
+- Атрибуты едут как slug+value (без локализованных строк).
+
+**Net: warn on oversized client-bound JSON lines.**
+- Отправка > 6 КБ логируется с `eventType` (8KB client framing cap).
+
+Cleanup:
+
+- `handleSaveCurrencyTransaction` — чистое перемещение внутри
+  `EventDispatcher.cpp`, поведение не менялось.
+
+---
+
 v0.2.26
 12.10.2026
 ================

@@ -22,5 +22,6 @@ class DialogueQuestEventHandler : public BaseEventHandler
     void handleGetPlayerActiveEffectsEvent(const Event &event);
     void handleGetCharacterAttributesRefreshEvent(const Event &event);
     void handleUpdatePlayerQuestProgressEvent(const Event &event);
+    void handleDeletePlayerQuestEvent(const Event &event);
     void handleUpdatePlayerFlagEvent(const Event &event);
 };

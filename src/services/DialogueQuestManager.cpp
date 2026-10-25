@@ -266,6 +266,25 @@ DialogueQuestManager::savePlayerQuestProgress(int characterId, int questId, cons
 }
 
 void
+DialogueQuestManager::deletePlayerQuestProgress(int characterId, int questId)
+{
+    try
+    {
+        auto _dbConn = database_.getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+        static_cast<void>(database_.execChecked(txn, "delete_player_quest", {(int)characterId, (int)questId}));
+        txn.commit();
+        logger_.log("[DQM] Deleted quest characterId=" + std::to_string(characterId) +
+                        " questId=" + std::to_string(questId),
+            GREEN);
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("[DQM] deletePlayerQuestProgress error: " + std::string(ex.what()));
+    }
+}
+
+void
 DialogueQuestManager::savePlayerFlag(int characterId, const std::string &flagKey, int intValue, bool boolValue)
 {
     try

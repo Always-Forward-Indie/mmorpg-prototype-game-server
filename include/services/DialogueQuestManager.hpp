@@ -24,6 +24,7 @@ class DialogueQuestManager
 
     // --- Persistence ---
     void savePlayerQuestProgress(int characterId, int questId, const std::string &state, int currentStep, const std::string &progressJson);
+    void deletePlayerQuestProgress(int characterId, int questId);
     void savePlayerFlag(int characterId, const std::string &flagKey, int intValue, bool boolValue);
 
   private:
