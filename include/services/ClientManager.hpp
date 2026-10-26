@@ -31,6 +31,11 @@ public:
 
     std::vector<ClientDataStruct> getClientsList() const;
 
+    /// Shutdown helper (S16a): same contract as ChunkManager::dropAllSockets
+    /// — close + release every held socket BEFORE the io_context dies, or
+    /// asio internals UAF on teardown (observed on game shutdown).
+    void dropAllSockets();
+
 private:
     static int64_t steadyNowMs();
 

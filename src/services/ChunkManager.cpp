@@ -247,3 +247,24 @@ ChunkManager::sweepSilentChunks(int64_t silentThresholdMs)
     }
     return removed;
 }
+
+void
+ChunkManager::dropAllSockets()
+{
+    std::unique_lock<std::shared_mutex> lock(mutex_);
+    auto closeQuiet = [](const std::shared_ptr<boost::asio::ip::tcp::socket> &sock)
+    {
+        if (sock && sock->is_open())
+        {
+            boost::system::error_code ec;
+            sock->close(ec);
+        }
+    };
+    for (const auto &[id, info] : chunksById_)
+        closeQuiet(info.socket);
+    chunksById_.clear();
+    chunkIdBySocket_.clear();
+    socketGen_.clear();
+    genById_.clear();
+    log_->info("[ChunkManager] dropAllSockets: all chunk sockets closed and released");
+}

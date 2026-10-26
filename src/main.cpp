@@ -208,6 +208,18 @@ main()
         eventQueueChunkServer.stop();
         eventQueueGameServerPing.stop();
 
+        // S16a ordered teardown (ASan heap-use-after-free on shutdown):
+        // 1. stopIO() first — no handler can push new events after the io
+        //    threads join, so everything below is race-free;
+        // 2. drain leftover queued events (they may own sockets);
+        // 3. dropAllSockets() releases manager-held sockets while the
+        //    io_context is still alive. Destructors then run on empties.
+        networkManager.stopIO();
+        eventQueueGameServer.drain();
+        eventQueueChunkServer.drain();
+        eventQueueGameServerPing.drain();
+        gameServices.dropAllSockets();
+
         return 0;
     }
     catch (const std::exception &e)

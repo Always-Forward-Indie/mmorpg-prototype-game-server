@@ -108,13 +108,7 @@ NetworkManager::startIOEventLoop()
 NetworkManager::~NetworkManager()
 {
     log_->warn("Network Manager destructor is called...");
-    acceptor_.close();
-    io_context_.stop();
-    for (auto &thread : threadPool_)
-    {
-        if (thread.joinable())
-            thread.join();
-    }
+    stopIO();
     // ASan-found UAF fix: SocketWriteState holds a strand bound to
     // io_context_'s executor service, but socketStates_ is declared BEFORE
     // io_context_ — without this, member destruction tears down io_context
@@ -123,6 +117,19 @@ NetworkManager::~NetworkManager()
     {
         std::lock_guard<std::mutex> lock(socketStatesMutex_);
         socketStates_.clear();
+    }
+}
+
+void
+NetworkManager::stopIO()
+{
+    boost::system::error_code ec;
+    acceptor_.close(ec);
+    io_context_.stop();
+    for (auto &thread : threadPool_)
+    {
+        if (thread.joinable())
+            thread.join();
     }
 }
 

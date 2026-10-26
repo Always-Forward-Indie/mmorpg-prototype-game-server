@@ -46,6 +46,14 @@ class ChunkManager
     void removeChunkServerDataBySocket(const std::shared_ptr<boost::asio::ip::tcp::socket> &socket);
     void removeChunkServerDataById(int chunkId);
 
+    /// Shutdown helper (S16a): close + release every held socket BEFORE the
+    /// io_context dies. Sockets destroyed after their execution_context
+    /// trigger ASan heap-use-after-free in asio internals (observed on game
+    /// shutdown: ~ChunkInfoStruct ran after ~io_context). Called once from
+    /// main's ordered shutdown; afterwards the maps are empty (a fresh boot
+    /// re-discovers chunks via re-registration).
+    void dropAllSockets();
+
     /// Drop chunks silent longer than silentThresholdMs (no heartbeat /
     /// re-registration since). Game-side liveness net for deaths the
     /// disconnect event never reports (missed TCP FIN, wedged peer).

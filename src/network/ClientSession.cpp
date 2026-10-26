@@ -178,7 +178,9 @@ ClientSession::doRead()
             }
             else if (ec == boost::asio::error::eof)
             {
-                log_->error("Client disconnected gracefully.");
+                // Normal client goodbye (clean FIN) — info, not error, so
+                // log gates don't count routine disconnects as breaches.
+                log_->info("Client disconnected gracefully.");
                 handleClientDisconnect();
             }
             else

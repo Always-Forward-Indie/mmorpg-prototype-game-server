@@ -29,6 +29,11 @@ class NetworkManager
     ~NetworkManager();
     void startAccept();
     void startIOEventLoop();
+    /// Ordered-shutdown hook (S16a): close the acceptor, stop the io_context
+    /// and join its threads. After this returns no handler can push new
+    /// events, so queues can be drained and sockets released race-free.
+    /// The destructor repeats the same steps (belt and braces).
+    void stopIO();
     void sendResponse(std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket, const std::string &responseString);
     std::string generateResponseMessage(const std::string &status, const nlohmann::json &message);
     std::string generateResponseMessage(const std::string &status, const nlohmann::json &message, const TimestampStruct &timestamps);
