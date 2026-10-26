@@ -3,6 +3,7 @@
 #include "events/EventDispatcher.hpp"
 #include "handlers/MessageHandler.hpp"
 #include "utils/TimestampUtils.hpp"
+#include "utils/WireFraming.hpp"
 #include <spdlog/logger.h>
 
 NetworkManager::NetworkManager(
@@ -79,6 +80,10 @@ NetworkManager::startAccept()
             session->setSendCallback(
                 [this](std::shared_ptr<boost::asio::ip::tcp::socket> s, const std::string &data)
                 { sendResponse(std::move(s), data); });
+            // S14: record the sniffed transport per socket (mirrors setSendCallback).
+            session->setFramingCallback(
+                [this](std::shared_ptr<boost::asio::ip::tcp::socket> s, bool v2)
+                { setSocketFramingV2(std::move(s), v2); });
             addActiveSession(session);
             session->start();
         }
@@ -127,6 +132,34 @@ NetworkManager::sendResponse(std::shared_ptr<boost::asio::ip::tcp::socket> clien
     if (!clientSocket || !clientSocket->is_open())
     {
         log_->error("Attempted write on closed or invalid socket.");
+        return;
+    }
+
+    // S14: v2 sockets get length-prefixed frames and skip the v1 line path.
+    // framingError() payloads carry a trailing '\n' for v1; strip one so
+    // the v2 frame holds pure JSON.
+    if (isSocketFramingV2(clientSocket))
+    {
+        std::string logical = responseString;
+        if (!logical.empty() && logical.back() == '\n')
+            logical.pop_back();
+        auto framed = wirev2::packFramedMessage(logical);
+        if (framed.empty())
+        {
+            log_->error("v2 frame over {} bytes, dropping instead of sending whole",
+                protocol::kMaxFrameBytes);
+            return;
+        }
+        auto dataPtr = std::make_shared<const std::string>(std::move(framed));
+        auto state = getOrCreateSocketState(clientSocket);
+        if (!state)
+            return;
+        boost::asio::post(state->strand, [this, clientSocket, dataPtr, state]() mutable
+            {
+                state->writeQueue.push(dataPtr);
+                if (!state->writePending)
+                    doNextWrite(std::move(clientSocket), std::move(state));
+            });
         return;
     }
 
@@ -218,7 +251,29 @@ NetworkManager::removeSocketState(boost::asio::ip::tcp::socket *sock,
         if (owner)
             return;
     }
+    socketFramingV2_.erase(sock);
     socketStates_.erase(it);
+}
+
+// S14: sniffed framing per live socket (v2 or legacy v1). Same lock as
+// socketStates_; erased together with the write state on reclaim.
+void
+NetworkManager::setSocketFramingV2(std::shared_ptr<boost::asio::ip::tcp::socket> socket, bool v2)
+{
+    if (!socket)
+        return;
+    std::lock_guard<std::mutex> lock(socketStatesMutex_);
+    socketFramingV2_[socket.get()] = v2;
+}
+
+bool
+NetworkManager::isSocketFramingV2(const std::shared_ptr<boost::asio::ip::tcp::socket> &socket) const
+{
+    if (!socket)
+        return false;
+    std::lock_guard<std::mutex> lock(socketStatesMutex_);
+    auto it = socketFramingV2_.find(socket.get());
+    return it != socketFramingV2_.end() && it->second;
 }
 
 void
@@ -230,7 +285,10 @@ NetworkManager::gcWriteQueues()
         // Owner expired => no posted strand lambda can reference the socket;
         // erasing the map entry is safe (no queue fields touched off-strand).
         if (it->second->owner.expired())
+        {
+            socketFramingV2_.erase(it->first);
             it = socketStates_.erase(it);
+        }
         else
             ++it;
     }

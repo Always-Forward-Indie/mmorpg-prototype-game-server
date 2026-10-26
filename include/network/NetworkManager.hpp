@@ -39,6 +39,13 @@ class NetworkManager
     void gcWriteQueues();
     size_t writeQueueCount() const;
 
+    // S14: sniffed framing per live socket (v2 or legacy v1). Same lock as
+    // socketStates_; erased together with the write state on reclaim.
+    // Absent entry = v1 legacy. Public: the join handler reads it for the
+    // agreed-version echo in joinGameClient responses.
+    void setSocketFramingV2(std::shared_ptr<boost::asio::ip::tcp::socket> socket, bool v2);
+    bool isSocketFramingV2(const std::shared_ptr<boost::asio::ip::tcp::socket> &socket) const;
+
   private:
     // Per-socket write state: ensures async_write calls are serialised per socket
     // so that concurrent EventHandler threads never race on the same TCP connection.
@@ -60,6 +67,8 @@ class NetworkManager
     // Mutable: writeQueueCount() is a const observer used by health logging.
     mutable std::mutex socketStatesMutex_;
     std::unordered_map<boost::asio::ip::tcp::socket *, std::shared_ptr<SocketWriteState>> socketStates_;
+    // S14: sniffed framing per live socket (erased with the write state).
+    std::unordered_map<boost::asio::ip::tcp::socket *, bool> socketFramingV2_;
 
     std::shared_ptr<SocketWriteState> getOrCreateSocketState(
         const std::shared_ptr<boost::asio::ip::tcp::socket> &socket);

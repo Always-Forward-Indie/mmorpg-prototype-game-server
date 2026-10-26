@@ -9,6 +9,7 @@
 #include "events/EventQueue.hpp"
 #include "utils/Logger.hpp"
 #include "utils/ProtocolLimits.hpp"
+#include "utils/WireFraming.hpp"
 
 #include <functional>
 
@@ -37,11 +38,22 @@ class ClientSession : public std::enable_shared_from_this<ClientSession>
     void setSendCallback(std::function<void(std::shared_ptr<boost::asio::ip::tcp::socket>, const std::string &)> callback);
     /// Owning socket (for write-state reclamation in NetworkManager).
     std::shared_ptr<boost::asio::ip::tcp::socket> socket() const { return socket_; }
+    /// Transport mode reporter (S14): NetworkManager installs this at session
+    /// setup (mirrors setSendCallback); doRead fires it once, right after
+    /// the mode is sniffed from the first bytes.
+    void setFramingCallback(std::function<void(std::shared_ptr<boost::asio::ip::tcp::socket>, bool)> callback);
 
   private:
     void doRead();
     void processMessage(const std::string &message);
     void handleClientDisconnect();
+    // v2 extraction (S14): length-prefixed frames from accumulatedData_.
+    void extractV2Messages();
+
+    // Transport mode, sniffed once from the first bytes (S14). Decided
+    // before any message is processed; never changes mid-session.
+    wirev2::FramingMode framingMode_ = wirev2::FramingMode::NeedMore;
+    std::function<void(std::shared_ptr<boost::asio::ip::tcp::socket>, bool)> framingCallback_;
 
     std::shared_ptr<boost::asio::ip::tcp::socket> socket_;
     std::array<char, protocol::kReadChunkBytes> dataBuffer_;

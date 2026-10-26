@@ -9,6 +9,7 @@ if(GTest_FOUND)
         test_chunk_manager.cpp
         test_event_queue.cpp
         test_client_manager.cpp
+        test_wire_framing.cpp
         test_game_characters.cpp
         test_threadpool.cpp
         test_game_items.cpp

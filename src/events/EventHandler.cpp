@@ -1,6 +1,7 @@
 #include "events/EventHandler.hpp"
 #include "data/DataStructs.hpp"
 #include "events/Outbox.hpp"
+#include "utils/ProtocolLimits.hpp"
 #include "utils/TerminalColors.hpp"
 #include "utils/TimestampUtils.hpp"
 
@@ -153,12 +154,18 @@ EventHandler::handleJoinPlayerClientEvent(const Event &event)
             chunkServerDataJson["chunkSizeZ"] = chunkServerData.sizeZ;
 
             // Add the message to the response
+            // S14: echo the agreed framing for this socket (transport truth
+            // from sniffing; v1 peers ignore the unknown body key).
+            const int agreedFraming = networkManager_.isSocketFramingV2(passedClientData.socket)
+                ? protocol::kFramingV2
+                : 1;
             response = builder
                            .setHeader("message", "Authentication success for user!")
                            .setHeader("hash", passedClientData.hash)
                            .setHeader("clientId", passedClientData.clientId)
                            .setHeader("eventType", "joinGameClient")
                            .setBody("chunkServerData", chunkServerDataJson)
+                           .setBody("framing", agreedFraming)
                            .build();
             // Prepare a response message
             std::string responseData = networkManager_.generateResponseMessage("success", response);

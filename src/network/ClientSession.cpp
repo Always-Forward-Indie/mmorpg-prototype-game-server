@@ -71,6 +71,13 @@ ClientSession::setSendCallback(
 }
 
 void
+ClientSession::setFramingCallback(
+    std::function<void(std::shared_ptr<boost::asio::ip::tcp::socket>, bool)> callback)
+{
+    framingCallback_ = std::move(callback);
+}
+
+void
 ClientSession::doRead()
 {
     auto self(shared_from_this());
@@ -79,15 +86,49 @@ ClientSession::doRead()
         {
             if (!ec)
             {
-                // Framing DoS guard (see utils/ProtocolLimits.hpp, mirrors chunk + login).
-                if (accumulatedData_.size() + bytes_transferred > protocol::kMaxAccumulatedBytes)
+                // S14: decide the transport once from the first bytes.
+                // Unknown persists only while <5 bytes are buffered.
+                if (framingMode_ == wirev2::FramingMode::NeedMore)
                 {
-                    log_->error("Buffer overflow detected, disconnecting client");
-                    handleClientDisconnect();
+                    accumulatedData_.append(dataBuffer_.data(), bytes_transferred);
+                    framingMode_ = wirev2::sniffFraming(
+                        reinterpret_cast<const uint8_t *>(accumulatedData_.data()),
+                        accumulatedData_.size());
+                    if (framingMode_ == wirev2::FramingMode::NeedMore)
+                    {
+                        doRead();
+                        return;
+                    }
+                    if (framingCallback_)
+                    {
+                        try {
+                            framingCallback_(socket_, framingMode_ == wirev2::FramingMode::V2);
+                        } catch (...) {}
+                    }
+                }
+                else
+                {
+                    const size_t cap = framingMode_ == wirev2::FramingMode::V2
+                        ? protocol::kMaxAccumulatedBytesV2
+                        : protocol::kMaxAccumulatedBytes;
+                    // Framing DoS guard (see utils/ProtocolLimits.hpp, mirrors chunk + login).
+                    if (accumulatedData_.size() + bytes_transferred > cap)
+                    {
+                        log_->error("Buffer overflow detected, disconnecting client");
+                        handleClientDisconnect();
+                        return;
+                    }
+
+                    // Append new data to our session-specific buffer.
+                    accumulatedData_.append(dataBuffer_.data(), bytes_transferred);
+                }
+
+                if (framingMode_ == wirev2::FramingMode::V2)
+                {
+                    extractV2Messages();
+                    doRead();
                     return;
                 }
-                // Append new data to our session-specific buffer.
-                accumulatedData_.append(dataBuffer_.data(), bytes_transferred);
 
                 // debug-level: per-read payload dump (very noisy with bots/swarm).
                 log_->debug("DEBUG Received data from client: " + accumulatedData_);
@@ -146,6 +187,49 @@ ClientSession::doRead()
                 handleClientDisconnect();
             }
         });
+}
+
+// S14: length-prefixed extraction. L > 4MB is a DoS attempt: explicit
+// ERR_OVERSIZE + disconnect (the v1 line path keeps its warn-and-skip).
+void
+ClientSession::extractV2Messages()
+{
+    size_t processed = 0;
+    constexpr size_t MAX_MESSAGES_PER_READ = 10;
+    while (accumulatedData_.size() >= 4 && processed < MAX_MESSAGES_PER_READ)
+    {
+        const auto *b = reinterpret_cast<const uint8_t *>(accumulatedData_.data());
+        const std::uint32_t n = static_cast<std::uint32_t>(b[0]) |
+                                (static_cast<std::uint32_t>(b[1]) << 8) |
+                                (static_cast<std::uint32_t>(b[2]) << 16) |
+                                (static_cast<std::uint32_t>(b[3]) << 24);
+        if (n > protocol::kMaxFrameBytes)
+        {
+            // Best-effort ERR (may lose the race with close below) + drop.
+            log_->error("v2 frame too large, disconnecting client: " + std::to_string(n) + " bytes");
+            if (sendCallback_)
+            {
+                try {
+                    sendCallback_(socket_, framingError("unknown", protocol::kErrOversize));
+                } catch (...) {}
+            }
+            handleClientDisconnect();
+            return;
+        }
+        if (accumulatedData_.size() < 4 + n)
+        {
+            break; // partial frame: wait for more TCP chunks
+        }
+        processMessage(accumulatedData_.substr(4, n));
+        accumulatedData_.erase(0, 4 + n);
+        ++processed;
+    }
+
+    if (accumulatedData_.size() > protocol::kMaxAccumulatedBytesV2)
+    {
+        log_->error("Clearing large incomplete v2 buffer to prevent memory leak");
+        accumulatedData_.clear();
+    }
 }
 
 void
