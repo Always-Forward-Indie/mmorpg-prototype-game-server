@@ -29,7 +29,7 @@ InventoryEventHandler::handleSaveInventoryChangeEvent(const Event &event)
         int itemId = j.value("itemId", 0);
         int quantity = j.value("quantity", 0);
         int inventoryItemId = static_cast<int>(j.value("inventoryItemId", 0));
-        // Chunk-local pending-sync token (0 = none/legacy). Echoed back in
+        // Chunk-local pending-sync token (0 = none/pre-token). Echoed back in
         // inventoryItemIdSync so the chunk can match the exact instance.
         uint64_t syncToken = j.value("syncToken", (uint64_t)0);
 
@@ -68,7 +68,7 @@ InventoryEventHandler::handleSaveInventoryChangeEvent(const Event &event)
             {
                 // Per-instance path (migration 096): SELECT by token first.
                 // Found -> absolute-SET quantity (resends converge, never
-                // double). Missing -> adopt a virgin legacy row if one exists
+                // double). Missing -> adopt a virgin pre-token row if one exists
                 // (stackables stay single-row), else INSERT with the token
                 // (a concurrent duplicate insert hits UNIQUE -> re-SELECT).
                 const int64_t tok = static_cast<int64_t>(syncToken);
@@ -143,7 +143,7 @@ InventoryEventHandler::handleSaveInventoryChangeEvent(const Event &event)
             }
             else
             {
-                // Legacy token-less path (pre-token chunk versions only):
+                // Zero-token path (pre-token rows not yet adopted):
                 // SELECT first, then absolute-SET UPDATE or plain INSERT.
                 auto legacy = gameServices_.getDatabase().execChecked(
                     txn, "get_inventory_id_by_char_item", {characterId, itemId});

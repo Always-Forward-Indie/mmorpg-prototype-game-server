@@ -266,7 +266,7 @@ SkillsEventHandler::handleSaveLearnedSkillEvent(const Event &event)
         }
 
         // Persist the skill (level from chunk, GREATEST-wins: replays and
-        // out-of-order retries never downgrade; legacy senders default 1).
+        // out-of-order retries never downgrade; missing level defaults 1).
         const int skillLevel = j.value("skillLevel", 1);
         static_cast<void>(gameServices_.getDatabase().execChecked(
             txn, "save_learned_skill", {characterId, skillSlug, skillLevel}));

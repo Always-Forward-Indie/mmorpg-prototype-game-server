@@ -205,7 +205,7 @@ const QueryDef kQueries[] = {
      R"QDEF(WITH cleanup AS (   DELETE FROM player_skill_cooldown   WHERE character_id = $1 AND cooldown_ends_at <= NOW() ) SELECT skill_slug,   GREATEST(0, EXTRACT(EPOCH FROM (cooldown_ends_at - NOW()))::bigint * 1000)::bigint AS remaining_ms FROM player_skill_cooldown WHERE character_id = $1 AND cooldown_ends_at > NOW();)QDEF"},
     {"upsert_player_flag",
      R"QDEF(INSERT INTO player_flag (player_id, flag_key, int_value, bool_value, updated_at) VALUES ($1, $2, $3, $4, now()) ON CONFLICT (player_id, flag_key) DO UPDATE SET int_value = EXCLUDED.int_value, bool_value = EXCLUDED.bool_value, updated_at = now();)QDEF"},
-            // Legacy token-less write (chunk pre-token versions only): SELECT
+            // Zero-token write (pre-token rows): SELECT
             // first, then UPDATE or plain INSERT. No ON CONFLICT — the
             // (character_id, item_id) unique index is gone by design (096):
             // instances are keyed by token now, and a lost race merely
@@ -222,7 +222,7 @@ const QueryDef kQueries[] = {
             // $1=character_id, $2=sync_token
     {"get_inventory_id_by_token",
      R"QDEF(SELECT id FROM player_inventory WHERE character_id = $1 AND sync_token = $2;)QDEF"},
-            // Adopt a virgin legacy row (same template, never tokened) into
+            // Adopt a virgin pre-token row (same template, never tokened) into
             // the token world: absolute qty + stamp. Keeps stackables on one
             // row; token-owned rows are invisible here, so real duplicates
             // always fall through to INSERT below.
