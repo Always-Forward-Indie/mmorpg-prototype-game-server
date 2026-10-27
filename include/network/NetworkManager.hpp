@@ -50,6 +50,12 @@ class NetworkManager
     // agreed-version echo in joinGameClient responses.
     void setSocketFramingV2(std::shared_ptr<boost::asio::ip::tcp::socket> socket, bool v2);
     bool isSocketFramingV2(const std::shared_ptr<boost::asio::ip::tcp::socket> &socket) const;
+    // Server-to-server links (chunk handshakes) speak unbounded v1 lines by
+    // design (chunk GameServerWorker accumulates to '\\n'); the UE 8KB
+    // client-line cap does NOT apply to them. Marked at registration;
+    // erased with the write state on reclaim. Same lock as socketStates_.
+    void markServerLink(std::shared_ptr<boost::asio::ip::tcp::socket> socket);
+    bool isServerLink(const std::shared_ptr<boost::asio::ip::tcp::socket> &socket) const;
 
   private:
     // Per-socket write state: ensures async_write calls are serialised per socket
@@ -74,6 +80,9 @@ class NetworkManager
     std::unordered_map<boost::asio::ip::tcp::socket *, std::shared_ptr<SocketWriteState>> socketStates_;
     // S14: sniffed framing per live socket (erased with the write state).
     std::unordered_map<boost::asio::ip::tcp::socket *, bool> socketFramingV2_;
+    // Server-link sockets (chunk handshakes): exempt from the UE 8KB
+    // client-line-cap warn (erased with the write state).
+    std::unordered_set<boost::asio::ip::tcp::socket *> serverLinkSockets_;
 
     std::shared_ptr<SocketWriteState> getOrCreateSocketState(
         const std::shared_ptr<boost::asio::ip::tcp::socket> &socket);

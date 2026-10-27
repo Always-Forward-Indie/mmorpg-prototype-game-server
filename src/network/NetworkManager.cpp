@@ -175,9 +175,11 @@ NetworkManager::sendResponse(std::shared_ptr<boost::asio::ip::tcp::socket> clien
     // (protocol::kMaxMessageBytes, mirrored by FNetFraming::MaxMessageBytes).
     // Anything bigger is dropped client-side, so flag it here at warn level
     // with the event type instead of silently producing snapshot holes.
-    // Threshold 6KB leaves headroom for the trailing delimiter and header growth.
+    // Server-to-server links are exempt (chunk GameServerWorker accumulates
+    // unbounded '\n' lines by design). Threshold 6KB leaves headroom for
+    // the trailing delimiter and header growth.
     constexpr size_t kClientLineCapWarnBytes = 6 * 1024;
-    if (responseString.size() > kClientLineCapWarnBytes)
+    if (responseString.size() > kClientLineCapWarnBytes && !isServerLink(clientSocket))
     {
         std::string eventType = "?";
         const std::string key = "\"eventType\":\"";
@@ -259,6 +261,7 @@ NetworkManager::removeSocketState(boost::asio::ip::tcp::socket *sock,
             return;
     }
     socketFramingV2_.erase(sock);
+    serverLinkSockets_.erase(sock);
     socketStates_.erase(it);
 }
 
@@ -281,6 +284,24 @@ NetworkManager::isSocketFramingV2(const std::shared_ptr<boost::asio::ip::tcp::so
     std::lock_guard<std::mutex> lock(socketStatesMutex_);
     auto it = socketFramingV2_.find(socket.get());
     return it != socketFramingV2_.end() && it->second;
+}
+
+void
+NetworkManager::markServerLink(std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    if (!socket)
+        return;
+    std::lock_guard<std::mutex> lock(socketStatesMutex_);
+    serverLinkSockets_.insert(socket.get());
+}
+
+bool
+NetworkManager::isServerLink(const std::shared_ptr<boost::asio::ip::tcp::socket> &socket) const
+{
+    if (!socket)
+        return false;
+    std::lock_guard<std::mutex> lock(socketStatesMutex_);
+    return serverLinkSockets_.find(socket.get()) != serverLinkSockets_.end();
 }
 
 void

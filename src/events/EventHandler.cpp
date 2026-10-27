@@ -300,6 +300,11 @@ EventHandler::handleJoinChunkServerEvent(const Event &event)
             // Save the chunk data to memory
             gameServices_.getChunkManager().addChunkInfo(chunkData);
 
+            // Server-to-server link: chunk speaks unbounded v1 lines
+            // (GameServerWorker accumulates to '\n'). Exempt this socket
+            // from the UE 8KB client-line-cap warn in sendResponse.
+            networkManager_.markServerLink(clientSocket);
+
             chunkServerDataJson["id"] = chunkData.id;
             chunkServerDataJson["ip"] = chunkData.ip;
             chunkServerDataJson["port"] = chunkData.port;
