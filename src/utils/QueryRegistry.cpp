@@ -203,6 +203,14 @@ const QueryDef kQueries[] = {
             // $1=character_id
     {"get_active_skill_cooldowns",
      R"QDEF(WITH cleanup AS (   DELETE FROM player_skill_cooldown   WHERE character_id = $1 AND cooldown_ends_at <= NOW() ) SELECT skill_slug,   GREATEST(0, EXTRACT(EPOCH FROM (cooldown_ends_at - NOW()))::bigint * 1000)::bigint AS remaining_ms FROM player_skill_cooldown WHERE character_id = $1 AND cooldown_ends_at > NOW();)QDEF"},
+            // Drop transient (short combat) cooldowns on logout so a quick
+            // relog does not resurrect them. Rows with more than
+            // kCooldownPersistThroughLogoutSec left survive (Blink Home,
+            // Battle Cry); everything shorter is wiped. Wiping the last
+            // seconds of a long cooldown is harmless (already waited).
+            // $1=character_id, $2=persist threshold in seconds
+    {"delete_transient_skill_cooldowns",
+     R"QDEF(DELETE FROM player_skill_cooldown WHERE character_id = $1 AND cooldown_ends_at < NOW() + ($2::bigint * INTERVAL '1 second');)QDEF"},
     {"upsert_player_flag",
      R"QDEF(INSERT INTO player_flag (player_id, flag_key, int_value, bool_value, updated_at) VALUES ($1, $2, $3, $4, now()) ON CONFLICT (player_id, flag_key) DO UPDATE SET int_value = EXCLUDED.int_value, bool_value = EXCLUDED.bool_value, updated_at = now();)QDEF"},
             // --- Atomic one-time claim (AAA one-time gift / quest turn-in) ---

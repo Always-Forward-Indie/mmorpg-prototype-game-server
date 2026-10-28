@@ -5,6 +5,15 @@
 #include "utils/ResponseBuilder.hpp"
 #include "utils/TerminalColors.hpp"
 
+namespace
+{
+// Rows with MORE than this many seconds left survive a logout (Blink Home
+// 120s, Battle Cry 60s); everything shorter is wiped so a quick relog never
+// resurrects short combat cooldowns (fireball 5s, frost_bolt 7s, ...).
+// Anti-exploit: logout cannot skip a strategic wait.
+constexpr int kCooldownPersistThroughLogoutSec = 15;
+} // namespace
+
 CharacterEventHandler::CharacterEventHandler(
     NetworkManager &networkManager,
     GameServices &gameServices)
@@ -620,6 +629,24 @@ CharacterEventHandler::handleDisconnectChunkEvent(const Event &event)
                     charData.characterPosition);
                 log_->info(
                     "Saved position on disconnect for characterId: " + std::to_string(charData.characterId));
+
+                // Drop transient (short combat) cooldowns so a quick relog
+                // does not resurrect them. Rows with more than
+                // kCooldownPersistThroughLogoutSec left survive.
+                try
+                {
+                    auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+                    pqxx::work txn(_dbConn.get());
+                    gameServices_.getDatabase().execChecked(
+                        txn, "delete_transient_skill_cooldowns",
+                        {charData.characterId, kCooldownPersistThroughLogoutSec});
+                    txn.commit();
+                }
+                catch (const std::exception &ex)
+                {
+                    log_->error("Failed to wipe transient cooldowns on disconnect for characterId: " +
+                                std::to_string(charData.characterId) + " (" + ex.what() + ")");
+                }
             }
         }
 
