@@ -89,6 +89,8 @@ class EventDispatcher
     void handleUpdatePlayerQuestProgress(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
     void handleDeletePlayerQuest(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
     void handleUpdatePlayerFlag(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
+    void handleClaimDialogueGift(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
+    void handleClaimQuestTurnIn(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
 
     // Skill cooldown persistence (migration 067)
     void handleSaveSkillCooldown(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);

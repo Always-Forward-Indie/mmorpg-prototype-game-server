@@ -1,3 +1,35 @@
+v0.2.29
+29.10.2026
+================
+
+New:
+
+**Legacy removal (mandatory cleanup).**
+- `InventoryEventHandler` token-путь: adopt только для стакаемых
+  (`get_item_stack_max > 1`), паритет с `claimDialogueGift` /
+  `claimQuestTurnIn`. Убирает схлопывание инстансов со стартовыми рядами.
+
+v0.2.28
+28.10.2026
+================
+
+New:
+
+**Atomic claims: `claimDialogueGift` / `claimQuestTurnIn` (AAA, anti-farm).**
+- Новые методы `DialogueQuestManager::claimDialogueGift` /
+  `claimQuestTurnIn`: `SELECT ... FOR UPDATE` guard + эффекты в одном `pqxx::work`
+  commit. Gift: flag true → `already_claimed` без writes. Turn-in: state !=
+  `completed` → `not_completable`/`already_claimed`; consume-проверка по
+  `SUM(quantity)`, grant items/gold/exp, `turned_in`.
+- Новые prepared: `get_player_flag_for_update`, `get_player_quest_for_update`,
+  `get_quest_id_by_slug`, `get_inventory_qty`, `get_item_stack_max`.
+- `adopt_legacy_inventory_row` в claim-путях только для стакаемых;
+  `stackMax=1` всегда INSERT новой строкой (факт-идемпотентность по syncToken).
+- Хендлеры `handleClaimDialogueGiftEvent` / `handleClaimQuestTurnInEvent` +
+  роуты (`claimDialogueGift`, `claimQuestTurnIn`), факт-аки через outbox
+  (`applied`/`duplicate`). Fire-and-forget: game — арбитр, чанк правится на
+  следующем load.
+
 v0.2.27
 25.10.2026
 ================

@@ -84,11 +84,29 @@ InventoryEventHandler::handleSaveInventoryChangeEvent(const Event &event)
                 }
                 else
                 {
-                    auto adopted = gameServices_.getDatabase().execChecked(
-                        txn, "adopt_legacy_inventory_row",
-                        {quantity, tok, characterId, itemId});
-                    if (!adopted.empty())
-                        assignedId = adopted[0]["id"].as<int64_t>();
+                    // Adopt keeps stackables on one row, but each stackMax=1
+                    // instance must stay a separate row (same divergence as the
+                    // dialogue-gift claim: chunk keeps two in-memory rows while
+                    // the DB would merge them into one).
+                    bool stackable = true;
+                    try
+                    {
+                        auto sr = gameServices_.getDatabase().execChecked(
+                            txn, "get_item_stack_max", {itemId});
+                        if (!sr.empty())
+                            stackable = (sr[0]["stack_max"].as<int>(1) > 1);
+                    }
+                    catch (...)
+                    {
+                    }
+                    if (stackable)
+                    {
+                        auto adopted = gameServices_.getDatabase().execChecked(
+                            txn, "adopt_legacy_inventory_row",
+                            {quantity, tok, characterId, itemId});
+                        if (!adopted.empty())
+                            assignedId = adopted[0]["id"].as<int64_t>();
+                    }
                 }
                 if (assignedId == 0)
                 {

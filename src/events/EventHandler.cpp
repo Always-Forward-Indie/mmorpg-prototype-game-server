@@ -768,6 +768,12 @@ EventHandler::dispatchEvent(const Event &event)
     case Event::UPDATE_PLAYER_FLAG:
         dialogueQuestHandler_.handleUpdatePlayerFlagEvent(event);
         break;
+    case Event::CLAIM_DIALOGUE_GIFT:
+        dialogueQuestHandler_.handleClaimDialogueGiftEvent(event);
+        break;
+    case Event::CLAIM_QUEST_TURNIN:
+        dialogueQuestHandler_.handleClaimQuestTurnInEvent(event);
+        break;
     case Event::GET_GAME_CONFIG:
         catalogHandler_.handleGetGameConfigEvent(event);
         break;

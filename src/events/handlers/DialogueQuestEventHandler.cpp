@@ -281,6 +281,143 @@ DialogueQuestEventHandler::handleUpdatePlayerFlagEvent(const Event &event)
 }
 
 void
+DialogueQuestEventHandler::handleClaimDialogueGiftEvent(const Event &event)
+{
+    const auto &data = event.getData();
+    try
+    {
+        if (!std::holds_alternative<nlohmann::json>(data))
+        {
+            log_->error("handleClaimDialogueGiftEvent: unexpected data type");
+            return;
+        }
+        const auto &j = std::get<nlohmann::json>(data);
+        const auto &body = j.at("body");
+        const int characterId = body.value("characterId", 0);
+        const std::string flagKey = body.value("flagKey", "");
+        const std::string factKey = body.value("factKey", j.value("factKey", ""));
+        if (characterId <= 0 || flagKey.empty())
+        {
+            log_->error("handleClaimDialogueGiftEvent: invalid characterId or flagKey");
+            return;
+        }
+        std::vector<DialogueQuestManager::ClaimGiftItem> items;
+        if (body.contains("items") && body["items"].is_array())
+        {
+            for (const auto &it : body["items"])
+            {
+                DialogueQuestManager::ClaimGiftItem g;
+                g.itemId = it.value("itemId", 0);
+                g.quantity = it.value("quantity", 0);
+                g.syncToken = it.value("syncToken", (uint64_t)0);
+                if (g.itemId > 0 && g.quantity > 0)
+                    items.push_back(g);
+            }
+        }
+        if (items.empty())
+        {
+            log_->error("handleClaimDialogueGiftEvent: empty items");
+            return;
+        }
+        auto res = gameServices_.getDialogueQuestManager().claimDialogueGift(characterId, flagKey, items, factKey);
+        // Fire-and-forget atomic: game is the arbiter, chunk reconciles on next
+        // load. Ack the fact so the chunk outbox stops retrying.
+        if (!factKey.empty())
+            outboxSendFactAck(networkManager_, event.getClientSocket(), factKey, "applied");
+        log_->info("[CLAIM_GIFT] char=" + std::to_string(characterId) + " key=" + flagKey +
+                   " ok=" + (res.ok ? "1" : "0") + " reason=" + res.reason);
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("Error in handleClaimDialogueGiftEvent: " + std::string(ex.what()));
+    }
+}
+
+void
+DialogueQuestEventHandler::handleClaimQuestTurnInEvent(const Event &event)
+{
+    const auto &data = event.getData();
+    try
+    {
+        if (!std::holds_alternative<nlohmann::json>(data))
+        {
+            log_->error("handleClaimQuestTurnInEvent: unexpected data type");
+            return;
+        }
+        const auto &j = std::get<nlohmann::json>(data);
+        const auto &body = j.at("body");
+        const int characterId = body.value("characterId", 0);
+        int questId = body.value("questId", 0);
+        const std::string questSlug = body.value("questSlug", "");
+        const std::string factKey = body.value("factKey", j.value("factKey", ""));
+        if (characterId <= 0 || (questId <= 0 && questSlug.empty()))
+        {
+            log_->error("handleClaimQuestTurnInEvent: invalid characterId/quest");
+            return;
+        }
+        if (questId <= 0 && !questSlug.empty())
+        {
+            // Resolve slug -> id (single query, no txn needed for routing).
+            try
+            {
+                auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+                pqxx::work txn(_dbConn.get());
+                auto r = gameServices_.getDatabase().execChecked(txn, "get_quest_id_by_slug", {questSlug});
+                txn.commit();
+                if (!r.empty())
+                    questId = r[0]["id"].as<int>(0);
+            }
+            catch (...)
+            {
+            }
+            if (questId <= 0)
+            {
+                log_->error("handleClaimQuestTurnInEvent: unknown questSlug");
+                return;
+            }
+        }
+        std::vector<DialogueQuestManager::ClaimQuestConsume> consume;
+        if (body.contains("consume") && body["consume"].is_array())
+        {
+            for (const auto &c : body["consume"])
+            {
+                DialogueQuestManager::ClaimQuestConsume cc;
+                cc.itemId = c.value("itemId", 0);
+                cc.count = c.value("count", c.value("quantity", 0));
+                if (cc.itemId > 0 && cc.count > 0)
+                    consume.push_back(cc);
+            }
+        }
+        std::vector<DialogueQuestManager::ClaimQuestReward> rewards;
+        if (body.contains("rewards") && body["rewards"].is_array())
+        {
+            for (const auto &r : body["rewards"])
+            {
+                DialogueQuestManager::ClaimQuestReward rw;
+                rw.rewardType = r.value("rewardType", r.value("type", std::string("")));
+                rw.itemId = r.value("itemId", 0);
+                rw.quantity = r.value("quantity", 0);
+                rw.amount = r.value("amount", (int64_t)0);
+                rw.syncToken = r.value("syncToken", (uint64_t)0);
+                if (!rw.rewardType.empty())
+                    rewards.push_back(rw);
+            }
+        }
+        auto res = gameServices_.getDialogueQuestManager().claimQuestTurnIn(
+            characterId, questId, consume, rewards, factKey);
+        if (!factKey.empty())
+            outboxSendFactAck(networkManager_, event.getClientSocket(), factKey, "applied");
+        log_->info("[CLAIM_TURNIN] char=" + std::to_string(characterId) +
+                   " quest=" + std::to_string(questId) + " ok=" + (res.ok ? "1" : "0") +
+                   " reason=" + res.reason);
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("Error in handleClaimQuestTurnInEvent: " + std::string(ex.what()));
+    }
+}
+
+void
 DialogueQuestEventHandler::handleGetPlayerActiveEffectsEvent(const Event &event)
 {
     const auto &data = event.getData();

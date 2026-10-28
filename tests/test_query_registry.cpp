@@ -64,4 +64,9 @@ TEST(QueryRegistry, CriticalQueriesPresent) {
     EXPECT_NE(findByName("update_timed_champion_next_spawn"), nullptr);
     EXPECT_NE(findByName("insert_game_analytics"), nullptr); // was inline exec_params
     EXPECT_NE(findByName("get_timed_champion_interval"), nullptr); // was inline SELECT
+    EXPECT_NE(findByName("get_player_flag_for_update"), nullptr); // atomic one-time claim guard
+    EXPECT_NE(findByName("get_player_quest_for_update"), nullptr);
+    EXPECT_NE(findByName("get_quest_id_by_slug"), nullptr);
+    EXPECT_NE(findByName("get_inventory_qty"), nullptr);
+    EXPECT_NE(findByName("get_item_stack_max"), nullptr); // adopt only for stackables
 }

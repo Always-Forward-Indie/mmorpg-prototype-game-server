@@ -77,6 +77,8 @@ class Event
         UPDATE_PLAYER_QUEST_PROGRESS,     // Persist quest progress to DB
         DELETE_PLAYER_QUEST,              // Delete quest progress row (admin resetQuest, issue #120)
         UPDATE_PLAYER_FLAG,               // Persist player flag to DB
+        CLAIM_DIALOGUE_GIFT,              // Atomic one-time dialogue gift: flag check + items in one txn
+        CLAIM_QUEST_TURNIN,               // Atomic quest turn-in: state check + consume + rewards in one txn
         GET_GAME_CONFIG,                  // Load game_config and send to chunk-server
         GET_VENDOR_DATA,                  // Load vendor NPC inventory and send to chunk
         GET_TRAINER_DATA,                 // Load trainer NPC skill lists and send to chunk

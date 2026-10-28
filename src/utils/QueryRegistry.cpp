@@ -2,7 +2,7 @@
 
 namespace {
 
-// 111 prepared statements.
+// 115 prepared statements.
 const QueryDef kQueries[] = {
     {"search_user",
      R"QDEF(SELECT u.* FROM users u JOIN user_sessions s ON s.user_id = u.id WHERE s.token_hash = $1 AND s.revoked_at IS NULL AND s.expires_at > now() LIMIT 1;)QDEF"},
@@ -205,6 +205,27 @@ const QueryDef kQueries[] = {
      R"QDEF(WITH cleanup AS (   DELETE FROM player_skill_cooldown   WHERE character_id = $1 AND cooldown_ends_at <= NOW() ) SELECT skill_slug,   GREATEST(0, EXTRACT(EPOCH FROM (cooldown_ends_at - NOW()))::bigint * 1000)::bigint AS remaining_ms FROM player_skill_cooldown WHERE character_id = $1 AND cooldown_ends_at > NOW();)QDEF"},
     {"upsert_player_flag",
      R"QDEF(INSERT INTO player_flag (player_id, flag_key, int_value, bool_value, updated_at) VALUES ($1, $2, $3, $4, now()) ON CONFLICT (player_id, flag_key) DO UPDATE SET int_value = EXCLUDED.int_value, bool_value = EXCLUDED.bool_value, updated_at = now();)QDEF"},
+            // --- Atomic one-time claim (AAA one-time gift / quest turn-in) ---
+            // Row-level lock for the idempotency guard. Callers hold the txn
+            // open and perform inventory/quest writes before commit, so a
+            // concurrent duplicate blocks here and then sees the claimed state.
+            // $1=player_id, $2=flag_key
+    {"get_player_flag_for_update",
+     R"QDEF(SELECT COALESCE(bool_value, false) AS bool_value, COALESCE(int_value, 0) AS int_value FROM player_flag WHERE player_id = $1 AND flag_key = $2 FOR UPDATE;)QDEF"},
+            // $1=player_id, $2=quest_id
+    {"get_player_quest_for_update",
+     R"QDEF(SELECT state::text AS state, current_step, COALESCE(progress::text, '{}') AS progress FROM player_quest WHERE player_id = $1 AND quest_id = $2 FOR UPDATE;)QDEF"},
+            // $1=quest slug
+    {"get_quest_id_by_slug",
+     R"QDEF(SELECT id FROM quest WHERE slug = $1 LIMIT 1;)QDEF"},
+            // Authoritative inventory quantity for consume checks (same txn).
+            // $1=character_id, $2=item_id
+    {"get_inventory_qty",
+     R"QDEF(SELECT COALESCE(SUM(quantity), 0) AS qty FROM player_inventory WHERE character_id = $1 AND item_id = $2;)QDEF"},
+            // $1=item_id -> stack_max (adopt only applies to stackables; each
+            // stackMax=1 instance must stay a separate row).
+    {"get_item_stack_max",
+     R"QDEF(SELECT COALESCE(stack_max, 1) AS stack_max FROM items WHERE id = $1 LIMIT 1;)QDEF"},
             // Zero-token write (pre-token rows): SELECT
             // first, then UPDATE or plain INSERT. No ON CONFLICT — the
             // (character_id, item_id) unique index is gone by design (096):

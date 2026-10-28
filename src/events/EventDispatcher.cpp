@@ -71,6 +71,8 @@ EventDispatcher::buildRouteTable()
         {"updatePlayerQuestProgress", &EventDispatcher::handleUpdatePlayerQuestProgress},
         {"deletePlayerQuest", &EventDispatcher::handleDeletePlayerQuest},
         {"updatePlayerFlag", &EventDispatcher::handleUpdatePlayerFlag},
+        {"claimDialogueGift", &EventDispatcher::handleClaimDialogueGift},
+        {"claimQuestTurnIn", &EventDispatcher::handleClaimQuestTurnIn},
         {"saveInventoryChange", &EventDispatcher::handleSaveInventoryChange},
         {"getPlayerInventory", &EventDispatcher::handleGetPlayerInventory},
         {"saveEquipmentChange", &EventDispatcher::handleSaveEquipmentChange},
@@ -459,6 +461,44 @@ EventDispatcher::handleUpdatePlayerFlag(
     catch (const std::exception &ex)
     {
         logger_.logError("handleUpdatePlayerFlag parse error: " + std::string(ex.what()));
+    }
+}
+
+void
+EventDispatcher::handleClaimDialogueGift(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    try
+    {
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
+        Event ev(Event::CLAIM_DIALOGUE_GIFT, 0, j, socket);
+        eventsBatch_.push_back(ev);
+        eventQueue_.pushBatch(eventsBatch_);
+        eventsBatch_.clear();
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleClaimDialogueGift parse error: " + std::string(ex.what()));
+    }
+}
+
+void
+EventDispatcher::handleClaimQuestTurnIn(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    try
+    {
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
+        Event ev(Event::CLAIM_QUEST_TURNIN, 0, j, socket);
+        eventsBatch_.push_back(ev);
+        eventQueue_.pushBatch(eventsBatch_);
+        eventsBatch_.clear();
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleClaimQuestTurnIn parse error: " + std::string(ex.what()));
     }
 }
 

@@ -27,6 +27,41 @@ class DialogueQuestManager
     void deletePlayerQuestProgress(int characterId, int questId);
     void savePlayerFlag(int characterId, const std::string &flagKey, int intValue, bool boolValue);
 
+    // --- Atomic one-time claims (AAA, single txn: guard + effects) ---
+    struct ClaimGiftItem
+    {
+        int itemId = 0;
+        int quantity = 0;
+        uint64_t syncToken = 0;
+    };
+    struct ClaimResult
+    {
+        bool ok = false;
+        std::string reason; // applied | already_claimed | not_completable | missing_items | invalid | error
+    };
+    // Dialogue gift: SELECT flag FOR UPDATE; if true -> already_claimed (no writes);
+    // else INSERT inventory rows (token path) + upsert flag true, commit.
+    ClaimResult claimDialogueGift(int characterId, const std::string &flagKey,
+        const std::vector<ClaimGiftItem> &items, const std::string &factKey);
+    struct ClaimQuestConsume
+    {
+        int itemId = 0;
+        int count = 0;
+    };
+    struct ClaimQuestReward
+    {
+        std::string rewardType; // item | gold | exp
+        int itemId = 0;
+        int quantity = 0;
+        int64_t amount = 0;
+        uint64_t syncToken = 0; // for item/gold inserts
+    };
+    // Quest turn-in: SELECT quest FOR UPDATE; require state==completed;
+    // check/consume collect items, grant rewards, set turned_in, commit.
+    ClaimResult claimQuestTurnIn(int characterId, int questId,
+        const std::vector<ClaimQuestConsume> &consume,
+        const std::vector<ClaimQuestReward> &rewards, const std::string &factKey);
+
   private:
     Database &database_;
     Logger &logger_;
