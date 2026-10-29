@@ -275,7 +275,7 @@ const QueryDef kQueries[] = {
     {"delete_player_inventory_item_by_char_id",
      R"QDEF(DELETE FROM player_inventory WHERE id = $1 AND character_id = $2;)QDEF"},
     {"get_player_inventory",
-     R"QDEF(SELECT pi.id, pi.item_id, pi.quantity, COALESCE(pi.slot_index, -1) AS slot_index, COALESCE(pi.durability_current, 0) AS durability_current, COALESCE(pi.kill_count, 0) AS kill_count, CASE WHEN ce.inventory_item_id IS NOT NULL THEN true ELSE false END AS is_equipped FROM player_inventory pi LEFT JOIN character_equipment ce ON ce.inventory_item_id = pi.id WHERE pi.character_id = $1 ORDER BY pi.id;)QDEF"},
+     R"QDEF(SELECT pi.id, pi.item_id, pi.quantity, COALESCE(pi.slot_index, -1) AS slot_index, COALESCE(pi.durability_current, CASE WHEN i.is_durable THEN i.durability_max ELSE 0 END, 0) AS durability_current, COALESCE(pi.kill_count, 0) AS kill_count, CASE WHEN ce.inventory_item_id IS NOT NULL THEN true ELSE false END AS is_equipped FROM player_inventory pi JOIN items i ON i.id = pi.item_id LEFT JOIN character_equipment ce ON ce.inventory_item_id = pi.id WHERE pi.character_id = $1 ORDER BY pi.id;)QDEF"},
             // --- Game config queries ---
             // Загружает все геймплейные константы. Ответ читает GameConfigService::loadConfig().
     {"get_game_config",
