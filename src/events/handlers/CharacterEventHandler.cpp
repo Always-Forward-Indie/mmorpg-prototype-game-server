@@ -57,6 +57,12 @@ CharacterEventHandler::handleGetCharacterDataEvent(const Event &event)
             {
                 gameServices_.getCharacterManager().setCharacterOnline(gameServices_.getDatabase(), characterData.characterId);
                 gameServices_.getCharacterManager().touchCharacter(characterData.characterId);
+                // Join-position diagnostics: compare with the farewell save
+                // line on chunk to prove ordering on fast relogs.
+                gameServices_.getLogger().log("Join load for characterId: " + std::to_string(characterData.characterId) +
+                    " at (" + std::to_string(characterData.characterPosition.positionX) + "," +
+                    std::to_string(characterData.characterPosition.positionY) + "," +
+                    std::to_string(characterData.characterPosition.positionZ) + ")");
             }
 
             // Get the clientData object with the new init data
@@ -637,9 +643,9 @@ CharacterEventHandler::handleDisconnectChunkEvent(const Event &event)
                 {
                     auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
                     pqxx::work txn(_dbConn.get());
-                    gameServices_.getDatabase().execChecked(
+                    static_cast<void>(gameServices_.getDatabase().execChecked(
                         txn, "delete_transient_skill_cooldowns",
-                        {charData.characterId, kCooldownPersistThroughLogoutSec});
+                        {charData.characterId, kCooldownPersistThroughLogoutSec}));
                     txn.commit();
                 }
                 catch (const std::exception &ex)
