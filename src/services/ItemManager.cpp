@@ -207,6 +207,41 @@ ItemManager::loadMobLoot(Database &database)
 }
 
 void
+ItemManager::loadMobCurrencyLoot(Database &database)
+{
+    try
+    {
+        auto _dbConn = database.getConnectionLocked();
+        pqxx::work transaction(_dbConn.get());
+        pqxx::result rows = database.execChecked(transaction, "get_mob_currency_loot", {});
+        if (rows.empty())
+            log_->warn("No mob currency loot in the database (111 not applied?)");
+        std::map<int, std::vector<MobCurrencyLootStruct>> parsed;
+        for (const auto &row : rows)
+        {
+            MobCurrencyLootStruct e;
+            e.id = row["id"].as<int>();
+            e.mobId = row["mob_id"].as<int>();
+            e.currencySlug = row["currency_slug"].as<std::string>();
+            e.dropChance = row["drop_chance"].as<float>();
+            e.minQuantity = row["min_quantity"].as<int>();
+            e.maxQuantity = row["max_quantity"].as<int>();
+            parsed[e.mobId].push_back(e);
+        }
+        transaction.commit();
+        {
+            std::unique_lock<std::shared_mutex> lock(lootMutex_);
+            mobCurrencyLoot_ = std::move(parsed);
+        }
+        logger_.log("Loaded mob currency loot");
+    }
+    catch (const std::exception &e)
+    {
+        logger_.logError("Error loading mob currency loot: " + std::string(e.what()));
+    }
+}
+
+void
 ItemManager::setItemsList(const std::vector<ItemDataStruct> &items)
 {
     std::unique_lock<std::shared_mutex> lock(itemsMutex_);
@@ -262,6 +297,13 @@ ItemManager::getMobLootInfo() const
 {
     std::shared_lock<std::shared_mutex> lock(lootMutex_);
     return mobLootInfo_;
+}
+
+std::map<int, std::vector<MobCurrencyLootStruct>>
+ItemManager::getMobCurrencyLoot() const
+{
+    std::shared_lock<std::shared_mutex> lock(lootMutex_);
+    return mobCurrencyLoot_;
 }
 
 std::vector<MobLootInfoStruct>

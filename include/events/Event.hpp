@@ -58,6 +58,7 @@ class Event
         GET_EXP_LEVEL_TABLE,
         GET_ITEMS_LIST,
         GET_MOB_LOOT_INFO,
+        GET_MOB_CURRENCY_LOOT,
         SPAWN_MOBS_IN_ZONE,
         ZONE_MOVE_MOBS,
         MOVE_MOB,
@@ -67,6 +68,7 @@ class Event
         SAVE_CHARACTER_PROGRESS,          // Save player exp/level to database
         SAVE_HP_MANA,                     // ARCH-4: Save player HP/Mana to database
         SAVE_INVENTORY_CHANGE,            // Save a single inventory item change to database
+        SAVE_CURRENCY_BALANCE,            // Save absolute wallet balance + audit (110_currency_wallet)
         GET_PLAYER_INVENTORY,             // Load player inventory from DB and send to chunk
         GET_DIALOGUES,                    // Load all dialogues and send to chunk
         GET_QUESTS,                       // Load all quests and send to chunk

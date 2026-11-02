@@ -371,6 +371,10 @@ EventHandler::handleJoinChunkServerEvent(const Event &event)
             Event mobLootEvent(Event::GET_MOB_LOOT_INFO, clientID, MobLootInfoStruct(), clientSocket);
             dispatchCatalog(mobLootEvent, "mob_loot");
 
+            // load mob currency loot (111_currency_wallet)
+            Event mobCurrencyLootEvent(Event::GET_MOB_CURRENCY_LOOT, clientID, MobLootInfoStruct(), clientSocket);
+            dispatchCatalog(mobCurrencyLootEvent, "mob_currency_loot");
+
             // load experience level table
             Event expLevelTableEvent(Event::GET_EXP_LEVEL_TABLE, clientID, ClientDataStruct(), clientSocket);
             dispatchCatalog(expLevelTableEvent, "exp_table");
@@ -711,6 +715,9 @@ EventHandler::dispatchEvent(const Event &event)
     case Event::GET_MOB_LOOT_INFO:
         worldHandler_.handleGetMobLootInfoEvent(event);
         break;
+    case Event::GET_MOB_CURRENCY_LOOT:
+        worldHandler_.handleGetMobCurrencyLootEvent(event);
+        break;
 
     // NPC events
     case Event::GET_NPCS_LIST:
@@ -734,6 +741,9 @@ EventHandler::dispatchEvent(const Event &event)
 
     case Event::SAVE_INVENTORY_CHANGE:
         inventoryHandler_.handleSaveInventoryChangeEvent(event);
+        break;
+    case Event::SAVE_CURRENCY_BALANCE:
+        inventoryHandler_.handleSaveCurrencyBalanceEvent(event);
         break;
 
     case Event::GET_PLAYER_INVENTORY:

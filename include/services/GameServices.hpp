@@ -40,6 +40,7 @@ class GameServices
         mobManager_.loadMobs(database_);
         itemManager_.loadItems(database_);
         itemManager_.loadMobLoot(database_);
+        itemManager_.loadMobCurrencyLoot(database_);
         spawnZoneManager_.loadMobSpawnZones(database_);
         classSpawnZoneManager_.loadClassSpawnZones(database_);
     }

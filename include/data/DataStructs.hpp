@@ -171,6 +171,17 @@ struct MobLootInfoStruct
     std::string lootTier = "common"; ///< 'common' | 'uncommon' | 'rare' | 'very_rare' (migration 040)
 };
 
+// Wallet loot (111_currency_loot): auto-credit on kill, no world pickup.
+struct MobCurrencyLootStruct
+{
+    int id = 0;
+    int mobId = 0;
+    std::string currencySlug = "gold";
+    float dropChance = 0.0f;
+    int minQuantity = 1;
+    int maxQuantity = 1;
+};
+
 struct DroppedItemStruct
 {
     int uid = 0; // Unique instance ID for the dropped item

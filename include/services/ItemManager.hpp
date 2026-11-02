@@ -22,6 +22,7 @@ class ItemManager
      * @brief Load all mob loot information from database
      */
     void loadMobLoot(Database &database);
+    void loadMobCurrencyLoot(Database &database);
 
     /**
      * @brief Replace the in-memory item catalog (pure, no DB).
@@ -58,6 +59,7 @@ class ItemManager
      * @return Map of mob ID to vector of MobLootInfoStruct
      */
     std::map<int, std::vector<MobLootInfoStruct>> getMobLootInfo() const;
+    std::map<int, std::vector<MobCurrencyLootStruct>> getMobCurrencyLoot() const;
 
     /**
      * @brief Get loot for specific mob
@@ -75,6 +77,7 @@ class ItemManager
 
     // Store mob loot information (mobId -> vector of loot entries)
     std::map<int, std::vector<MobLootInfoStruct>> mobLootInfo_;
+    std::map<int, std::vector<MobCurrencyLootStruct>> mobCurrencyLoot_;
 
     // Thread safety
     mutable std::shared_mutex itemsMutex_;

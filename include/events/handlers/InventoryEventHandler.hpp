@@ -16,4 +16,5 @@ class InventoryEventHandler : public BaseEventHandler
 
     void handleSaveInventoryChangeEvent(const Event &event);
     void handleGetPlayerInventoryEvent(const Event &event);
+    void handleSaveCurrencyBalanceEvent(const Event &event);
 };

@@ -352,8 +352,30 @@ DialogueQuestManager::claimDialogueGift(int characterId, const std::string &flag
         }
 
         // Grant items (token path so chunk retries converge to same rows).
+        // Wallet entries (currencySlug): absolute balance SET, same txn.
         for (const auto &it : items)
         {
+            if (!it.currencySlug.empty())
+            {
+                if (it.currencySlug != "gold")
+                {
+                    log_->error("[DQM] claimDialogueGift unsupported currency " + it.currencySlug);
+                    continue;
+                }
+                const int64_t before = [&]
+                {
+                    auto cur = database_.execChecked(txn, "get_character_currency", {(int)characterId});
+                    for (const auto &row : cur)
+                        if (row["slug"].as<std::string>() == it.currencySlug)
+                            return row["amount"].as<int64_t>(0);
+                    return int64_t(0);
+                }();
+                static_cast<void>(database_.execChecked(txn, "upsert_character_currency",
+                    {(int)characterId, it.currencySlug, (int)it.quantity}));
+                static_cast<void>(database_.execChecked(txn, "insert_currency_transaction",
+                    {(int)characterId, 0, (int)((int64_t)it.quantity - before), std::string("dialogue_gift")}));
+                continue;
+            }
             if (it.itemId <= 0 || it.quantity <= 0)
                 continue;
             const int64_t tok = static_cast<int64_t>(it.syncToken);
@@ -565,7 +587,6 @@ DialogueQuestManager::claimQuestTurnIn(int characterId, int questId,
         }
 
         // Grant rewards.
-        int goldItemId = 0;
         for (const auto &rw : rewards)
         {
             if (rw.rewardType == "item" && rw.itemId > 0 && rw.quantity > 0)
@@ -624,51 +645,23 @@ DialogueQuestManager::claimQuestTurnIn(int characterId, int questId,
             }
             else if (rw.rewardType == "gold" && rw.amount > 0)
             {
-                if (goldItemId == 0)
+                // Wallet ledger (110): chunk credits in-memory and ships the
+                // absolute balance in rw["balance"]; SET it atomically here.
+                const int64_t balance = rw.balance;
+                if (balance >= 0)
                 {
-                    pqxx::result gr = txn.exec("SELECT id FROM items WHERE slug = 'gold_coin' LIMIT 1");
-                    if (!gr.empty())
-                        goldItemId = gr[0]["id"].as<int>(0);
-                }
-                if (goldItemId > 0)
-                {
-                    const int64_t tok = static_cast<int64_t>(rw.syncToken);
-                    const int qty = static_cast<int>(rw.amount);
-                    if (tok != 0)
-                    {
-                        auto found = database_.execChecked(txn, "get_inventory_id_by_token", {(int)characterId, tok});
-                        if (!found.empty())
+                    auto cur = database_.execChecked(txn, "get_character_currency", {(int)characterId});
+                    int64_t before = 0;
+                    for (const auto &row : cur)
+                        if (row["slug"].as<std::string>() == "gold")
                         {
-                            const int rowId = found[0]["id"].as<int>(0);
-                            static_cast<void>(database_.execChecked(txn, "update_player_inventory_quantity",
-                                {qty, rowId, (int)characterId}));
+                            before = row["amount"].as<int64_t>(0);
+                            break;
                         }
-                        else
-                        {
-                            auto adopted = database_.execChecked(txn, "adopt_legacy_inventory_row",
-                                {qty, tok, (int)characterId, goldItemId});
-                            if (adopted.empty())
-                                static_cast<void>(database_.execChecked(txn, "insert_player_inventory_with_token",
-                                    {(int)characterId, goldItemId, qty, tok}));
-                        }
-                    }
-                    else
-                    {
-                        auto qr = database_.execChecked(txn, "get_inventory_qty", {(int)characterId, goldItemId});
-                        const int have = qr.empty() ? 0 : qr[0]["qty"].as<int>(0);
-                        auto legacy = database_.execChecked(txn, "get_inventory_id_by_char_item", {(int)characterId, goldItemId});
-                        if (!legacy.empty())
-                        {
-                            const int rowId = legacy[0]["id"].as<int>(0);
-                            static_cast<void>(database_.execChecked(txn, "update_player_inventory_quantity",
-                                {(int)(have + qty), rowId, (int)characterId}));
-                        }
-                        else
-                        {
-                            static_cast<void>(database_.execChecked(txn, "insert_player_inventory_item",
-                                {(int)characterId, goldItemId, qty}));
-                        }
-                    }
+                    static_cast<void>(database_.execChecked(txn, "upsert_character_currency",
+                        {(int)characterId, std::string("gold"), (int)balance}));
+                    static_cast<void>(database_.execChecked(txn, "insert_currency_transaction",
+                        {(int)characterId, (int)questId, (int)(balance - before), std::string("quest_reward")}));
                 }
             }
             else if (rw.rewardType == "exp" && rw.amount > 0)

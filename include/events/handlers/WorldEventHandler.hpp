@@ -22,6 +22,7 @@ class WorldEventHandler : public BaseEventHandler
     void handleGetMobDataEvent(const Event &event);
     void handleGetItemsListEvent(const Event &event);
     void handleGetMobLootInfoEvent(const Event &event);
+    void handleGetMobCurrencyLootEvent(const Event &event);
     void handleGetNPCsListEvent(const Event &event);
     void handleGetNPCsAttributesEvent(const Event &event);
 };

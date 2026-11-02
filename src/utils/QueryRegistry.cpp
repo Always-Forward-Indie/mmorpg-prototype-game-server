@@ -276,6 +276,16 @@ const QueryDef kQueries[] = {
      R"QDEF(DELETE FROM player_inventory WHERE id = $1 AND character_id = $2;)QDEF"},
     {"get_player_inventory",
      R"QDEF(SELECT pi.id, pi.item_id, pi.quantity, COALESCE(pi.slot_index, -1) AS slot_index, COALESCE(pi.durability_current, CASE WHEN i.is_durable THEN i.durability_max ELSE 0 END, 0) AS durability_current, COALESCE(pi.kill_count, 0) AS kill_count, CASE WHEN ce.inventory_item_id IS NOT NULL THEN true ELSE false END AS is_equipped FROM player_inventory pi JOIN items i ON i.id = pi.item_id LEFT JOIN character_equipment ce ON ce.inventory_item_id = pi.id WHERE pi.character_id = $1 ORDER BY pi.id;)QDEF"},
+            // --- Wallet queries (110_currency_wallet: gold is a ledger balance) ---
+            // $1=character_id
+    {"get_character_currency",
+     R"QDEF(SELECT c.slug, cc.amount FROM character_currencies cc JOIN currencies c ON c.id = cc.currency_id WHERE cc.character_id = $1;)QDEF"},
+            // Absolute SET (convergent resends). $1=character_id, $2=currency slug, $3=amount
+    {"upsert_character_currency",
+     R"QDEF(INSERT INTO character_currencies (character_id, currency_id, amount) SELECT $1::bigint, id, $3::bigint FROM currencies WHERE slug = $2 ON CONFLICT (character_id, currency_id) DO UPDATE SET amount = EXCLUDED.amount, updated_at = NOW();)QDEF"},
+            // Currency loot catalog for chunk boot.
+    {"get_mob_currency_loot",
+     R"QDEF(SELECT mcl.id, mcl.mob_id, c.slug AS currency_slug, mcl.drop_chance, mcl.min_quantity, mcl.max_quantity FROM mob_currency_loot mcl JOIN currencies c ON c.id = mcl.currency_id ORDER BY mcl.mob_id;)QDEF"},
             // --- Game config queries ---
             // Загружает все геймплейные константы. Ответ читает GameConfigService::loadConfig().
     {"get_game_config",
@@ -318,7 +328,7 @@ const QueryDef kQueries[] = {
      R"QDEF(DELETE FROM player_inventory WHERE id = $1 AND character_id IS NULL;)QDEF"},
             // Insert a vendor/repair transaction log entry
     {"insert_currency_transaction",
-     R"QDEF(INSERT INTO currency_transactions (character_id, source_id, amount, reason_type) VALUES ($1, $2, $3, $4);)QDEF"},
+     R"QDEF(INSERT INTO currency_transactions (character_id, source_id, amount, reason_type, currency_id) VALUES ($1, $2, $3, $4, (SELECT id FROM currencies WHERE slug = 'gold'));)QDEF"},
             // Equipment: equip / unequip
             // $1=character_id, $2=equip_slot_slug, $3=inventory_item_id
     {"insert_character_equipment",

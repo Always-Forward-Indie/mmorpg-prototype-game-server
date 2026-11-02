@@ -716,6 +716,54 @@ WorldEventHandler::handleGetMobLootInfoEvent(const Event &event)
 }
 
 void
+WorldEventHandler::handleGetMobCurrencyLootEvent(const Event &event)
+{
+    const auto &data = event.getData();
+    int clientID = event.getClientID();
+    std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket = event.getClientSocket();
+
+    try
+    {
+        auto mobCurrencyLoot = gameServices_.getItemManager().getMobCurrencyLoot();
+
+        nlohmann::json lootJson = nlohmann::json::array();
+        for (const auto &mobLootEntry : mobCurrencyLoot)
+        {
+            for (const auto &e : mobLootEntry.second)
+            {
+                nlohmann::json c;
+                c["id"] = e.id;
+                c["mobId"] = e.mobId;
+                c["currencySlug"] = e.currencySlug;
+                c["dropChance"] = e.dropChance;
+                c["minQuantity"] = e.minQuantity;
+                c["maxQuantity"] = e.maxQuantity;
+                lootJson.push_back(c);
+            }
+        }
+
+        nlohmann::json response = ResponseBuilder()
+                                      .setHeader("message", "Mob currency loot success!")
+                                      .setHeader("hash", "")
+                                      .setHeader("clientId", clientID)
+                                      .setHeader("eventType", "setMobCurrencyLoot")
+                                      .setBody("mobCurrencyLoot", lootJson)
+                                      .build();
+
+        std::string responseData = networkManager_.generateResponseMessage("success", response);
+        networkManager_.sendResponse(clientSocket, responseData);
+    }
+    catch (const DatabaseError &)
+    {
+        throw;
+    }
+    catch (const std::exception &e)
+    {
+        gameServices_.getLogger().logError("Error getting mob currency loot: " + std::string(e.what()));
+    }
+}
+
+void
 WorldEventHandler::handleGetNPCsListEvent(const Event &event)
 {
     // Retrieve the data from the event

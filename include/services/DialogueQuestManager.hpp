@@ -33,6 +33,7 @@ class DialogueQuestManager
         int itemId = 0;
         int quantity = 0;
         uint64_t syncToken = 0;
+        std::string currencySlug; // non-empty = wallet credit, absolute balance in quantity (110)
     };
     struct ClaimResult
     {
@@ -54,7 +55,8 @@ class DialogueQuestManager
         int itemId = 0;
         int quantity = 0;
         int64_t amount = 0;
-        uint64_t syncToken = 0; // for item/gold inserts
+        uint64_t syncToken = 0; // for item inserts
+        int64_t balance = -1; // gold absolute wallet balance from chunk (110)
     };
     // Quest turn-in: SELECT quest FOR UPDATE; require state==completed;
     // check/consume collect items, grant rewards, set turned_in, commit.

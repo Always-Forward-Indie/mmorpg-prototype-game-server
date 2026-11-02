@@ -45,6 +45,7 @@ class EventDispatcher
     void handleSaveHpMana(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket); // ARCH-4
     void handleSaveCharacterProgress(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
     void handleSaveInventoryChange(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
+    void handleSaveCurrencyBalance(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
     void handleGetPlayerInventory(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
     void handleSaveEquipmentChange(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
     void handleSaveExperienceDebt(const EventPayload &payload, std::shared_ptr<boost::asio::ip::tcp::socket> socket);

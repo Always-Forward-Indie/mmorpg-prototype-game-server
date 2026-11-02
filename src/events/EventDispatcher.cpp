@@ -74,6 +74,7 @@ EventDispatcher::buildRouteTable()
         {"claimDialogueGift", &EventDispatcher::handleClaimDialogueGift},
         {"claimQuestTurnIn", &EventDispatcher::handleClaimQuestTurnIn},
         {"saveInventoryChange", &EventDispatcher::handleSaveInventoryChange},
+        {"saveCurrencyBalance", &EventDispatcher::handleSaveCurrencyBalance},
         {"getPlayerInventory", &EventDispatcher::handleGetPlayerInventory},
         {"saveEquipmentChange", &EventDispatcher::handleSaveEquipmentChange},
         {"saveExperienceDebt", &EventDispatcher::handleSaveExperienceDebt},
@@ -568,6 +569,26 @@ EventDispatcher::handleSaveInventoryChange(
     catch (const std::exception &ex)
     {
         logger_.logError("handleSaveInventoryChange parse error: " + std::string(ex.what()));
+    }
+}
+
+void
+EventDispatcher::handleSaveCurrencyBalance(
+    const EventPayload &payload,
+    std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+{
+    try
+    {
+        nlohmann::json j = payload.parsed ? *payload.parsed : nlohmann::json::parse(payload.rawMessage);
+        const auto &body = j["body"];
+        Event saveEvent(Event::SAVE_CURRENCY_BALANCE, 0, body, socket);
+        eventsBatch_.push_back(saveEvent);
+        eventQueue_.pushBatch(eventsBatch_);
+        eventsBatch_.clear();
+    }
+    catch (const std::exception &ex)
+    {
+        logger_.logError("handleSaveCurrencyBalance parse error: " + std::string(ex.what()));
     }
 }
 

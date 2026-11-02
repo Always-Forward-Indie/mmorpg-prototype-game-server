@@ -310,7 +310,10 @@ DialogueQuestEventHandler::handleClaimDialogueGiftEvent(const Event &event)
                 g.itemId = it.value("itemId", 0);
                 g.quantity = it.value("quantity", 0);
                 g.syncToken = it.value("syncToken", (uint64_t)0);
-                if (g.itemId > 0 && g.quantity > 0)
+                g.currencySlug = it.value("currencySlug", "");
+                // Wallet entries ride with itemId 0 + currencySlug (110).
+                if ((g.itemId > 0 && g.quantity > 0) ||
+                    (!g.currencySlug.empty() && g.quantity >= 0))
                     items.push_back(g);
             }
         }
@@ -399,6 +402,7 @@ DialogueQuestEventHandler::handleClaimQuestTurnInEvent(const Event &event)
                 rw.quantity = r.value("quantity", 0);
                 rw.amount = r.value("amount", (int64_t)0);
                 rw.syncToken = r.value("syncToken", (uint64_t)0);
+                rw.balance = r.value("balance", (int64_t)-1);
                 if (!rw.rewardType.empty())
                     rewards.push_back(rw);
             }

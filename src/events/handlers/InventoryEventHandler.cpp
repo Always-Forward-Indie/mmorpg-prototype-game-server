@@ -235,6 +235,77 @@ InventoryEventHandler::handleSaveInventoryChangeEvent(const Event &event)
 }
 
 void
+InventoryEventHandler::handleSaveCurrencyBalanceEvent(const Event &event)
+{
+    const auto &data = event.getData();
+
+    try
+    {
+        if (!std::holds_alternative<nlohmann::json>(data))
+        {
+            log_->error("handleSaveCurrencyBalanceEvent: unexpected data type");
+            return;
+        }
+        const auto &j = std::get<nlohmann::json>(data);
+        const int characterId = j.value("characterId", 0);
+        const std::string slug = j.value("currencySlug", "gold");
+        const int64_t amount = j.value("amount", int64_t(0));
+        const std::string reason = j.value("reason", "unknown");
+        if (characterId <= 0 || slug != "gold" || amount < 0)
+        {
+            log_->error("handleSaveCurrencyBalanceEvent: invalid params");
+            return;
+        }
+
+        std::shared_ptr<boost::asio::ip::tcp::socket> chunkSocket = event.getClientSocket();
+
+        auto _dbConn = gameServices_.getDatabase().getConnectionLocked();
+        pqxx::work txn(_dbConn.get());
+        // Outbox idempotency first: absolute upsert converges, but the audit
+        // row below must not double on resend.
+        const std::string factKey = outboxFactKeyOf(j);
+        if (!factKey.empty())
+        {
+            const int claimed = outboxClaimFactKey(
+                gameServices_.getDatabase(), txn, factKey);
+            if (claimed == 0)
+            {
+                outboxSendFactAck(networkManager_, chunkSocket, factKey, "duplicate");
+                return;
+            }
+            if (claimed < 0)
+                return;
+        }
+        // Delta for the audit row (same txn, locked read).
+        int64_t before = 0;
+        {
+            auto cur = gameServices_.getDatabase().execChecked(
+                txn, "get_character_currency", {characterId});
+            for (const auto &row : cur)
+                if (row["slug"].as<std::string>() == slug)
+                {
+                    before = row["amount"].as<int64_t>(0);
+                    break;
+                }
+        }
+        static_cast<void>(gameServices_.getDatabase().execChecked(
+            txn, "upsert_character_currency", {characterId, slug, amount}));
+        static_cast<void>(gameServices_.getDatabase().execChecked(
+            txn, "insert_currency_transaction",
+            {characterId, 0, (amount - before), reason}));
+        txn.commit();
+        if (!factKey.empty())
+            outboxSendFactAck(networkManager_, chunkSocket, factKey, "applied");
+        log_->info("[SAVE_WALLET] character=" + std::to_string(characterId) +
+                   " gold=" + std::to_string(amount) + " (" + reason + ")");
+    }
+    catch (const std::exception &ex)
+    {
+        gameServices_.getLogger().logError("Error in handleSaveCurrencyBalanceEvent: " + std::string(ex.what()));
+    }
+}
+
+void
 InventoryEventHandler::handleGetPlayerInventoryEvent(const Event &event)
 {
     const auto &data = event.getData();
@@ -277,6 +348,28 @@ InventoryEventHandler::handleGetPlayerInventoryEvent(const Event &event)
                                       .setBody("characterId", characterId)
                                       .setBody("items", itemsJson)
                                       .build();
+        // Wallet ledger (110): balances ride alongside the row snapshot.
+        try
+        {
+            auto cur = gameServices_.getDatabase().execChecked(
+                txn, "get_character_currency", {characterId});
+            int64_t gold = 0;
+            for (const auto &row : cur)
+            {
+                if (row["slug"].as<std::string>() == "gold")
+                {
+                    gold = row["amount"].as<int64_t>(0);
+                    break;
+                }
+            }
+            response["body"]["gold"] = gold;
+        }
+        catch (const std::exception &e)
+        {
+            gameServices_.getLogger().logError("Error loading wallet for characterId=" +
+                std::to_string(characterId) + ": " + std::string(e.what()));
+            response["body"]["gold"] = 0;
+        }
         networkManager_.sendResponse(clientSocket,
             networkManager_.generateResponseMessage("success", response));
 
